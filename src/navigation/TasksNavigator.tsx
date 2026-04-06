@@ -1,0 +1,30 @@
+import React from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import TasksScreen from '../screens/tasks/TasksScreen';
+import TaskDetailScreen from '../screens/tasks/TaskDetailScreen';
+import CreateTaskScreen from '../screens/tasks/CreateTaskScreen';
+import { colors, typography } from '../theme/theme';
+
+export type TasksStackParamList = {
+  TasksList: undefined;
+  TaskDetail: { taskId: string };
+  CreateTask: undefined;
+};
+
+const Stack = createNativeStackNavigator<TasksStackParamList>();
+
+export default function TasksNavigator() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerTintColor: colors.primary,
+        headerTitleStyle: { fontWeight: typography.semibold, color: colors.text },
+        headerBackTitle: 'Back',
+      }}
+    >
+      <Stack.Screen name="TasksList" component={TasksScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Task Detail' }} />
+      <Stack.Screen name="CreateTask" component={CreateTaskScreen} options={{ title: 'New Task', presentation: 'modal' }} />
+    </Stack.Navigator>
+  );
+}

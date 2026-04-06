@@ -1,0 +1,227 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
+import { useTasks } from '../../hooks/useTasks';
+import { useOutlets } from '../../hooks/useOutlets';
+import { Task, TaskStatus } from '../../api/endpoints/tasks';
+import StatusBadge from '../../components/StatusBadge';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { TasksStackParamList } from '../../navigation/TasksNavigator';
+
+type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
+
+const STATUSES: { label: string; value: TaskStatus | 'ALL' }[] = [
+  { label: 'All', value: 'ALL' },
+  { label: 'Open', value: 'OPEN' },
+  { label: 'Assigned', value: 'ASSIGNED' },
+  { label: 'In Progress', value: 'IN_PROGRESS' },
+  { label: 'Review', value: 'READY_FOR_REVIEW' },
+  { label: 'Done', value: 'COMPLETED' },
+];
+
+const PRIORITY_COLORS: Record<string, string> = {
+  HIGH: colors.priorityHigh,
+  MEDIUM: colors.priorityMedium,
+  LOW: colors.priorityLow,
+};
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function TaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
+  const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+      <View style={styles.cardHeader}>
+        <StatusBadge status={task.status} />
+        <Text style={[styles.dueDate, isOverdue && { color: colors.error }]}>
+          {formatDate(task.dueDate)}
+        </Text>
+      </View>
+
+      {task.outletName && (
+        <Text style={styles.outletName}>{task.outletName}</Text>
+      )}
+      <Text style={styles.description} numberOfLines={2}>{task.description}</Text>
+
+      <View style={styles.cardFooter}>
+        {task.category && (
+          <View style={styles.categoryPill}>
+            <Text style={styles.categoryText}>{task.category}</Text>
+          </View>
+        )}
+        <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[task.priority] ?? colors.textSecondary }]} />
+        <Text style={styles.priorityText}>{task.priority}</Text>
+        {task.assigneeNames && task.assigneeNames.length > 0 && (
+          <Text style={styles.assignees} numberOfLines={1}>
+            · {task.assigneeNames.join(', ')}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+export default function TasksScreen() {
+  const navigation = useNavigation<Nav>();
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>('ALL');
+  const [outletFilter, setOutletFilter] = useState<string | undefined>();
+
+  const query = {
+    limit: 50,
+    ...(statusFilter !== 'ALL' && { status: statusFilter }),
+    ...(outletFilter && { outletId: outletFilter }),
+  };
+
+  const { data: tasks, isLoading, isFetching, refetch } = useTasks(query);
+  const { data: outlets } = useOutlets();
+
+  return (
+    <SafeAreaView style={styles.root} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.heading}>Tasks</Text>
+        <TouchableOpacity
+          style={styles.createBtn}
+          onPress={() => navigation.navigate('CreateTask')}
+        >
+          <Text style={styles.createBtnText}>+ New</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* TODO (Abin): Filter chips are visually wonky — spacing/wrapping/active state styling needs a polish pass.
+          The two horizontal FlatLists (status + outlet) may also conflict with the outer ScrollView/FlatList.
+          Consider replacing with a single ScrollView row per filter group, or collapsing into a filter modal. */}
+
+      {/* Status filter */}
+      <FlatList
+        horizontal
+        data={STATUSES}
+        keyExtractor={(i) => i.value}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[styles.filterChip, statusFilter === item.value && styles.filterChipActive]}
+            onPress={() => setStatusFilter(item.value)}
+          >
+            <Text style={[styles.filterChipText, statusFilter === item.value && styles.filterChipTextActive]}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        )}
+      />
+
+      {/* Outlet filter */}
+      {outlets && outlets.length > 0 && (
+        <FlatList
+          horizontal
+          data={[{ id: undefined, name: 'All Outlets' }, ...outlets]}
+          keyExtractor={(o) => o.id ?? 'all'}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[styles.filterChip, outletFilter === item.id && styles.filterChipActive]}
+              onPress={() => setOutletFilter(item.id)}
+            >
+              <Text style={[styles.filterChipText, outletFilter === item.id && styles.filterChipTextActive]}>
+                {item.name}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
+
+      {isLoading ? (
+        <ActivityIndicator style={{ marginTop: spacing.xxl }} color={colors.primary} />
+      ) : (
+        <FlatList
+          data={tasks ?? []}
+          keyExtractor={(t) => t.id}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+          renderItem={({ item }) => (
+            <TaskCard
+              task={item}
+              onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+            />
+          )}
+          ListEmptyComponent={
+            <Text style={styles.empty}>No tasks found</Text>
+          }
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.background },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  heading: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text },
+  createBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm - 2,
+    borderRadius: radius.full,
+  },
+  createBtnText: { color: colors.textInverse, fontWeight: typography.semibold, fontSize: typography.sm },
+
+  filterRow: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm, gap: spacing.sm },
+  filterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterChipText: { fontSize: typography.sm, color: colors.textSecondary },
+  filterChipTextActive: { color: colors.textInverse, fontWeight: typography.medium },
+
+  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xxl },
+
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadow.sm,
+  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  dueDate: { fontSize: typography.xs, color: colors.textSecondary },
+  outletName: { fontSize: typography.sm, fontWeight: typography.semibold, color: colors.primary, marginBottom: 4 },
+  description: { fontSize: typography.sm, color: colors.text, marginBottom: spacing.sm },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
+  categoryPill: {
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+  },
+  categoryText: { fontSize: typography.xs, color: colors.textSecondary },
+  priorityDot: { width: 6, height: 6, borderRadius: 3 },
+  priorityText: { fontSize: typography.xs, color: colors.textSecondary },
+  assignees: { fontSize: typography.xs, color: colors.textSecondary, flex: 1 },
+
+  empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
+});
