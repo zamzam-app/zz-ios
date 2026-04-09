@@ -30,3 +30,9 @@ export const useOutletFeedbackSummary = (period: Period) =>
     queryKey: ['outlet-feedback-summary', period],
     queryFn: () => analyticsApi.getOutletFeedbackSummary(period).then((r) => r.data),
   });
+
+export const useFranchiseAnalytics = (period: Period) =>
+  useQuery({
+    queryKey: ['franchise-analytics', period],
+    queryFn: () => analyticsApi.getFranchiseAnalytics(period).then((r) => r.data),
+  });

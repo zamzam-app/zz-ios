@@ -80,6 +80,31 @@ export interface OutletFeedbackSummaryResponse {
   endDate: string;
 }
 
+export interface FranchiseRankingItem {
+  rank: number;
+  outletId: string;
+  outletName: string;
+  managerNames?: string[] | null;
+  csatScore: number;
+}
+
+export interface MetricsHeatmapItem {
+  outletId: string;
+  outletName: string;
+  metrics: {
+    staff: number;
+    speed: number;
+    clean: number;
+    quality: number;
+    overall: number;
+  };
+}
+
+export interface FranchiseAnalyticsResponse {
+  franchiseRanking: FranchiseRankingItem[];
+  metricsHeatmap: MetricsHeatmapItem[];
+}
+
 export const analyticsApi = {
   getQuickInsights: (period: Period) =>
     client.get<QuickInsightsResponse>('/analytics/quick-insights', { params: { period } }),
@@ -95,4 +120,7 @@ export const analyticsApi = {
 
   getOutletFeedbackSummary: (period: Period) =>
     client.get<OutletFeedbackSummaryResponse>('/analytics/outlet-feedback-summary', { params: { period } }),
+
+  getFranchiseAnalytics: (period: Period) =>
+    client.get<FranchiseAnalyticsResponse>('/analytics/franchise', { params: { period } }),
 };
