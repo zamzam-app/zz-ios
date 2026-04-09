@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
@@ -88,88 +89,102 @@ export default function TasksScreen() {
   const { data: tasks, isLoading, isFetching, refetch } = useTasks(query);
   const { data: outlets } = useOutlets();
 
+  const listData = tasks ?? [];
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.heading}>Tasks</Text>
-        <TouchableOpacity
-          style={styles.createBtn}
-          onPress={() => navigation.navigate('CreateTask')}
-        >
-          <Text style={styles.createBtnText}>+ New</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* TODO (Abin): Filter chips are visually wonky — spacing/wrapping/active state styling needs a polish pass.
-          The two horizontal FlatLists (status + outlet) may also conflict with the outer ScrollView/FlatList.
-          Consider replacing with a single ScrollView row per filter group, or collapsing into a filter modal. */}
-
-      {/* Status filter */}
       <FlatList
-        horizontal
-        data={STATUSES}
-        keyExtractor={(i) => i.value}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.filterChip, statusFilter === item.value && styles.filterChipActive]}
-            onPress={() => setStatusFilter(item.value)}
-          >
-            <Text style={[styles.filterChipText, statusFilter === item.value && styles.filterChipTextActive]}>
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        )}
-      />
+        data={listData}
+        keyExtractor={(t) => t.id}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+        ListHeaderComponent={(
+          <>
+            <View style={styles.header}>
+              <Text style={styles.heading}>Tasks</Text>
+              <TouchableOpacity
+                style={styles.createBtn}
+                onPress={() => navigation.navigate('CreateTask')}
+              >
+                <Text style={styles.createBtnText}>+ New</Text>
+              </TouchableOpacity>
+            </View>
 
-      {/* Outlet filter */}
-      {outlets && outlets.length > 0 && (
-        <FlatList
-          horizontal
-          data={[{ id: undefined, name: 'All Outlets' }, ...outlets]}
-          keyExtractor={(o) => o.id ?? 'all'}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.filterChip, outletFilter === item.id && styles.filterChipActive]}
-              onPress={() => setOutletFilter(item.id)}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+              style={styles.filterScroll}
             >
-              <Text style={[styles.filterChipText, outletFilter === item.id && styles.filterChipTextActive]}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
-      )}
+              {STATUSES.map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[styles.filterChip, statusFilter === item.value && styles.filterChipActive]}
+                  onPress={() => setStatusFilter(item.value)}
+                >
+                  <Text style={[styles.filterChipText, statusFilter === item.value && styles.filterChipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-      {isLoading ? (
-        <ActivityIndicator style={{ marginTop: spacing.xxl }} color={colors.primary} />
-      ) : (
-        <FlatList
-          data={tasks ?? []}
-          keyExtractor={(t) => t.id}
-          contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
-          renderItem={({ item }) => (
+            {outlets && outlets.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterRow}
+                style={styles.filterScroll}
+              >
+                <TouchableOpacity
+                  style={[styles.filterChip, outletFilter === undefined && styles.filterChipActive]}
+                  onPress={() => setOutletFilter(undefined)}
+                >
+                  <Text style={[styles.filterChipText, outletFilter === undefined && styles.filterChipTextActive]}>
+                    All Outlets
+                  </Text>
+                </TouchableOpacity>
+                {outlets.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.filterChip, outletFilter === item.id && styles.filterChipActive]}
+                    onPress={() => setOutletFilter(item.id)}
+                  >
+                    <Text style={[styles.filterChipText, outletFilter === item.id && styles.filterChipTextActive]}>
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </>
+        )}
+        renderItem={({ item }) => (
+          <View style={styles.taskItem}>
             <TaskCard
               task={item}
               onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
             />
-          )}
-          ListEmptyComponent={
-            <Text style={styles.empty}>No tasks found</Text>
-          }
-        />
-      )}
+          </View>
+        )}
+        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+        ListEmptyComponent={(
+          <View style={styles.emptyContainer}>
+            {isLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Text style={styles.empty}>No tasks found</Text>
+            )}
+          </View>
+        )}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  listContent: { flexGrow: 1, paddingBottom: spacing.xxl },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -187,7 +202,8 @@ const styles = StyleSheet.create({
   },
   createBtnText: { color: colors.textInverse, fontWeight: typography.semibold, fontSize: typography.sm },
 
-  filterRow: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm, gap: spacing.sm },
+  filterScroll: { marginBottom: spacing.sm },
+  filterRow: { paddingHorizontal: spacing.md, gap: spacing.sm, alignItems: 'center' },
   filterChip: {
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
@@ -199,7 +215,7 @@ const styles = StyleSheet.create({
   filterChipText: { fontSize: typography.sm, color: colors.textSecondary },
   filterChipTextActive: { color: colors.textInverse, fontWeight: typography.medium },
 
-  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xxl },
+  taskItem: { paddingHorizontal: spacing.md },
 
   card: {
     backgroundColor: colors.surface,
@@ -223,5 +239,6 @@ const styles = StyleSheet.create({
   priorityText: { fontSize: typography.xs, color: colors.textSecondary },
   assignees: { fontSize: typography.xs, color: colors.textSecondary, flex: 1 },
 
-  empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
+  emptyContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: spacing.xxl },
+  empty: { textAlign: 'center', color: colors.textSecondary },
 });
