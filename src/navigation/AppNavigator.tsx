@@ -7,7 +7,7 @@ import OverviewScreen from '../screens/overview/OverviewScreen';
 import TasksNavigator from './TasksNavigator';
 import ReviewsNavigator from './ReviewsNavigator';
 import InfrastructureNavigator from './InfrastructureNavigator';
-import MoreNavigator from './MoreNavigator';
+// import MoreNavigator from './MoreNavigator'; // uncommit when More tab is pushed
 import { useReviews } from '../hooks/useReviews';
 
 // Placeholder screens — will be replaced as we build each tab
@@ -84,7 +84,7 @@ export default function AppNavigator() {
       <Tab.Screen name="Tasks" component={TasksNavigator} />
       <Tab.Screen name="Reviews" component={ReviewsNavigator} />
       <Tab.Screen name="Infrastructure" component={InfrastructureNavigator} />
-      <Tab.Screen name="More" component={MoreNavigator} />
+      <Tab.Screen name="More" component={() => <PlaceholderScreen name="More" />} />
     </Tab.Navigator>
   );
 }
