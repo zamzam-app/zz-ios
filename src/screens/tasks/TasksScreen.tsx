@@ -24,10 +24,7 @@ type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 const STATUSES: { label: string; value: TaskStatus | 'ALL' }[] = [
   { label: 'All', value: 'ALL' },
   { label: 'Open', value: 'OPEN' },
-  { label: 'Assigned', value: 'ASSIGNED' },
-  { label: 'In Progress', value: 'IN_PROGRESS' },
-  { label: 'Review', value: 'READY_FOR_REVIEW' },
-  { label: 'Done', value: 'COMPLETED' },
+  { label: 'Completed', value: 'COMPLETED' },
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {

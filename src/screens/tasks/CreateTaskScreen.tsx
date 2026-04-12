@@ -15,17 +15,49 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCreateTask } from '../../hooks/useTasks';
+import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useManagers } from '../../hooks/useUsers';
-import { TaskCategory, TaskPriority } from '../../api/endpoints/tasks';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { TaskPriority, TaskCategoryOption } from '../../api/endpoints/tasks';
+import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'CreateTask'>;
 
-const CATEGORIES: TaskCategory[] = ['HYGIENE', 'MAINTENANCE', 'INVENTORY', 'STAFFING'];
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const responseData = (error as { response?: { data?: unknown } })?.response?.data;
+
+  if (typeof responseData === 'string' && responseData.trim().length > 0) {
+    return responseData;
+  }
+
+  if (responseData && typeof responseData === 'object') {
+    const message = (responseData as { message?: unknown }).message;
+    if (Array.isArray(message)) {
+      const firstMessage = message.find(
+        (item): item is string => typeof item === 'string' && item.trim().length > 0,
+      );
+      if (firstMessage) return firstMessage;
+    }
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+
+    const errorText = (responseData as { error?: unknown }).error;
+    if (typeof errorText === 'string' && errorText.trim().length > 0) {
+      return errorText;
+    }
+  }
+
+  const genericMessage = (error as { message?: unknown })?.message;
+  if (typeof genericMessage === 'string' && genericMessage.trim().length > 0) {
+    return genericMessage;
+  }
+
+  return fallback;
+}
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -54,6 +86,32 @@ function ChipGroup<T extends string>({
         >
           <Text style={[styles.chipText, value === o && styles.chipTextActive]}>
             {o.replace(/_/g, ' ')}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+function CategoryChipGroup({
+  options,
+  value,
+  onChange,
+}: {
+  options: TaskCategoryOption[];
+  value: string | undefined;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <View style={styles.chipRow}>
+      {options.map((option) => (
+        <TouchableOpacity
+          key={option.id}
+          style={[styles.chip, value === option.id && styles.chipActive]}
+          onPress={() => onChange(option.id)}
+        >
+          <Text style={[styles.chipText, value === option.id && styles.chipTextActive]}>
+            {option.name}
           </Text>
         </TouchableOpacity>
       ))}
@@ -108,7 +166,7 @@ function PickerModal({
 
 export default function CreateTaskScreen({ navigation }: Props) {
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<TaskCategory | undefined>();
+  const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>();
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -119,19 +177,21 @@ export default function CreateTaskScreen({ navigation }: Props) {
 
   const { data: outlets } = useOutlets();
   const { data: managers } = useManagers();
+  const { data: taskCategories, isLoading: isLoadingTaskCategories } = useTaskCategories();
   const createTask = useCreateTask();
 
   const selectedOutlet = outlets?.find((o) => o.id === outletId);
   const selectedManagers = managers?.filter((m) => assigneeIds.includes(m.id)) ?? [];
+  const hasTaskCategories = (taskCategories?.length ?? 0) > 0;
 
   const handleSubmit = () => {
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
-    if (!category) return Alert.alert('Required', 'Please select a category.');
+    if (!taskCategoryId) return Alert.alert('Required', 'Please select a category.');
 
     createTask.mutate(
       {
         description: description.trim(),
-        category,
+        taskCategoryId,
         priority,
         dueDate: dueDate.toISOString(),
         ...(outletId ? { outletId } : {}),
@@ -139,7 +199,8 @@ export default function CreateTaskScreen({ navigation }: Props) {
       },
       {
         onSuccess: () => navigation.goBack(),
-        onError: () => Alert.alert('Error', 'Failed to create task. Please try again.'),
+        onError: (error) =>
+          Alert.alert('Error', getApiErrorMessage(error, 'Failed to create task. Please try again.')),
       },
     );
   };
@@ -159,7 +220,21 @@ export default function CreateTaskScreen({ navigation }: Props) {
         />
 
         <Label text="Category" required />
-        <ChipGroup options={CATEGORIES} value={category} onChange={setCategory} />
+        {isLoadingTaskCategories ? (
+          <View style={styles.fieldState}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : hasTaskCategories ? (
+          <CategoryChipGroup
+            options={taskCategories ?? []}
+            value={taskCategoryId}
+            onChange={setTaskCategoryId}
+          />
+        ) : (
+          <Text style={styles.fieldError}>
+            Unable to load task categories. Please try again.
+          </Text>
+        )}
 
         <Label text="Priority" />
         <ChipGroup options={PRIORITIES} value={priority} onChange={setPriority} />
@@ -197,9 +272,12 @@ export default function CreateTaskScreen({ navigation }: Props) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.submitBtn, createTask.isPending && { opacity: 0.6 }]}
+          style={[
+            styles.submitBtn,
+            (createTask.isPending || isLoadingTaskCategories || !hasTaskCategories) && styles.submitBtnDisabled,
+          ]}
           onPress={handleSubmit}
-          disabled={createTask.isPending}
+          disabled={createTask.isPending || isLoadingTaskCategories || !hasTaskCategories}
         >
           {createTask.isPending ? (
             <ActivityIndicator color={colors.textInverse} />
@@ -274,6 +352,16 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: typography.sm, color: colors.textSecondary },
   chipTextActive: { color: colors.textInverse, fontWeight: typography.medium },
+  fieldState: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  fieldError: { color: colors.error, fontSize: typography.sm },
 
   submitBtn: {
     backgroundColor: colors.primary,
@@ -282,6 +370,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.md,
   },
+  submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
 
   modalHeader: {
