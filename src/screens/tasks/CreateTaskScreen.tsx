@@ -127,8 +127,6 @@ export default function CreateTaskScreen({ navigation }: Props) {
   const handleSubmit = () => {
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
     if (!category) return Alert.alert('Required', 'Please select a category.');
-    if (!outletId) return Alert.alert('Required', 'Please select an outlet.');
-    if (assigneeIds.length === 0) return Alert.alert('Required', 'Please assign at least one manager.');
 
     createTask.mutate(
       {
@@ -136,8 +134,8 @@ export default function CreateTaskScreen({ navigation }: Props) {
         category,
         priority,
         dueDate: dueDate.toISOString(),
-        outletId,
-        assigneeIds,
+        ...(outletId ? { outletId } : {}),
+        ...(assigneeIds.length > 0 ? { assigneeIds } : {}),
       },
       {
         onSuccess: () => navigation.goBack(),
@@ -184,17 +182,17 @@ export default function CreateTaskScreen({ navigation }: Props) {
           />
         )}
 
-        <Label text="Outlet" required />
+        <Label text="Outlet" />
         <TouchableOpacity style={styles.input} onPress={() => setShowOutletPicker(true)}>
           <Text style={{ color: selectedOutlet ? colors.text : colors.textDisabled }}>
             {selectedOutlet?.name ?? 'Select outlet...'}
           </Text>
         </TouchableOpacity>
 
-        <Label text="Assignees" required />
+        <Label text="Assignees" />
         <TouchableOpacity style={styles.input} onPress={() => setShowAssigneePicker(true)}>
           <Text style={{ color: selectedManagers.length > 0 ? colors.text : colors.textDisabled }}>
-            {selectedManagers.length > 0 ? selectedManagers.map((m) => m.name).join(', ') : 'Select managers...'}
+            {selectedManagers.length > 0 ? selectedManagers.map((m) => m.name).join(', ') : 'Select managers (optional)...'}
           </Text>
         </TouchableOpacity>
 

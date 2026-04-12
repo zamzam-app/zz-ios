@@ -39,6 +39,29 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+type TaskDetailCompat = {
+  outlet?: { name?: string } | null;
+  taskCategory?: { name?: string } | null;
+  assignees?: Array<{ name?: string }>;
+};
+
+function getTaskOutletName(task: { outletName?: string } & TaskDetailCompat) {
+  return task.outlet?.name ?? task.outletName;
+}
+
+function getTaskCategoryName(task: { category?: string } & TaskDetailCompat) {
+  return task.taskCategory?.name ?? task.category;
+}
+
+function getTaskAssigneeNames(task: { assigneeNames?: string[] } & TaskDetailCompat) {
+  if (task.assigneeNames && task.assigneeNames.length > 0) {
+    return task.assigneeNames;
+  }
+  return (task.assignees ?? [])
+    .map((assignee) => assignee.name)
+    .filter((name): name is string => Boolean(name));
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.row}>
@@ -117,6 +140,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   }
 
   const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
+  const compatTask = task as typeof task & TaskDetailCompat;
+  const outletName = getTaskOutletName(compatTask);
+  const categoryName = getTaskCategoryName(compatTask);
+  const assigneeNames = getTaskAssigneeNames(compatTask);
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
@@ -136,8 +163,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
         {/* Details */}
         <View style={styles.detailsCard}>
-          {task.outletName && <Row label="Outlet" value={task.outletName} />}
-          {task.category && <Row label="Category" value={task.category} />}
+          {outletName && <Row label="Outlet" value={outletName} />}
+          {categoryName && <Row label="Category" value={categoryName} />}
           <Row
             label="Due Date"
             value={formatDate(task.dueDate)}
@@ -145,8 +172,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           {isOverdue && task.status !== 'COMPLETED' && (
             <Text style={styles.overdueTag}>Overdue</Text>
           )}
-          {task.assigneeNames && task.assigneeNames.length > 0 && (
-            <Row label="Assigned To" value={task.assigneeNames.join(', ')} />
+          {assigneeNames.length > 0 && (
+            <Row label="Assigned To" value={assigneeNames.join(', ')} />
           )}
           <Row label="Created" value={formatDate(task.createdAt)} />
           {task.completedAt && (
