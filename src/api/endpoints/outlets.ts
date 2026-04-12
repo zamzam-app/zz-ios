@@ -38,6 +38,7 @@ interface RawOutlet {
   name?: string;
   description?: string;
   address?: string;
+  outletType?: string | { _id?: string; name?: string };
   outletTypeId?: string | { _id?: string; name?: string };
   outletTypeName?: string;
   managerNames?: string[];
@@ -54,7 +55,13 @@ function mapOutlet(raw: RawOutlet): Outlet {
 
   let outletTypeId: string | undefined;
   let outletTypeName: string | undefined;
-  if (typeof raw.outletTypeId === 'object' && raw.outletTypeId) {
+  if (typeof raw.outletType === 'object' && raw.outletType) {
+    outletTypeId = String(raw.outletType._id ?? '');
+    outletTypeName = raw.outletType.name;
+  } else if (typeof raw.outletType === 'string') {
+    outletTypeId = raw.outletType;
+    outletTypeName = raw.outletTypeName;
+  } else if (typeof raw.outletTypeId === 'object' && raw.outletTypeId) {
     outletTypeId = String(raw.outletTypeId._id ?? '');
     outletTypeName = raw.outletTypeId.name;
   } else if (typeof raw.outletTypeId === 'string') {
