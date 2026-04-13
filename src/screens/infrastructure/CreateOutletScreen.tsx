@@ -109,7 +109,13 @@ export default function CreateOutletScreen({ navigation }: Props) {
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showManagerPicker, setShowManagerPicker] = useState(false);
 
-  const { data: outletTypes } = useOutletTypes();
+  const {
+    data: outletTypes,
+    isLoading: isLoadingOutletTypes,
+    isError: isOutletTypesError,
+    isFetching: isFetchingOutletTypes,
+    refetch: refetchOutletTypes,
+  } = useOutletTypes();
   const { data: managers } = useManagers();
   const createOutlet = useCreateOutlet();
   const userRole = useAuthStore((state) => state.user?.role);
@@ -174,11 +180,32 @@ export default function CreateOutletScreen({ navigation }: Props) {
         />
 
         <Text style={styles.label}>Outlet Type *</Text>
-        <TouchableOpacity style={styles.input} onPress={() => setShowTypePicker(true)}>
-          <Text style={{ color: selectedType ? colors.text : colors.textDisabled }}>
-            {selectedType?.name ?? 'Select type...'}
-          </Text>
-        </TouchableOpacity>
+        {isLoadingOutletTypes ? (
+          <View style={styles.fieldState}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : isOutletTypesError ? (
+          <View style={styles.fieldState}>
+            <Text style={styles.fieldError}>Unable to load outlet types.</Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, isFetchingOutletTypes && styles.retryBtnDisabled]}
+              onPress={() => { void refetchOutletTypes(); }}
+              disabled={isFetchingOutletTypes}
+            >
+              {isFetchingOutletTypes ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.retryBtnText}>Retry</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.input} onPress={() => setShowTypePicker(true)}>
+            <Text style={{ color: selectedType ? colors.text : colors.textDisabled }}>
+              {selectedType?.name ?? 'Select type...'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.label}>Managers</Text>
         <TouchableOpacity style={styles.input} onPress={() => setShowManagerPicker(true)}>
@@ -239,6 +266,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: 'center',
   },
+  fieldState: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    gap: spacing.sm,
+  },
+  fieldError: { color: colors.error, fontSize: typography.sm },
+  retryBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background,
+    minWidth: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryBtnDisabled: { opacity: 0.7 },
+  retryBtnText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
   submitBtn: {
     backgroundColor: colors.primary,
     borderRadius: radius.md,
