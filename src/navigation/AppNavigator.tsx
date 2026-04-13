@@ -15,6 +15,10 @@ function PlaceholderScreen({ name }: { name: string }) {
   return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.textSecondary }}>{name}</Text></View>;
 }
 
+function MoreScreen() {
+  return <PlaceholderScreen name="More" />;
+}
+
 export type AppTabParamList = {
   Overview: undefined;
   Tasks: undefined;
@@ -84,7 +88,7 @@ export default function AppNavigator() {
       <Tab.Screen name="Tasks" component={TasksNavigator} />
       <Tab.Screen name="Reviews" component={ReviewsNavigator} />
       <Tab.Screen name="Infrastructure" component={InfrastructureNavigator} />
-      <Tab.Screen name="More" component={() => <PlaceholderScreen name="More" />} />
+      <Tab.Screen name="More" component={MoreScreen} />
     </Tab.Navigator>
   );
 }

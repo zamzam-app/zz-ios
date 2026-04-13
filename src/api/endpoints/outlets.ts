@@ -40,7 +40,7 @@ interface RawOutlet {
   outletTypeId?: string | { _id?: string; name?: string };
   outletTypeName?: string;
   managerNames?: string[];
-  managerIds?: string[];
+  managerIds?: Array<string | { _id?: string; name?: string }>;
   managers?: Array<{ _id?: string; name?: string }>;
   rating?: number;
   totalFeedback?: number;
@@ -62,7 +62,16 @@ function mapOutlet(raw: RawOutlet): Outlet {
   }
 
   let managerNames = raw.managerNames ?? [];
-  let managerIds = raw.managerIds ?? [];
+  let managerIds = Array.isArray(raw.managerIds)
+    ? raw.managerIds
+      .map((m) => (typeof m === 'string' ? m : String(m._id ?? '')))
+      .filter(Boolean)
+    : [];
+  if (managerNames.length === 0 && Array.isArray(raw.managerIds)) {
+    managerNames = raw.managerIds
+      .map((m) => (typeof m === 'string' ? '' : (m.name ?? '').trim()))
+      .filter(Boolean);
+  }
   if (Array.isArray(raw.managers) && raw.managers.length > 0) {
     managerIds = raw.managers.map((m) => String(m._id ?? '')).filter(Boolean);
     managerNames = raw.managers.map((m) => m.name ?? '').filter(Boolean);

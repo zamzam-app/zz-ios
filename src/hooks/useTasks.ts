@@ -14,6 +14,13 @@ export const useTask = (id: string) =>
     enabled: !!id,
   });
 
+export const useTaskCategories = () =>
+  useQuery({
+    queryKey: ['task-categories'],
+    queryFn: tasksApi.listCategories,
+    staleTime: 5 * 60 * 1000,
+  });
+
 export const useCreateTask = () => {
   const qc = useQueryClient();
   return useMutation({

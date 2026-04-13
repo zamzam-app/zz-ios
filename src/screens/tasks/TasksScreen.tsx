@@ -24,10 +24,7 @@ type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 const STATUSES: { label: string; value: TaskStatus | 'ALL' }[] = [
   { label: 'All', value: 'ALL' },
   { label: 'Open', value: 'OPEN' },
-  { label: 'Assigned', value: 'ASSIGNED' },
-  { label: 'In Progress', value: 'IN_PROGRESS' },
-  { label: 'Review', value: 'READY_FOR_REVIEW' },
-  { label: 'Done', value: 'COMPLETED' },
+  { label: 'Completed', value: 'COMPLETED' },
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -41,8 +38,29 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function getCategoryName(task: Task) {
+  return task.taskCategory?.name ?? task.category;
+}
+
+function getOutletName(task: Task) {
+  return task.outlet?.name ?? task.outletName;
+}
+
+function getAssigneeNames(task: Task) {
+  if (task.assigneeNames && task.assigneeNames.length > 0) {
+    return task.assigneeNames;
+  }
+  return (task.assignees ?? [])
+    .map((assignee) => assignee.name)
+    .filter((name): name is string => Boolean(name));
+}
+
 function TaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
   const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
+  const outletName = getOutletName(task);
+  const categoryName = getCategoryName(task);
+  const assigneeNames = getAssigneeNames(task);
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
       <View style={styles.cardHeader}>
@@ -52,22 +70,22 @@ function TaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
         </Text>
       </View>
 
-      {task.outletName && (
-        <Text style={styles.outletName}>{task.outletName}</Text>
+      {outletName && (
+        <Text style={styles.outletName}>{outletName}</Text>
       )}
       <Text style={styles.description} numberOfLines={2}>{task.description}</Text>
 
       <View style={styles.cardFooter}>
-        {task.category && (
+        {categoryName && (
           <View style={styles.categoryPill}>
-            <Text style={styles.categoryText}>{task.category}</Text>
+            <Text style={styles.categoryText}>{categoryName}</Text>
           </View>
         )}
         <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[task.priority] ?? colors.textSecondary }]} />
         <Text style={styles.priorityText}>{task.priority}</Text>
-        {task.assigneeNames && task.assigneeNames.length > 0 && (
+        {assigneeNames.length > 0 && (
           <Text style={styles.assignees} numberOfLines={1}>
-            · {task.assigneeNames.join(', ')}
+            · {assigneeNames.join(', ')}
           </Text>
         )}
       </View>

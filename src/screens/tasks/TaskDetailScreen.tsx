@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTask, useUpdateTaskStatus, useDeleteTask } from '../../hooks/useTasks';
-import { TaskStatus } from '../../api/endpoints/tasks';
+import { Task, TaskStatus } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
@@ -37,6 +37,23 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function getTaskOutletName(task: Task) {
+  return task.outlet?.name ?? task.outletName;
+}
+
+function getTaskCategoryName(task: Task) {
+  return task.taskCategory?.name ?? task.category;
+}
+
+function getTaskAssigneeNames(task: Task) {
+  if (task.assigneeNames && task.assigneeNames.length > 0) {
+    return task.assigneeNames;
+  }
+  return (task.assignees ?? [])
+    .map((assignee) => assignee.name)
+    .filter((name): name is string => Boolean(name));
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -117,6 +134,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   }
 
   const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
+  const outletName = getTaskOutletName(task);
+  const categoryName = getTaskCategoryName(task);
+  const assigneeNames = getTaskAssigneeNames(task);
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
@@ -136,8 +156,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
         {/* Details */}
         <View style={styles.detailsCard}>
-          {task.outletName && <Row label="Outlet" value={task.outletName} />}
-          {task.category && <Row label="Category" value={task.category} />}
+          {outletName && <Row label="Outlet" value={outletName} />}
+          {categoryName && <Row label="Category" value={categoryName} />}
           <Row
             label="Due Date"
             value={formatDate(task.dueDate)}
@@ -145,8 +165,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           {isOverdue && task.status !== 'COMPLETED' && (
             <Text style={styles.overdueTag}>Overdue</Text>
           )}
-          {task.assigneeNames && task.assigneeNames.length > 0 && (
-            <Row label="Assigned To" value={task.assigneeNames.join(', ')} />
+          {assigneeNames.length > 0 && (
+            <Row label="Assigned To" value={assigneeNames.join(', ')} />
           )}
           <Row label="Created" value={formatDate(task.createdAt)} />
           {task.completedAt && (

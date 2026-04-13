@@ -4,7 +4,13 @@ import client from '../client';
 
 export type TaskStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'READY_FOR_REVIEW' | 'COMPLETED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
-export type TaskCategory = 'HYGIENE' | 'MAINTENANCE' | 'INVENTORY' | 'STAFFING';
+export type TaskCategory = string;
+
+export interface TaskCategoryOption {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 export interface Task {
   id: string;
@@ -12,12 +18,15 @@ export interface Task {
   title: string;
   status: TaskStatus;
   priority: TaskPriority;
-  category?: TaskCategory;
+  category?: string;
+  taskCategory?: { _id: string; name: string; description?: string };
   dueDate: string;
   outletId?: string;
   outletName?: string;
+  outlet?: { _id: string; name?: string } | null;
   assigneeIds: string[];
   assigneeNames?: string[];
+  assignees?: Array<{ _id: string; name?: string }>;
   imageUrls?: string[];
   createdAt: string;
   updatedAt?: string;
@@ -29,7 +38,8 @@ export interface TasksQuery {
   limit?: number;
   outletId?: string;
   status?: TaskStatus;
-  category?: TaskCategory;
+  taskCategoryId?: string;
+  category?: string;
   priority?: TaskPriority;
   assigneeId?: string;
   search?: string;
@@ -37,11 +47,11 @@ export interface TasksQuery {
 
 export interface CreateTaskPayload {
   description: string;
-  category: TaskCategory;
+  taskCategoryId: string;
   priority: TaskPriority;
   dueDate: string;
-  outletId: string;
-  assigneeIds: string[];
+  outletId?: string;
+  assigneeIds?: string[];
   status?: TaskStatus;
 }
 
@@ -52,6 +62,7 @@ interface RawTask {
   id?: string;
   description?: string;
   category?: string;
+  taskCategory?: { _id?: string; name?: string; description?: string };
   priority?: string;
   status?: string;
   dueDate?: string;
@@ -67,10 +78,33 @@ interface RawTask {
   completedAt?: string | null;
 }
 
+interface RawTaskCategory {
+  _id?: string;
+  id?: string;
+  name?: string;
+  description?: string;
+}
+
+function mapTaskCategory(raw: RawTaskCategory): TaskCategoryOption {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    name: String(raw.name ?? ''),
+    description: raw.description,
+  };
+}
+
 function mapTask(raw: RawTask): Task {
   const id = String(raw._id ?? raw.id ?? '');
   const description = String(raw.description ?? '');
   const title = description.split('\n')[0]?.trim().slice(0, 120) || 'Task';
+  const taskCategory =
+    raw.taskCategory?._id && raw.taskCategory?.name
+      ? {
+        _id: String(raw.taskCategory._id),
+        name: String(raw.taskCategory.name),
+        description: raw.taskCategory.description,
+      }
+      : undefined;
 
   // outlet
   let outletId: string | undefined;
@@ -107,12 +141,19 @@ function mapTask(raw: RawTask): Task {
     title,
     status: (raw.status as TaskStatus) ?? 'OPEN',
     priority: (raw.priority as TaskPriority) ?? 'MEDIUM',
-    category: raw.category as TaskCategory | undefined,
+    category: raw.category ?? taskCategory?.name,
+    taskCategory,
     dueDate: raw.dueDate ?? new Date().toISOString(),
     outletId,
     outletName,
+    outlet: raw.outlet?._id ? { _id: String(raw.outlet._id), name: raw.outlet.name } : null,
     assigneeIds,
     assigneeNames,
+    assignees: Array.isArray(raw.assignees)
+      ? raw.assignees
+        .filter((a): a is { _id?: string; name?: string } => Boolean(a?._id))
+        .map((a) => ({ _id: String(a._id), name: a.name }))
+      : undefined,
     imageUrls: raw.imageUrls,
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt,
@@ -136,6 +177,18 @@ export const tasksApi = {
 
   create: (payload: CreateTaskPayload) =>
     client.post<RawTask>('/tasks', payload).then((r) => mapTask(r.data)),
+
+  listCategories: async () => {
+    const response = await client.get<{ data: RawTaskCategory[] } | RawTaskCategory[]>('/task-category', {
+      params: { limit: 100 },
+    });
+    const raw = Array.isArray(response.data)
+      ? response.data
+      : (response.data as { data: RawTaskCategory[] }).data ?? [];
+    return raw
+      .map(mapTaskCategory)
+      .filter((category) => category.id.length > 0 && category.name.length > 0);
+  },
 
   updateStatus: (id: string, status: TaskStatus) =>
     client.patch<RawTask>(`/tasks/${id}/status`, { status }).then((r) => mapTask(r.data)),

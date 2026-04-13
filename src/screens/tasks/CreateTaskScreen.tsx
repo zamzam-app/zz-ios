@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,17 +15,49 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCreateTask } from '../../hooks/useTasks';
+import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useManagers } from '../../hooks/useUsers';
-import { TaskCategory, TaskPriority } from '../../api/endpoints/tasks';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { TaskPriority, TaskCategoryOption } from '../../api/endpoints/tasks';
+import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'CreateTask'>;
 
-const CATEGORIES: TaskCategory[] = ['HYGIENE', 'MAINTENANCE', 'INVENTORY', 'STAFFING'];
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const responseData = (error as { response?: { data?: unknown } })?.response?.data;
+
+  if (typeof responseData === 'string' && responseData.trim().length > 0) {
+    return responseData;
+  }
+
+  if (responseData && typeof responseData === 'object') {
+    const message = (responseData as { message?: unknown }).message;
+    if (Array.isArray(message)) {
+      const firstMessage = message.find(
+        (item): item is string => typeof item === 'string' && item.trim().length > 0,
+      );
+      if (firstMessage) return firstMessage;
+    }
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+
+    const errorText = (responseData as { error?: unknown }).error;
+    if (typeof errorText === 'string' && errorText.trim().length > 0) {
+      return errorText;
+    }
+  }
+
+  const genericMessage = (error as { message?: unknown })?.message;
+  if (typeof genericMessage === 'string' && genericMessage.trim().length > 0) {
+    return genericMessage;
+  }
+
+  return fallback;
+}
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -54,6 +86,32 @@ function ChipGroup<T extends string>({
         >
           <Text style={[styles.chipText, value === o && styles.chipTextActive]}>
             {o.replace(/_/g, ' ')}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+function CategoryChipGroup({
+  options,
+  value,
+  onChange,
+}: {
+  options: TaskCategoryOption[];
+  value: string | undefined;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <View style={styles.chipRow}>
+      {options.map((option) => (
+        <TouchableOpacity
+          key={option.id}
+          style={[styles.chip, value === option.id && styles.chipActive]}
+          onPress={() => onChange(option.id)}
+        >
+          <Text style={[styles.chipText, value === option.id && styles.chipTextActive]}>
+            {option.name}
           </Text>
         </TouchableOpacity>
       ))}
@@ -108,7 +166,7 @@ function PickerModal({
 
 export default function CreateTaskScreen({ navigation }: Props) {
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<TaskCategory | undefined>();
+  const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>();
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -119,29 +177,51 @@ export default function CreateTaskScreen({ navigation }: Props) {
 
   const { data: outlets } = useOutlets();
   const { data: managers } = useManagers();
+  const {
+    data: taskCategories,
+    isLoading: isLoadingTaskCategories,
+    isError: isTaskCategoriesError,
+    isFetching: isFetchingTaskCategories,
+    refetch: refetchTaskCategories,
+  } = useTaskCategories();
   const createTask = useCreateTask();
 
   const selectedOutlet = outlets?.find((o) => o.id === outletId);
-  const selectedManagers = managers?.filter((m) => assigneeIds.includes(m.id)) ?? [];
+  const filteredManagers = useMemo(() => {
+    const allManagers = managers ?? [];
+    if (!outletId) return allManagers;
+    const fromUserOutlets = allManagers.filter((manager) => manager.outlets?.includes(outletId));
+    if (fromUserOutlets.length > 0) return fromUserOutlets;
+
+    const selectedOutletManagerIds = selectedOutlet?.managerIds ?? [];
+    return allManagers.filter((manager) => selectedOutletManagerIds.includes(manager.id));
+  }, [managers, outletId, selectedOutlet?.managerIds]);
+  const selectedManagers = filteredManagers.filter((m) => assigneeIds.includes(m.id));
+  const hasTaskCategories = (taskCategories?.length ?? 0) > 0;
+  const hasAssignees = assigneeIds.length > 0;
+
+  useEffect(() => {
+    setAssigneeIds((prev) => prev.filter((id) => filteredManagers.some((manager) => manager.id === id)));
+  }, [filteredManagers]);
 
   const handleSubmit = () => {
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
-    if (!category) return Alert.alert('Required', 'Please select a category.');
-    if (!outletId) return Alert.alert('Required', 'Please select an outlet.');
-    if (assigneeIds.length === 0) return Alert.alert('Required', 'Please assign at least one manager.');
+    if (!taskCategoryId) return Alert.alert('Required', 'Please select a category.');
+    if (!hasAssignees) return Alert.alert('Required', 'Please assign at least one manager.');
 
     createTask.mutate(
       {
         description: description.trim(),
-        category,
+        taskCategoryId,
         priority,
         dueDate: dueDate.toISOString(),
-        outletId,
+        ...(outletId ? { outletId } : {}),
         assigneeIds,
       },
       {
         onSuccess: () => navigation.goBack(),
-        onError: () => Alert.alert('Error', 'Failed to create task. Please try again.'),
+        onError: (error) =>
+          Alert.alert('Error', getApiErrorMessage(error, 'Failed to create task. Please try again.')),
       },
     );
   };
@@ -161,7 +241,36 @@ export default function CreateTaskScreen({ navigation }: Props) {
         />
 
         <Label text="Category" required />
-        <ChipGroup options={CATEGORIES} value={category} onChange={setCategory} />
+        {isLoadingTaskCategories ? (
+          <View style={styles.fieldState}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : hasTaskCategories ? (
+          <CategoryChipGroup
+            options={taskCategories ?? []}
+            value={taskCategoryId}
+            onChange={setTaskCategoryId}
+          />
+        ) : isTaskCategoriesError ? (
+          <View style={styles.fieldState}>
+            <Text style={styles.fieldError}>
+              Unable to load task categories. Please try again.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, isFetchingTaskCategories && styles.retryBtnDisabled]}
+              onPress={() => { void refetchTaskCategories(); }}
+              disabled={isFetchingTaskCategories}
+            >
+              {isFetchingTaskCategories ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.retryBtnText}>Retry</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Text style={styles.fieldError}>No task categories available.</Text>
+        )}
 
         <Label text="Priority" />
         <ChipGroup options={PRIORITIES} value={priority} onChange={setPriority} />
@@ -184,7 +293,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
           />
         )}
 
-        <Label text="Outlet" required />
+        <Label text="Outlet" />
         <TouchableOpacity style={styles.input} onPress={() => setShowOutletPicker(true)}>
           <Text style={{ color: selectedOutlet ? colors.text : colors.textDisabled }}>
             {selectedOutlet?.name ?? 'Select outlet...'}
@@ -194,14 +303,21 @@ export default function CreateTaskScreen({ navigation }: Props) {
         <Label text="Assignees" required />
         <TouchableOpacity style={styles.input} onPress={() => setShowAssigneePicker(true)}>
           <Text style={{ color: selectedManagers.length > 0 ? colors.text : colors.textDisabled }}>
-            {selectedManagers.length > 0 ? selectedManagers.map((m) => m.name).join(', ') : 'Select managers...'}
+            {selectedManagers.length > 0
+              ? selectedManagers.map((m) => m.name).join(', ')
+              : outletId && filteredManagers.length === 0
+                ? 'No managers available for selected outlet'
+                : 'Select managers...'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.submitBtn, createTask.isPending && { opacity: 0.6 }]}
+          style={[
+            styles.submitBtn,
+            (createTask.isPending || isLoadingTaskCategories || !hasTaskCategories || !hasAssignees) && styles.submitBtnDisabled,
+          ]}
           onPress={handleSubmit}
-          disabled={createTask.isPending}
+          disabled={createTask.isPending || isLoadingTaskCategories || !hasTaskCategories || !hasAssignees}
         >
           {createTask.isPending ? (
             <ActivityIndicator color={colors.textInverse} />
@@ -223,7 +339,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
       <PickerModal
         visible={showAssigneePicker}
         title="Select Assignees"
-        items={managers ?? []}
+        items={filteredManagers}
         selected={assigneeIds}
         multi
         onSelect={(id) => {
@@ -276,6 +392,30 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: typography.sm, color: colors.textSecondary },
   chipTextActive: { color: colors.textInverse, fontWeight: typography.medium },
+  fieldState: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    gap: spacing.sm,
+  },
+  fieldError: { color: colors.error, fontSize: typography.sm },
+  retryBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background,
+    minWidth: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryBtnDisabled: { opacity: 0.7 },
+  retryBtnText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
 
   submitBtn: {
     backgroundColor: colors.primary,
@@ -284,6 +424,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.md,
   },
+  submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
 
   modalHeader: {
