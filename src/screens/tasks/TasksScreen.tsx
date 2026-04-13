@@ -38,28 +38,19 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-type TaskCompat = Task & {
-  taskCategory?: { name?: string } | null;
-  outlet?: { name?: string } | null;
-  assignees?: Array<{ name?: string }>;
-};
-
 function getCategoryName(task: Task) {
-  const compatTask = task as TaskCompat;
-  return compatTask.taskCategory?.name ?? task.category;
+  return task.taskCategory?.name ?? task.category;
 }
 
 function getOutletName(task: Task) {
-  const compatTask = task as TaskCompat;
-  return compatTask.outlet?.name ?? task.outletName;
+  return task.outlet?.name ?? task.outletName;
 }
 
 function getAssigneeNames(task: Task) {
   if (task.assigneeNames && task.assigneeNames.length > 0) {
     return task.assigneeNames;
   }
-  const compatTask = task as TaskCompat;
-  return (compatTask.assignees ?? [])
+  return (task.assignees ?? [])
     .map((assignee) => assignee.name)
     .filter((name): name is string => Boolean(name));
 }
