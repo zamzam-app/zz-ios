@@ -93,12 +93,6 @@ function mapTaskCategory(raw: RawTaskCategory): TaskCategoryOption {
   };
 }
 
-function getHttpStatus(error: unknown): number | undefined {
-  if (typeof error !== 'object' || error === null) return undefined;
-  const response = (error as { response?: { status?: number } }).response;
-  return typeof response?.status === 'number' ? response.status : undefined;
-}
-
 function mapTask(raw: RawTask): Task {
   const id = String(raw._id ?? raw.id ?? '');
   const description = String(raw.description ?? '');
@@ -185,29 +179,15 @@ export const tasksApi = {
     client.post<RawTask>('/tasks', payload).then((r) => mapTask(r.data)),
 
   listCategories: async () => {
-    const endpoints = ['/task-categories', '/task-category', '/taskCategory'];
-    let lastNotFoundError: unknown;
-
-    for (const endpoint of endpoints) {
-      try {
-        const response = await client.get<{ data: RawTaskCategory[] } | RawTaskCategory[]>(endpoint, {
-          params: { limit: 100 },
-        });
-        const raw = Array.isArray(response.data)
-          ? response.data
-          : (response.data as { data: RawTaskCategory[] }).data ?? [];
-        return raw
-          .map(mapTaskCategory)
-          .filter((category) => category.id.length > 0 && category.name.length > 0);
-      } catch (error) {
-        if (getHttpStatus(error) !== 404) {
-          throw error;
-        }
-        lastNotFoundError = error;
-      }
-    }
-
-    throw lastNotFoundError ?? new Error('Task categories endpoint not found');
+    const response = await client.get<{ data: RawTaskCategory[] } | RawTaskCategory[]>('/task-category', {
+      params: { limit: 100 },
+    });
+    const raw = Array.isArray(response.data)
+      ? response.data
+      : (response.data as { data: RawTaskCategory[] }).data ?? [];
+    return raw
+      .map(mapTaskCategory)
+      .filter((category) => category.id.length > 0 && category.name.length > 0);
   },
 
   updateStatus: (id: string, status: TaskStatus) =>
