@@ -62,20 +62,25 @@ function mapOutlet(raw: RawOutlet): Outlet {
     outletTypeName = raw.outletTypeName;
   }
 
-  let managerNames = raw.managerNames ?? [];
-  let managerIds = Array.isArray(raw.managerIds)
-    ? raw.managerIds
-      .map((m) => (typeof m === 'string' ? m : String(m._id ?? '')))
-      .filter(Boolean)
-    : [];
-  if (managerNames.length === 0 && Array.isArray(raw.managerIds)) {
-    managerNames = raw.managerIds
-      .map((m) => (typeof m === 'string' ? '' : (m.name ?? '').trim()))
-      .filter(Boolean);
+  const managerRefs = raw.managerIds ?? [];
+  let managerIds = managerRefs
+    .map((manager) => (typeof manager === 'string' ? manager : String(manager._id ?? '')))
+    .filter(Boolean);
+  let managerNames = managerRefs
+    .map((manager) => (typeof manager === 'object' ? manager.name ?? '' : ''))
+    .filter(Boolean);
+
+  if (Array.isArray(raw.managerNames) && raw.managerNames.length > 0) {
+    managerNames = raw.managerNames.filter(Boolean);
   }
-  if (Array.isArray(raw.managers) && raw.managers.length > 0) {
-    managerIds = raw.managers.map((m) => String(m._id ?? '')).filter(Boolean);
-    managerNames = raw.managers.map((m) => m.name ?? '').filter(Boolean);
+
+  if ((managerIds.length === 0 || managerNames.length === 0) && Array.isArray(raw.managers) && raw.managers.length > 0) {
+    if (managerIds.length === 0) {
+      managerIds = raw.managers.map((m) => String(m._id ?? '')).filter(Boolean);
+    }
+    if (managerNames.length === 0) {
+      managerNames = raw.managers.map((m) => m.name ?? '').filter(Boolean);
+    }
   }
 
   return {
