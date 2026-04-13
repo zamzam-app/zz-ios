@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -187,12 +187,27 @@ export default function CreateTaskScreen({ navigation }: Props) {
   const createTask = useCreateTask();
 
   const selectedOutlet = outlets?.find((o) => o.id === outletId);
-  const selectedManagers = managers?.filter((m) => assigneeIds.includes(m.id)) ?? [];
+  const filteredManagers = useMemo(() => {
+    const allManagers = managers ?? [];
+    if (!outletId) return allManagers;
+    const fromUserOutlets = allManagers.filter((manager) => manager.outlets?.includes(outletId));
+    if (fromUserOutlets.length > 0) return fromUserOutlets;
+
+    const selectedOutletManagerIds = selectedOutlet?.managerIds ?? [];
+    return allManagers.filter((manager) => selectedOutletManagerIds.includes(manager.id));
+  }, [managers, outletId, selectedOutlet?.managerIds]);
+  const selectedManagers = filteredManagers.filter((m) => assigneeIds.includes(m.id));
   const hasTaskCategories = (taskCategories?.length ?? 0) > 0;
+  const hasAssignees = assigneeIds.length > 0;
+
+  useEffect(() => {
+    setAssigneeIds((prev) => prev.filter((id) => filteredManagers.some((manager) => manager.id === id)));
+  }, [filteredManagers]);
 
   const handleSubmit = () => {
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
     if (!taskCategoryId) return Alert.alert('Required', 'Please select a category.');
+    if (!hasAssignees) return Alert.alert('Required', 'Please assign at least one manager.');
 
     createTask.mutate(
       {
@@ -201,7 +216,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
         priority,
         dueDate: dueDate.toISOString(),
         ...(outletId ? { outletId } : {}),
-        ...(assigneeIds.length > 0 ? { assigneeIds } : {}),
+        assigneeIds,
       },
       {
         onSuccess: () => navigation.goBack(),
@@ -285,20 +300,24 @@ export default function CreateTaskScreen({ navigation }: Props) {
           </Text>
         </TouchableOpacity>
 
-        <Label text="Assignees" />
+        <Label text="Assignees" required />
         <TouchableOpacity style={styles.input} onPress={() => setShowAssigneePicker(true)}>
           <Text style={{ color: selectedManagers.length > 0 ? colors.text : colors.textDisabled }}>
-            {selectedManagers.length > 0 ? selectedManagers.map((m) => m.name).join(', ') : 'Select managers (optional)...'}
+            {selectedManagers.length > 0
+              ? selectedManagers.map((m) => m.name).join(', ')
+              : outletId && filteredManagers.length === 0
+                ? 'No managers available for selected outlet'
+                : 'Select managers...'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[
             styles.submitBtn,
-            (createTask.isPending || isLoadingTaskCategories || !hasTaskCategories) && styles.submitBtnDisabled,
+            (createTask.isPending || isLoadingTaskCategories || !hasTaskCategories || !hasAssignees) && styles.submitBtnDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={createTask.isPending || isLoadingTaskCategories || !hasTaskCategories}
+          disabled={createTask.isPending || isLoadingTaskCategories || !hasTaskCategories || !hasAssignees}
         >
           {createTask.isPending ? (
             <ActivityIndicator color={colors.textInverse} />
@@ -320,7 +339,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
       <PickerModal
         visible={showAssigneePicker}
         title="Select Assignees"
-        items={managers ?? []}
+        items={filteredManagers}
         selected={assigneeIds}
         multi
         onSelect={(id) => {

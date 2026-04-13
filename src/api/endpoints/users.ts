@@ -5,6 +5,7 @@ export interface User {
   name: string;
   email: string;
   role: string;
+  outlets?: string[];
 }
 
 interface RawUser {
@@ -13,6 +14,7 @@ interface RawUser {
   name?: string;
   email?: string;
   role?: string;
+  outlets?: Array<string | { _id?: string; id?: string }>;
 }
 
 function mapUser(raw: RawUser): User {
@@ -21,6 +23,11 @@ function mapUser(raw: RawUser): User {
     name: raw.name ?? '',
     email: raw.email ?? '',
     role: raw.role ?? '',
+    outlets: Array.isArray(raw.outlets)
+      ? raw.outlets
+        .map((outlet) => (typeof outlet === 'string' ? outlet : String(outlet._id ?? outlet.id ?? '')))
+        .filter(Boolean)
+      : undefined,
   };
 }
 
