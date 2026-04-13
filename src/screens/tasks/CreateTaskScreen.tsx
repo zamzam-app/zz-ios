@@ -177,7 +177,13 @@ export default function CreateTaskScreen({ navigation }: Props) {
 
   const { data: outlets } = useOutlets();
   const { data: managers } = useManagers();
-  const { data: taskCategories, isLoading: isLoadingTaskCategories } = useTaskCategories();
+  const {
+    data: taskCategories,
+    isLoading: isLoadingTaskCategories,
+    isError: isTaskCategoriesError,
+    isFetching: isFetchingTaskCategories,
+    refetch: refetchTaskCategories,
+  } = useTaskCategories();
   const createTask = useCreateTask();
 
   const selectedOutlet = outlets?.find((o) => o.id === outletId);
@@ -230,10 +236,25 @@ export default function CreateTaskScreen({ navigation }: Props) {
             value={taskCategoryId}
             onChange={setTaskCategoryId}
           />
+        ) : isTaskCategoriesError ? (
+          <View style={styles.fieldState}>
+            <Text style={styles.fieldError}>
+              Unable to load task categories. Please try again.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, isFetchingTaskCategories && styles.retryBtnDisabled]}
+              onPress={() => { void refetchTaskCategories(); }}
+              disabled={isFetchingTaskCategories}
+            >
+              {isFetchingTaskCategories ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.retryBtnText}>Retry</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         ) : (
-          <Text style={styles.fieldError}>
-            Unable to load task categories. Please try again.
-          </Text>
+          <Text style={styles.fieldError}>No task categories available.</Text>
         )}
 
         <Label text="Priority" />
@@ -360,8 +381,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
+    gap: spacing.sm,
   },
   fieldError: { color: colors.error, fontSize: typography.sm },
+  retryBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background,
+    minWidth: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryBtnDisabled: { opacity: 0.7 },
+  retryBtnText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
 
   submitBtn: {
     backgroundColor: colors.primary,
