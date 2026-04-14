@@ -69,7 +69,7 @@ export default function OutletDetailScreen({ route }: Props) {
   const { outletId } = route.params;
   const { data: outlet, isLoading } = useOutlet(outletId);
   const { data: outletTypes } = useOutletTypes();
-  const { data: managers } = useManagers();
+  const { data: managers, isLoading: isManagersLoading } = useManagers();
   const updateOutlet = useUpdateOutlet();
 
   const [editing, setEditing] = useState(false);
@@ -121,6 +121,16 @@ export default function OutletDetailScreen({ route }: Props) {
 
   const selectedType = outletTypes?.find((t) => t.id === outletTypeId);
   const selectedManagers = managers?.filter((m) => managerIds.includes(m.id)) ?? [];
+  const resolvedOutletTypeName = outlet.outletTypeName
+    ?? outletTypes?.find((type) => type.id === outlet.outletTypeId)?.name
+    ?? '—';
+  const resolvedManagerNames = outlet.managerNames && outlet.managerNames.length > 0
+    ? outlet.managerNames
+    : (managers ?? [])
+      .filter((manager) => (outlet.managerIds ?? []).includes(manager.id))
+      .map((manager) => manager.name);
+  const hasManagerRefs = (outlet.managerIds?.length ?? 0) > 0;
+  const shouldShowManagersRow = !hasManagerRefs || !isManagersLoading || resolvedManagerNames.length > 0;
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
@@ -129,8 +139,8 @@ export default function OutletDetailScreen({ route }: Props) {
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.outletName}>{outlet.name}</Text>
-            {outlet.outletTypeName && (
-              <Text style={styles.outletType}>{outlet.outletTypeName}</Text>
+            {resolvedOutletTypeName !== '—' && (
+              <Text style={styles.outletType}>{resolvedOutletTypeName}</Text>
             )}
           </View>
           <TouchableOpacity
@@ -200,12 +210,13 @@ export default function OutletDetailScreen({ route }: Props) {
           /* Read-only view */
           <View style={styles.card}>
             <Row label="Address" value={outlet.address ?? '—'} />
-            <Row label="Outlet Type" value={outlet.outletTypeName ?? '—'} />
-            <Row
-              label="Managers"
-              value={outlet.managerNames?.join(', ') || '—'}
-            />
-            {outlet.qrToken && <Row label="QR Token" value={outlet.qrToken} />}
+            <Row label="Outlet Type" value={resolvedOutletTypeName} />
+            {shouldShowManagersRow && (
+              <Row
+                label="Managers"
+                value={resolvedManagerNames.join(', ') || '—'}
+              />
+            )}
           </View>
         )}
       </ScrollView>

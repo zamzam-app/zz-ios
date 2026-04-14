@@ -13,10 +13,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTask, useUpdateTaskStatus, useDeleteTask } from '../../hooks/useTasks';
-import { Task, TaskStatus } from '../../api/endpoints/tasks';
+import { TaskStatus } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
+import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
 
@@ -37,23 +38,6 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function getTaskOutletName(task: Task) {
-  return task.outlet?.name ?? task.outletName;
-}
-
-function getTaskCategoryName(task: Task) {
-  return task.taskCategory?.name ?? task.category;
-}
-
-function getTaskAssigneeNames(task: Task) {
-  if (task.assigneeNames && task.assigneeNames.length > 0) {
-    return task.assigneeNames;
-  }
-  return (task.assignees ?? [])
-    .map((assignee) => assignee.name)
-    .filter((name): name is string => Boolean(name));
 }
 
 function Row({ label, value }: { label: string; value: string }) {

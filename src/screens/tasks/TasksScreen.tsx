@@ -18,6 +18,7 @@ import { Task, TaskStatus } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
+import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 
@@ -38,28 +39,11 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function getCategoryName(task: Task) {
-  return task.taskCategory?.name ?? task.category;
-}
-
-function getOutletName(task: Task) {
-  return task.outlet?.name ?? task.outletName;
-}
-
-function getAssigneeNames(task: Task) {
-  if (task.assigneeNames && task.assigneeNames.length > 0) {
-    return task.assigneeNames;
-  }
-  return (task.assignees ?? [])
-    .map((assignee) => assignee.name)
-    .filter((name): name is string => Boolean(name));
-}
-
 function TaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
   const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
-  const outletName = getOutletName(task);
-  const categoryName = getCategoryName(task);
-  const assigneeNames = getAssigneeNames(task);
+  const outletName = getTaskOutletName(task);
+  const categoryName = getTaskCategoryName(task);
+  const assigneeNames = getTaskAssigneeNames(task);
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>

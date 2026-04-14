@@ -17,7 +17,8 @@ export interface Outlet {
 
 export interface CreateOutletPayload {
   name: string;
-  description?: string;
+  description: string;
+  images?: string[];
   address?: string;
   outletType: string;
   managerIds?: string[];
@@ -37,6 +38,7 @@ interface RawOutlet {
   name?: string;
   description?: string;
   address?: string;
+  outletType?: string | { _id?: string; name?: string };
   outletTypeId?: string | { _id?: string; name?: string };
   outletTypeName?: string;
   managerNames?: string[];
@@ -53,7 +55,13 @@ function mapOutlet(raw: RawOutlet): Outlet {
 
   let outletTypeId: string | undefined;
   let outletTypeName: string | undefined;
-  if (typeof raw.outletTypeId === 'object' && raw.outletTypeId) {
+  if (typeof raw.outletType === 'object' && raw.outletType) {
+    outletTypeId = String(raw.outletType._id ?? '');
+    outletTypeName = raw.outletType.name;
+  } else if (typeof raw.outletType === 'string') {
+    outletTypeId = raw.outletType;
+    outletTypeName = raw.outletTypeName;
+  } else if (typeof raw.outletTypeId === 'object' && raw.outletTypeId) {
     outletTypeId = String(raw.outletTypeId._id ?? '');
     outletTypeName = raw.outletTypeId.name;
   } else if (typeof raw.outletTypeId === 'string') {
@@ -61,20 +69,25 @@ function mapOutlet(raw: RawOutlet): Outlet {
     outletTypeName = raw.outletTypeName;
   }
 
-  let managerNames = raw.managerNames ?? [];
-  let managerIds = Array.isArray(raw.managerIds)
-    ? raw.managerIds
-      .map((m) => (typeof m === 'string' ? m : String(m._id ?? '')))
-      .filter(Boolean)
-    : [];
-  if (managerNames.length === 0 && Array.isArray(raw.managerIds)) {
-    managerNames = raw.managerIds
-      .map((m) => (typeof m === 'string' ? '' : (m.name ?? '').trim()))
-      .filter(Boolean);
+  const managerRefs = raw.managerIds ?? [];
+  let managerIds = managerRefs
+    .map((manager) => (typeof manager === 'string' ? manager : String(manager._id ?? '')))
+    .filter(Boolean);
+  let managerNames = managerRefs
+    .map((manager) => (typeof manager === 'object' ? manager.name ?? '' : ''))
+    .filter(Boolean);
+
+  if (Array.isArray(raw.managerNames) && raw.managerNames.length > 0) {
+    managerNames = raw.managerNames.filter(Boolean);
   }
-  if (Array.isArray(raw.managers) && raw.managers.length > 0) {
-    managerIds = raw.managers.map((m) => String(m._id ?? '')).filter(Boolean);
-    managerNames = raw.managers.map((m) => m.name ?? '').filter(Boolean);
+
+  if ((managerIds.length === 0 || managerNames.length === 0) && Array.isArray(raw.managers) && raw.managers.length > 0) {
+    if (managerIds.length === 0) {
+      managerIds = raw.managers.map((m) => String(m._id ?? '')).filter(Boolean);
+    }
+    if (managerNames.length === 0) {
+      managerNames = raw.managers.map((m) => m.name ?? '').filter(Boolean);
+    }
   }
 
   return {

@@ -16,8 +16,10 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCreateOutlet } from '../../hooks/useOutlets';
 import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';
+import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
+import { getApiErrorMessage } from '../../utils/errors';
 
 type Props = NativeStackScreenProps<InfrastructureStackParamList, 'CreateOutlet'>;
 
@@ -75,28 +77,41 @@ export default function CreateOutletScreen({ navigation }: Props) {
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showManagerPicker, setShowManagerPicker] = useState(false);
 
-  const { data: outletTypes } = useOutletTypes();
+  const {
+    data: outletTypes,
+    isLoading: isLoadingOutletTypes,
+    isError: isOutletTypesError,
+    isFetching: isFetchingOutletTypes,
+    refetch: refetchOutletTypes,
+  } = useOutletTypes();
   const { data: managers } = useManagers();
   const createOutlet = useCreateOutlet();
+  const userRole = useAuthStore((state) => state.user?.role);
+  const isAdmin = userRole === 'admin';
 
   const selectedType = outletTypes?.find((t) => t.id === outletTypeId);
   const selectedManagers = managers?.filter((m) => managerIds.includes(m.id)) ?? [];
 
   const handleSubmit = () => {
+    if (!isAdmin) {
+      return Alert.alert('Permission denied', 'Only admins can create outlets.');
+    }
     if (!name.trim()) return Alert.alert('Required', 'Outlet name is required.');
+    if (!description.trim()) return Alert.alert('Required', 'Description is required.');
     if (!outletTypeId) return Alert.alert('Required', 'Please select an outlet type.');
 
     createOutlet.mutate(
       {
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: description.trim(),
+        images: [],
         address: address.trim() || undefined,
         outletType: outletTypeId,
-        managerIds,
+        ...(managerIds.length > 0 ? { managerIds } : {}),
       },
       {
         onSuccess: () => navigation.goBack(),
-        onError: () => Alert.alert('Error', 'Failed to create outlet.'),
+        onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to create outlet.')),
       },
     );
   };
@@ -113,10 +128,10 @@ export default function CreateOutletScreen({ navigation }: Props) {
           onChangeText={setName}
         />
 
-        <Text style={styles.label}>Description</Text>
+        <Text style={styles.label}>Description *</Text>
         <TextInput
           style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-          placeholder="Optional description..."
+          placeholder="Describe this outlet..."
           placeholderTextColor={colors.textDisabled}
           value={description}
           onChangeText={setDescription}
@@ -133,11 +148,32 @@ export default function CreateOutletScreen({ navigation }: Props) {
         />
 
         <Text style={styles.label}>Outlet Type *</Text>
-        <TouchableOpacity style={styles.input} onPress={() => setShowTypePicker(true)}>
-          <Text style={{ color: selectedType ? colors.text : colors.textDisabled }}>
-            {selectedType?.name ?? 'Select type...'}
-          </Text>
-        </TouchableOpacity>
+        {isLoadingOutletTypes ? (
+          <View style={styles.fieldState}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : isOutletTypesError ? (
+          <View style={styles.fieldState}>
+            <Text style={styles.fieldError}>Unable to load outlet types.</Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, isFetchingOutletTypes && styles.retryBtnDisabled]}
+              onPress={() => { void refetchOutletTypes(); }}
+              disabled={isFetchingOutletTypes}
+            >
+              {isFetchingOutletTypes ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.retryBtnText}>Retry</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.input} onPress={() => setShowTypePicker(true)}>
+            <Text style={{ color: selectedType ? colors.text : colors.textDisabled }}>
+              {selectedType?.name ?? 'Select type...'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.label}>Managers</Text>
         <TouchableOpacity style={styles.input} onPress={() => setShowManagerPicker(true)}>
@@ -147,14 +183,17 @@ export default function CreateOutletScreen({ navigation }: Props) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.submitBtn, createOutlet.isPending && { opacity: 0.6 }]}
+          style={[styles.submitBtn, (createOutlet.isPending || !isAdmin) && { opacity: 0.6 }]}
           onPress={handleSubmit}
-          disabled={createOutlet.isPending}
+          disabled={createOutlet.isPending || !isAdmin}
         >
           {createOutlet.isPending
             ? <ActivityIndicator color={colors.textInverse} />
             : <Text style={styles.submitBtnText}>Create Outlet</Text>}
         </TouchableOpacity>
+        {!isAdmin && (
+          <Text style={styles.helperText}>Only admins can create outlets.</Text>
+        )}
       </ScrollView>
 
       <PickerModal
@@ -195,6 +234,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: 'center',
   },
+  fieldState: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    gap: spacing.sm,
+  },
+  fieldError: { color: colors.error, fontSize: typography.sm },
+  retryBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background,
+    minWidth: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryBtnDisabled: { opacity: 0.7 },
+  retryBtnText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
   submitBtn: {
     backgroundColor: colors.primary,
     borderRadius: radius.md,
@@ -203,6 +266,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   submitBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
+  helperText: {
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
+    fontSize: typography.xs,
+    textAlign: 'center',
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
