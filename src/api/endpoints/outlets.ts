@@ -18,7 +18,7 @@ export interface Outlet {
 export interface CreateOutletPayload {
   name: string;
   description: string;
-  images: string[];
+  images?: string[];
   address?: string;
   outletType: string;
   managerIds?: string[];
