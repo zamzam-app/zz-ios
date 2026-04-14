@@ -69,7 +69,7 @@ export default function OutletDetailScreen({ route }: Props) {
   const { outletId } = route.params;
   const { data: outlet, isLoading } = useOutlet(outletId);
   const { data: outletTypes } = useOutletTypes();
-  const { data: managers } = useManagers();
+  const { data: managers, isLoading: isManagersLoading } = useManagers();
   const updateOutlet = useUpdateOutlet();
 
   const [editing, setEditing] = useState(false);
@@ -129,6 +129,8 @@ export default function OutletDetailScreen({ route }: Props) {
     : (managers ?? [])
       .filter((manager) => (outlet.managerIds ?? []).includes(manager.id))
       .map((manager) => manager.name);
+  const hasManagerRefs = (outlet.managerIds?.length ?? 0) > 0;
+  const shouldShowManagersRow = !hasManagerRefs || !isManagersLoading || resolvedManagerNames.length > 0;
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
@@ -209,10 +211,12 @@ export default function OutletDetailScreen({ route }: Props) {
           <View style={styles.card}>
             <Row label="Address" value={outlet.address ?? '—'} />
             <Row label="Outlet Type" value={resolvedOutletTypeName} />
-            <Row
-              label="Managers"
-              value={resolvedManagerNames.join(', ') || '—'}
-            />
+            {shouldShowManagersRow && (
+              <Row
+                label="Managers"
+                value={resolvedManagerNames.join(', ') || '—'}
+              />
+            )}
           </View>
         )}
       </ScrollView>
