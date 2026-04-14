@@ -16,6 +16,7 @@ import { useOutlets, useDeleteOutlet } from '../../hooks/useOutlets';
 import { Outlet } from '../../api/endpoints/outlets';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
+import { useAuthStore } from '../../store/authStore';
 
 type Nav = NativeStackNavigationProp<InfrastructureStackParamList, 'OutletsList'>;
 
@@ -67,6 +68,7 @@ export default function InfrastructureScreen() {
   const navigation = useNavigation<Nav>();
   const { data: outlets, isLoading, isFetching, refetch } = useOutlets();
   const deleteOutlet = useDeleteOutlet();
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
 
   const handleDelete = (outlet: Outlet) => {
     Alert.alert('Delete Outlet', `Delete "${outlet.name}"? This cannot be undone.`, [
@@ -90,12 +92,14 @@ export default function InfrastructureScreen() {
           >
             <Text style={styles.secondaryBtnText}>Types</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.createBtn}
-            onPress={() => navigation.navigate('CreateOutlet')}
-          >
-            <Text style={styles.createBtnText}>+ New</Text>
-          </TouchableOpacity>
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.createBtn}
+              onPress={() => navigation.navigate('CreateOutlet')}
+            >
+              <Text style={styles.createBtnText}>+ New</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
