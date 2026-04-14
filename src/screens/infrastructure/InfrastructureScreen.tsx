@@ -86,12 +86,14 @@ export default function InfrastructureScreen() {
       <View style={styles.header}>
         <Text style={styles.heading}>Infrastructure</Text>
         <View style={styles.headerBtns}>
-          <TouchableOpacity
-            style={styles.secondaryBtn}
-            onPress={() => navigation.navigate('OutletTypes')}
-          >
-            <Text style={styles.secondaryBtnText}>Types</Text>
-          </TouchableOpacity>
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => navigation.navigate('OutletTypes')}
+            >
+              <Text style={styles.secondaryBtnText}>Types</Text>
+            </TouchableOpacity>
+          )}
           {isAdmin && (
             <TouchableOpacity
               style={styles.createBtn}
