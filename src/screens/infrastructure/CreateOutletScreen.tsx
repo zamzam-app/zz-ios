@@ -221,7 +221,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.sm },
+  scroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.sm },
   label: { fontSize: typography.sm, fontWeight: typography.medium, color: colors.text },
   input: {
     borderWidth: 1,

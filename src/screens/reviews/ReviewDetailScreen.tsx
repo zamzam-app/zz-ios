@@ -224,7 +224,7 @@ export default function ReviewDetailScreen({ route }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
+  scroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.md },
 
   headerCard: {
     backgroundColor: colors.surface,

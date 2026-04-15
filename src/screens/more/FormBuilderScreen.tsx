@@ -267,14 +267,14 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: 'row', gap: spacing.md },
   editText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
   deleteText: { color: colors.error, fontSize: typography.sm, fontWeight: typography.medium },
-  fab: { position: 'absolute', bottom: spacing.xl, left: spacing.md, right: spacing.md },
+  fab: { position: 'absolute', bottom: 108, left: spacing.md, right: spacing.md },
   fabBtn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 15, alignItems: 'center' },
   fabText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
   empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
 
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   modalTitle: { fontSize: typography.md, fontWeight: typography.semibold, color: colors.text },
-  editorScroll: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.sm },
+  editorScroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.sm },
   label: { fontSize: typography.sm, fontWeight: typography.medium, color: colors.text },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 13, fontSize: typography.base, color: colors.text, backgroundColor: colors.surface },
 

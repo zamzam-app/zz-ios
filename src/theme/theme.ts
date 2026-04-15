@@ -1,53 +1,52 @@
 /**
  * Theme — single source of truth for all visual tokens.
  * Change brand colors, spacing, or typography here and it propagates everywhere.
- *
- * TODO (Abin): Once the Apple Developer Account is set up and the app is on TestFlight,
- * do a visual pass with the Zam Zam team and adjust any colors they want tweaked here.
  */
 
 export const colors = {
-  // Brand
-  primary: '#2563eb',
-  primaryLight: '#3b82f6',
-  primaryDark: '#1d4ed8',
+  // Brand — Bakery Caramel
+  primary: '#92400E',
+  primaryLight: '#B45309',
+  primaryDark: '#78350F',
+  primaryTint: '#FDF4E7',        // warm amber surface
+  primaryTintStrong: '#FAEBD0',  // deeper tint for pressed/active states
 
   // Backgrounds
-  background: '#ffffff',
-  surface: '#f8f9fa',
-  surfaceElevated: '#f1f5f9',
+  background: '#FAF7F2',         // warm cream
+  surface: '#FFFFFF',
+  surfaceElevated: '#F5EFE6',    // warm off-white
 
   // Text
-  text: '#111827',
-  textSecondary: '#6b7280',
-  textDisabled: '#d1d5db',
-  textInverse: '#ffffff',
+  text: '#1C1917',               // warm near-black
+  textSecondary: '#78716C',      // warm gray
+  textDisabled: '#D6D3D1',
+  textInverse: '#FFFFFF',
 
   // Borders
-  border: '#e5e7eb',
-  borderFocused: '#2563eb',
+  border: '#E7E0D5',             // warm border
+  borderFocused: '#92400E',
 
   // Semantic
-  error: '#ef4444',
-  errorLight: '#fee2e2',
-  success: '#22c55e',
-  successLight: '#dcfce7',
-  warning: '#f59e0b',
-  warningLight: '#fef3c7',
-  info: '#3b82f6',
-  infoLight: '#dbeafe',
+  error: '#DC2626',
+  errorLight: '#FEE2E2',
+  success: '#15803D',
+  successLight: '#DCFCE7',
+  warning: '#D97706',
+  warningLight: '#FEF3C7',
+  info: '#0369A1',
+  infoLight: '#E0F2FE',
 
-  // Task status colors
-  statusOpen: '#6b7280',
-  statusAssigned: '#3b82f6',
-  statusInProgress: '#f59e0b',
-  statusReadyForReview: '#8b5cf6',
-  statusCompleted: '#22c55e',
+  // Task status
+  statusOpen: '#78716C',
+  statusAssigned: '#0369A1',
+  statusInProgress: '#D97706',
+  statusReadyForReview: '#7C3AED',
+  statusCompleted: '#15803D',
 
-  // Priority colors
-  priorityLow: '#22c55e',
-  priorityMedium: '#f59e0b',
-  priorityHigh: '#ef4444',
+  // Priority
+  priorityLow: '#15803D',
+  priorityMedium: '#D97706',
+  priorityHigh: '#DC2626',
 };
 
 export const spacing = {
@@ -60,23 +59,22 @@ export const spacing = {
 };
 
 export const radius = {
-  sm: 6,
-  md: 10,
-  lg: 16,
+  sm: 8,
+  md: 14,
+  lg: 24,
+  xl: 32,
   full: 9999,
 };
 
 export const typography = {
-  // Font sizes
   xs: 11,
   sm: 13,
   base: 15,
   md: 17,
   lg: 20,
-  xl: 24,
-  xxl: 30,
+  xl: 28,
+  xxl: 36,
 
-  // Font weights (React Native uses string values)
   regular: '400' as const,
   medium: '500' as const,
   semibold: '600' as const,
@@ -85,25 +83,25 @@ export const typography = {
 
 export const shadow = {
   sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowColor: '#92400E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowColor: '#92400E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   lg: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 10,
   },
 };
 

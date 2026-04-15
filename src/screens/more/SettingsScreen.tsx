@@ -107,7 +107,7 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
+  scroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.md },
   sectionTitle: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, ...shadow.sm, gap: spacing.sm },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.sm },

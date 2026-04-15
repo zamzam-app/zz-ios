@@ -134,10 +134,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     paddingBottom: spacing.sm,
   },
-  heading: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text },
+  heading: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text, letterSpacing: -0.5 },
   headerBtns: { flexDirection: 'row', gap: spacing.sm },
   secondaryBtn: {
     paddingHorizontal: spacing.md,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   },
   createBtnText: { color: colors.textInverse, fontWeight: typography.semibold, fontSize: typography.sm },
 
-  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xxl },
+  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: 120 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

@@ -19,6 +19,7 @@ import { useOutlets } from '../../hooks/useOutlets';
 import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
 import { Review, ComplaintStatus } from '../../api/endpoints/reviews';
 import { FranchiseRankingItem, MetricsHeatmapItem, Period } from '../../api/endpoints/analytics';
+import { FilterDropdown, FilterOption } from '../../components/FilterDropdown';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import StarRating from '../../components/StarRating';
@@ -26,10 +27,10 @@ import StarRating from '../../components/StarRating';
 type Nav = NativeStackNavigationProp<ReviewsStackParamList, 'ReviewsList'>;
 type ComplaintFilter = 'all' | 'pending' | 'resolved';
 
-const COMPLAINT_FILTERS: { label: string; value: ComplaintFilter }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Resolved', value: 'resolved' },
+const COMPLAINT_OPTIONS: FilterOption<ComplaintFilter>[] = [
+  { label: 'All Reviews', value: 'all' },
+  { label: 'Pending',     value: 'pending' },
+  { label: 'Resolved',    value: 'resolved' },
 ];
 
 const COMPLAINT_STATUS_COLORS: Record<ComplaintStatus, string> = {
@@ -38,9 +39,9 @@ const COMPLAINT_STATUS_COLORS: Record<ComplaintStatus, string> = {
   dismissed: colors.textSecondary,
 };
 
-const PERIODS: { label: string; value: Period }[] = [
-  { label: 'Daily', value: 'daily' },
-  { label: 'Weekly', value: 'weekly' },
+const PERIOD_OPTIONS: FilterOption<Period>[] = [
+  { label: 'Daily',   value: 'daily' },
+  { label: 'Weekly',  value: 'weekly' },
   { label: 'Monthly', value: 'monthly' },
 ];
 
@@ -223,16 +224,21 @@ function ReviewCard({ review, onPress }: { review: Review; onPress: () => void }
 export default function ReviewsScreen() {
   const navigation = useNavigation<Nav>();
   const [complaintFilter, setComplaintFilter] = useState<ComplaintFilter>('all');
-  const [outletFilter, setOutletFilter] = useState<string | undefined>();
+  const [outletFilter, setOutletFilter] = useState<string | 'ALL'>('ALL');
   const [rankingPeriod, setRankingPeriod] = useState<Period>('weekly');
   const [selectedRanking, setSelectedRanking] = useState<FranchiseRankingItem | null>(null);
   const [selectedHeatmap, setSelectedHeatmap] = useState<MetricsHeatmapItem | null>(null);
 
   const { data: reviews, isLoading, isFetching, refetch } = useReviews({
     limit: 100,
-    ...(outletFilter && { outletId: outletFilter }),
+    ...(outletFilter !== 'ALL' && { outletId: outletFilter }),
   });
   const { data: outlets } = useOutlets();
+
+  const outletOptions: FilterOption<string | 'ALL'>[] = [
+    { label: 'All Outlets', value: 'ALL' },
+    ...(outlets ?? []).map((o) => ({ label: o.name, value: o.id })),
+  ];
 
   const pendingCount = useMemo(
     () => reviews?.filter((r) => r.isComplaint && r.complaintStatus === 'pending').length ?? 0,
@@ -253,6 +259,36 @@ export default function ReviewsScreen() {
         heatmap={selectedHeatmap}
         onClose={() => { setSelectedRanking(null); setSelectedHeatmap(null); }}
       />
+
+      {/* Fixed header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.heading}>Reviews</Text>
+          {pendingCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{pendingCount}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Filter pills — above FlatList so dropdowns can overlay the list */}
+      <View style={styles.filterBar}>
+        <FilterDropdown
+          options={COMPLAINT_OPTIONS}
+          value={complaintFilter}
+          onChange={setComplaintFilter}
+        />
+        {outletOptions.length > 1 && (
+          <FilterDropdown
+            options={outletOptions}
+            value={outletFilter}
+            onChange={setOutletFilter}
+            maxVisible={5}
+          />
+        )}
+      </View>
+
       <FlatList
         data={filtered}
         keyExtractor={(r) => r.id}
@@ -260,70 +296,14 @@ export default function ReviewsScreen() {
         refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
         ListHeaderComponent={
           <>
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <Text style={styles.heading}>Reviews</Text>
-                {pendingCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{pendingCount}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {/* Complaint filter */}
-            <View style={styles.filterRow}>
-              {COMPLAINT_FILTERS.map((f) => (
-                <TouchableOpacity
-                  key={f.value}
-                  style={[styles.filterChip, complaintFilter === f.value && styles.filterChipActive]}
-                  onPress={() => setComplaintFilter(f.value)}
-                >
-                  <Text style={[styles.filterChipText, complaintFilter === f.value && styles.filterChipTextActive]}>
-                    {f.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Outlet filter */}
-            {outlets && outlets.length > 0 && (
-              <FlatList
-                horizontal
-                data={[{ id: undefined, name: 'All Outlets' }, ...outlets]}
-                keyExtractor={(o) => o.id ?? 'all'}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.outletFilterRow}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.filterChip, outletFilter === item.id && styles.filterChipActive]}
-                    onPress={() => setOutletFilter(item.id)}
-                  >
-                    <Text style={[styles.filterChipText, outletFilter === item.id && styles.filterChipTextActive]}>
-                      {item.name}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
             {/* Franchise Ranking */}
             <View style={styles.rankingPeriodRow}>
               <Text style={styles.rankingSectionHeading}>Franchise Ranking</Text>
-              <View style={styles.periodPills}>
-                {PERIODS.map((p) => (
-                  <TouchableOpacity
-                    key={p.value}
-                    style={[styles.periodPill, rankingPeriod === p.value && styles.periodPillActive]}
-                    onPress={() => setRankingPeriod(p.value)}
-                  >
-                    <Text style={[styles.periodPillText, rankingPeriod === p.value && styles.periodPillTextActive]}>
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <FilterDropdown
+                options={PERIOD_OPTIONS}
+                value={rankingPeriod}
+                onChange={setRankingPeriod}
+              />
             </View>
             <FranchiseRanking
               period={rankingPeriod}
@@ -334,7 +314,6 @@ export default function ReviewsScreen() {
             />
 
             <Text style={styles.reviewsHeading}>All Reviews</Text>
-
             {isLoading && <ActivityIndicator style={{ marginTop: spacing.lg }} color={colors.primary} />}
           </>
         }
@@ -354,28 +333,18 @@ export default function ReviewsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  list: { paddingBottom: spacing.xxl },
+  list: { paddingBottom: 120 },
 
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.sm },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  heading: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text },
+  heading: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text, letterSpacing: -0.5 },
   badge: { backgroundColor: colors.error, borderRadius: radius.full, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
   badgeText: { color: colors.textInverse, fontSize: typography.xs, fontWeight: typography.bold },
 
-  filterRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
-  outletFilterRow: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm, gap: spacing.sm },
-  filterChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border },
-  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterChipText: { fontSize: typography.sm, color: colors.textSecondary },
-  filterChipTextActive: { color: colors.textInverse, fontWeight: typography.medium },
+  filterBar: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.md, zIndex: 20 },
 
-  rankingPeriodRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.md, marginBottom: spacing.sm },
+  rankingPeriodRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.md, marginBottom: spacing.sm, zIndex: 10 },
   rankingSectionHeading: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
-  periodPills: { flexDirection: 'row', gap: spacing.xs },
-  periodPill: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border },
-  periodPillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  periodPillText: { fontSize: typography.xs, color: colors.textSecondary },
-  periodPillTextActive: { color: colors.textInverse, fontWeight: typography.medium },
 
   rankingSection: { backgroundColor: colors.surface, borderRadius: radius.lg, marginHorizontal: spacing.md, marginBottom: spacing.md, ...shadow.sm, overflow: 'hidden' },
   rankingTitle: { fontSize: typography.base, fontWeight: typography.bold, color: colors.text, paddingHorizontal: spacing.md, paddingTop: spacing.md },
@@ -391,7 +360,6 @@ const styles = StyleSheet.create({
 
   reviewsHeading: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text, paddingHorizontal: spacing.md, marginBottom: spacing.sm },
 
-  list2: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xxl },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, ...shadow.sm, marginHorizontal: spacing.md, marginBottom: spacing.sm },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary + '22', justifyContent: 'center', alignItems: 'center', marginRight: spacing.sm },
@@ -410,7 +378,7 @@ const styles = StyleSheet.create({
 const mStyles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   modalTitle: { fontSize: typography.md, fontWeight: typography.semibold, color: colors.text, flex: 1, textAlign: 'center' },
-  modalBody: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
+  modalBody: { padding: spacing.md, gap: spacing.md, paddingBottom: 120 },
 
   scoreRow: { flexDirection: 'row', gap: spacing.md },
   rankBox: { flex: 1, backgroundColor: colors.surfaceElevated, borderRadius: radius.md, padding: spacing.md, alignItems: 'center' },

@@ -238,7 +238,7 @@ export default function StudioScreen() {
               <View style={{ flex: 1 }}>
                 <View style={styles.cardTitleRow}>
                   <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.price}>AED {item.price.toFixed(2)}</Text>
+                  <Text style={styles.price}>₹{item.price.toFixed(2)}</Text>
                 </View>
                 {item.description ? <Text style={styles.itemDesc} numberOfLines={1}>{item.description}</Text> : null}
               </View>
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   editText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
   deleteText: { color: colors.error, fontSize: typography.sm, fontWeight: typography.medium },
-  fab: { position: 'absolute', bottom: spacing.xl, left: spacing.md, right: spacing.md },
+  fab: { position: 'absolute', bottom: 108, left: spacing.md, right: spacing.md },
   fabBtn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 15, alignItems: 'center' },
   fabText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
   empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
 });
 
 const aiStyles = StyleSheet.create({
-  container: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.sm },
+  container: { padding: spacing.md, paddingBottom: 120, gap: spacing.sm },
   sectionTitle: { fontSize: typography.md, fontWeight: typography.bold, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.xs },
   empty: { fontSize: typography.sm, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.md },
   cakeCard: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, ...shadow.sm, alignItems: 'center' },
