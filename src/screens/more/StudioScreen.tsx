@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput,
   Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
-  Switch, ScrollView,
+  Switch, ScrollView, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   useProducts, useCategories, useCreateProduct, useUpdateProduct, useDeleteProduct,
-  useCreateCategory, useUpdateCategory, useDeleteCategory,
+  useCreateCategory, useUpdateCategory, useDeleteCategory, useCustomCakes,
 } from '../../hooks/useProducts';
 import { Product, Category } from '../../api/endpoints/products';
+import { cakeApi, VisualiseCakePayload, VisualiseResult } from '../../api/endpoints/upload';
+import ImagePickerButton from '../../components/ImagePickerButton';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 // ─── Category Form Modal ──────────────────────────────────────────────────────
@@ -47,13 +49,15 @@ function CategoryModal({ visible, initial, onClose, onSubmit, submitting }: {
 
 function ProductModal({ visible, initial, categories, onClose, onSubmit, submitting }: {
   visible: boolean; initial?: Product; categories: Category[];
-  onClose: () => void; onSubmit: (name: string, price: string, description: string, categoryList: string[]) => void;
+  onClose: () => void;
+  onSubmit: (name: string, price: string, description: string, categoryList: string[], images: string[]) => void;
   submitting: boolean;
 }) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
+  const [imageUrl, setImageUrl] = useState<string>('');
 
   React.useEffect(() => {
     if (visible) {
@@ -61,6 +65,7 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
       setPrice(initial?.price?.toString() ?? '');
       setDescription(initial?.description ?? '');
       setSelectedCats(initial?.categoryList ?? []);
+      setImageUrl(initial?.images?.[0] ?? '');
     }
   }, [visible, initial]);
 
@@ -74,11 +79,19 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textSecondary }}>Cancel</Text></TouchableOpacity>
             <Text style={styles.modalTitle}>{initial ? 'Edit Product' : 'New Product'}</Text>
-            <TouchableOpacity onPress={() => onSubmit(name, price, description, selectedCats)} disabled={submitting}>
+            <TouchableOpacity onPress={() => onSubmit(name, price, description, selectedCats, imageUrl ? [imageUrl] : [])} disabled={submitting}>
               {submitting ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: colors.primary, fontWeight: typography.semibold }}>Save</Text>}
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.formInner} keyboardShouldPersistTaps="handled">
+            <Text style={styles.label}>Photo</Text>
+            <ImagePickerButton
+              imageUrl={imageUrl || undefined}
+              folder="products"
+              onUpload={setImageUrl}
+              onRemove={() => setImageUrl('')}
+              size={110}
+            />
             <Text style={styles.label}>Name *</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Product name" placeholderTextColor={colors.textDisabled} />
             <Text style={styles.label}>Price *</Text>
@@ -104,10 +117,157 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
   );
 }
 
+// ─── AI Studio Tab ────────────────────────────────────────────────────────────
+
+const SHAPES = ['Round', 'Square', 'Heart', 'Rectangle'];
+const FLAVORS = ['Vanilla', 'Chocolate', 'Red Velvet', 'Lemon', 'Strawberry'];
+
+function AIStudioTab() {
+  const { data: savedCakes, isLoading: cakesLoading } = useCustomCakes();
+
+  const [form, setForm] = useState<VisualiseCakePayload>({});
+  const [baseImageUrl, setBaseImageUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<VisualiseResult | null>(null);
+
+  const toggleChip = (key: 'shape' | 'flavor', value: string) =>
+    setForm((f) => ({ ...f, [key]: f[key] === value ? undefined : value }));
+
+  const handleVisualise = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await cakeApi.visualise({ ...form, baseImage: baseImageUrl || undefined });
+      setResult(res);
+    } catch {
+      Alert.alert('Error', 'Failed to generate cake visualisation. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={aiStyles.container} keyboardShouldPersistTaps="handled">
+      <Text style={aiStyles.sectionTitle}>Customise Cake</Text>
+
+      <Text style={styles.label}>Base Image (optional)</Text>
+      <ImagePickerButton
+        imageUrl={baseImageUrl || undefined}
+        folder="cake-base"
+        onUpload={setBaseImageUrl}
+        onRemove={() => setBaseImageUrl('')}
+        size={120}
+      />
+
+      <Text style={[styles.label, { marginTop: spacing.md }]}>Shape</Text>
+      <View style={styles.chipRow}>
+        {SHAPES.map((s) => (
+          <TouchableOpacity
+            key={s}
+            style={[styles.chip, form.shape === s && styles.chipActive]}
+            onPress={() => toggleChip('shape', s)}
+          >
+            <Text style={[styles.chipText, form.shape === s && styles.chipTextActive]}>{s}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={[styles.label, { marginTop: spacing.md }]}>Flavour</Text>
+      <View style={styles.chipRow}>
+        {FLAVORS.map((f) => (
+          <TouchableOpacity
+            key={f}
+            style={[styles.chip, form.flavor === f && styles.chipActive]}
+            onPress={() => toggleChip('flavor', f)}
+          >
+            <Text style={[styles.chipText, form.flavor === f && styles.chipTextActive]}>{f}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={[styles.label, { marginTop: spacing.md }]}>Text on Cake</Text>
+      <TextInput
+        style={styles.input}
+        value={form.text ?? ''}
+        onChangeText={(v) => setForm((f) => ({ ...f, text: v || undefined }))}
+        placeholder="e.g. Happy Birthday!"
+        placeholderTextColor={colors.textDisabled}
+      />
+
+      <Text style={styles.label}>Extra Requests</Text>
+      <TextInput
+        style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+        value={form.extraRequests ?? ''}
+        onChangeText={(v) => setForm((f) => ({ ...f, extraRequests: v || undefined }))}
+        placeholder="e.g. Add roses, gold drip, sparklers..."
+        placeholderTextColor={colors.textDisabled}
+        multiline
+      />
+
+      <TouchableOpacity
+        style={[aiStyles.visualiseBtn, loading && { opacity: 0.6 }]}
+        onPress={handleVisualise}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={aiStyles.visualiseBtnText}>✨ Visualise Cake</Text>
+        )}
+      </TouchableOpacity>
+
+      {result && (
+        <View style={aiStyles.resultCard}>
+          <Text style={aiStyles.resultTitle}>Result</Text>
+          {result.success && result.imageBase64 ? (
+            <Image
+              source={{ uri: `data:${result.mimeType ?? 'image/jpeg'};base64,${result.imageBase64}` }}
+              style={aiStyles.resultImage}
+              resizeMode="contain"
+            />
+          ) : result.placeholderImage ? (
+            <>
+              <Image source={{ uri: result.placeholderImage }} style={aiStyles.resultImage} resizeMode="cover" />
+              <Text style={aiStyles.comingSoon}>{result.message ?? 'AI generation coming soon'}</Text>
+            </>
+          ) : (
+            <Text style={aiStyles.comingSoon}>{result.prompt ?? 'No image generated'}</Text>
+          )}
+        </View>
+      )}
+
+      <Text style={aiStyles.sectionTitle}>Customer Cake Orders</Text>
+      {cakesLoading ? (
+        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
+      ) : !savedCakes?.length ? (
+        <Text style={aiStyles.empty}>No custom cake orders yet</Text>
+      ) : (
+        savedCakes.map((cake) => (
+          <View key={cake.id} style={aiStyles.cakeCard}>
+            {cake.imageUrl ? (
+              <Image source={{ uri: cake.imageUrl }} style={aiStyles.cakeThumbnail} resizeMode="cover" />
+            ) : (
+              <View style={[aiStyles.cakeThumbnail, { backgroundColor: colors.surfaceElevated, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ fontSize: 24 }}>🎂</Text>
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={aiStyles.cakePrompt} numberOfLines={2}>{cake.prompt}</Text>
+              <Text style={aiStyles.cakeDate}>
+                {new Date(cake.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </Text>
+            </View>
+          </View>
+        ))
+      )}
+    </ScrollView>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function StudioScreen() {
-  const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'ai'>('products');
   const { data: products, isLoading: prodLoading, refetch: refetchProducts } = useProducts();
   const { data: categories, isLoading: catLoading, refetch: refetchCats } = useCategories();
   const createProduct = useCreateProduct();
@@ -122,19 +282,19 @@ export default function StudioScreen() {
   const [editingProduct, setEditingProduct] = useState<Product | undefined>();
   const [editingCategory, setEditingCategory] = useState<Category | undefined>();
 
-  const handleProductSubmit = (name: string, price: string, description: string, categoryList: string[]) => {
+  const handleProductSubmit = (name: string, price: string, description: string, categoryList: string[], images: string[]) => {
     if (!name.trim()) return Alert.alert('Required', 'Product name is required.');
     const parsedPrice = parseFloat(price);
     if (isNaN(parsedPrice)) return Alert.alert('Invalid', 'Please enter a valid price.');
 
     if (editingProduct) {
       updateProduct.mutate(
-        { id: editingProduct.id, payload: { name: name.trim(), price: parsedPrice, description: description.trim(), categoryList } },
+        { id: editingProduct.id, payload: { name: name.trim(), price: parsedPrice, description: description.trim(), categoryList, images } },
         { onSuccess: () => setShowProductModal(false), onError: () => Alert.alert('Error', 'Failed to update product.') },
       );
     } else {
       createProduct.mutate(
-        { name: name.trim(), price: parsedPrice, description: description.trim(), categoryList },
+        { name: name.trim(), price: parsedPrice, description: description.trim(), categoryList, images },
         { onSuccess: () => setShowProductModal(false), onError: () => Alert.alert('Error', 'Failed to create product.') },
       );
     }
@@ -159,16 +319,20 @@ export default function StudioScreen() {
     <SafeAreaView style={styles.root} edges={['bottom']}>
       {/* Tabs */}
       <View style={styles.tabRow}>
-        {(['products', 'categories'] as const).map((tab) => (
-          <TouchableOpacity key={tab} style={[styles.tab, activeTab === tab && styles.tabActive]} onPress={() => setActiveTab(tab)}>
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
+        {([
+          { key: 'products', label: 'Products' },
+          { key: 'categories', label: 'Categories' },
+          { key: 'ai', label: '✨ AI Studio' },
+        ] as const).map((tab) => (
+          <TouchableOpacity key={tab.key} style={[styles.tab, activeTab === tab.key && styles.tabActive]} onPress={() => setActiveTab(tab.key)}>
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {activeTab === 'products' ? (
+      {activeTab === 'ai' ? (
+        <AIStudioTab />
+      ) : activeTab === 'products' ? (
         <FlatList
           data={products ?? []}
           keyExtractor={(p) => p.id}
@@ -177,6 +341,13 @@ export default function StudioScreen() {
           onRefresh={refetchProducts}
           renderItem={({ item }) => (
             <View style={styles.card}>
+              {item.images?.[0] ? (
+                <Image source={{ uri: item.images[0] }} style={styles.productThumb} resizeMode="cover" />
+              ) : (
+                <View style={[styles.productThumb, { backgroundColor: colors.surfaceElevated, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={{ fontSize: 20 }}>🍰</Text>
+                </View>
+              )}
               <View style={{ flex: 1 }}>
                 <View style={styles.cardTitleRow}>
                   <Text style={styles.itemName}>{item.name}</Text>
@@ -235,17 +406,19 @@ export default function StudioScreen() {
         />
       )}
 
-      <View style={styles.fab}>
-        <TouchableOpacity
-          style={styles.fabBtn}
-          onPress={() => {
-            if (activeTab === 'products') { setEditingProduct(undefined); setShowProductModal(true); }
-            else { setEditingCategory(undefined); setShowCategoryModal(true); }
-          }}
-        >
-          <Text style={styles.fabText}>+ Add {activeTab === 'products' ? 'Product' : 'Category'}</Text>
-        </TouchableOpacity>
-      </View>
+      {activeTab !== 'ai' && (
+        <View style={styles.fab}>
+          <TouchableOpacity
+            style={styles.fabBtn}
+            onPress={() => {
+              if (activeTab === 'products') { setEditingProduct(undefined); setShowProductModal(true); }
+              else { setEditingCategory(undefined); setShowCategoryModal(true); }
+            }}
+          >
+            <Text style={styles.fabText}>+ Add {activeTab === 'products' ? 'Product' : 'Category'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ProductModal
         visible={showProductModal} initial={editingProduct} categories={categories ?? []}
@@ -266,11 +439,12 @@ const styles = StyleSheet.create({
   tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border },
   tab: { flex: 1, paddingVertical: spacing.md, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  tabText: { fontSize: typography.base, color: colors.textSecondary },
+  tabText: { fontSize: typography.sm, color: colors.textSecondary },
   tabTextActive: { color: colors.primary, fontWeight: typography.semibold },
   list: { padding: spacing.md, gap: spacing.sm, paddingBottom: 100 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, ...shadow.sm },
   cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  productThumb: { width: 48, height: 48, borderRadius: radius.md, overflow: 'hidden' },
   itemName: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text, flex: 1 },
   price: { fontSize: typography.base, fontWeight: typography.bold, color: colors.primary },
   itemDesc: { fontSize: typography.sm, color: colors.textSecondary, marginTop: 2 },
@@ -291,4 +465,20 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: typography.sm, color: colors.textSecondary },
   chipTextActive: { color: colors.textInverse, fontWeight: typography.medium },
+});
+
+const aiStyles = StyleSheet.create({
+  container: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.sm },
+  sectionTitle: { fontSize: typography.md, fontWeight: typography.bold, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.xs },
+  visualiseBtn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 15, alignItems: 'center', marginTop: spacing.md },
+  visualiseBtnText: { color: '#fff', fontSize: typography.base, fontWeight: typography.semibold },
+  resultCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm, ...shadow.sm, marginTop: spacing.md },
+  resultTitle: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
+  resultImage: { width: '100%', height: 280, borderRadius: radius.md },
+  comingSoon: { fontSize: typography.sm, color: colors.textSecondary, textAlign: 'center', paddingVertical: spacing.md },
+  empty: { fontSize: typography.sm, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.md },
+  cakeCard: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, ...shadow.sm, alignItems: 'center' },
+  cakeThumbnail: { width: 64, height: 64, borderRadius: radius.md, overflow: 'hidden' },
+  cakePrompt: { fontSize: typography.sm, color: colors.text, fontWeight: typography.medium },
+  cakeDate: { fontSize: typography.xs, color: colors.textSecondary, marginTop: 4 },
 });

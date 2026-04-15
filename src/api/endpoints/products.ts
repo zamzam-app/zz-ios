@@ -13,6 +13,7 @@ export interface Product {
   description: string;
   isActive: boolean;
   categoryList?: string[];
+  images: string[];
 }
 
 interface RawCategory {
@@ -30,6 +31,7 @@ interface RawProduct {
   description?: string;
   isActive?: boolean;
   categoryList?: string[];
+  images?: string[];
 }
 
 function mapCategory(raw: RawCategory): Category {
@@ -48,6 +50,7 @@ function mapProduct(raw: RawProduct): Product {
     description: raw.description ?? '',
     isActive: raw.isActive ?? true,
     categoryList: raw.categoryList,
+    images: raw.images ?? [],
   };
 }
 
@@ -80,10 +83,10 @@ export const productsApi = {
         return raw.map(mapProduct);
       }),
 
-  create: (payload: { name: string; price: number; description: string; categoryList?: string[] }) =>
-    client.post<RawProduct>('/product', { ...payload, images: [] }).then((r) => mapProduct(r.data)),
+  create: (payload: { name: string; price: number; description: string; categoryList?: string[]; images?: string[] }) =>
+    client.post<RawProduct>('/product', { images: [], ...payload }).then((r) => mapProduct(r.data)),
 
-  update: (id: string, payload: { name?: string; price?: number; description?: string; isActive?: boolean; categoryList?: string[] }) =>
+  update: (id: string, payload: { name?: string; price?: number; description?: string; isActive?: boolean; categoryList?: string[]; images?: string[] }) =>
     client.patch<RawProduct>(`/product/${id}`, payload).then((r) => mapProduct(r.data)),
 
   delete: (id: string) => client.delete(`/product/${id}`),

@@ -8,6 +8,9 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Image,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -16,7 +19,7 @@ import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
-import { Modal, FlatList } from 'react-native';
+import ImagePickerButton from '../../components/ImagePickerButton';
 
 type Props = NativeStackScreenProps<InfrastructureStackParamList, 'OutletDetail'>;
 
@@ -78,6 +81,7 @@ export default function OutletDetailScreen({ route }: Props) {
   const [address, setAddress] = useState('');
   const [outletTypeId, setOutletTypeId] = useState('');
   const [managerIds, setManagerIds] = useState<string[]>([]);
+  const [imageUrl, setImageUrl] = useState('');
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showManagerPicker, setShowManagerPicker] = useState(false);
 
@@ -88,6 +92,7 @@ export default function OutletDetailScreen({ route }: Props) {
       setAddress(outlet.address ?? '');
       setOutletTypeId(outlet.outletTypeId ?? '');
       setManagerIds(outlet.managerIds ?? []);
+      setImageUrl(outlet.images?.[0] ?? '');
     }
   }, [outlet]);
 
@@ -102,6 +107,7 @@ export default function OutletDetailScreen({ route }: Props) {
           address: address.trim() || undefined,
           outletType: outletTypeId || undefined,
           managerIds,
+          ...(imageUrl && { images: [imageUrl] }),
         },
       },
       {
@@ -136,6 +142,13 @@ export default function OutletDetailScreen({ route }: Props) {
     <SafeAreaView style={styles.root} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Header */}
+        {outlet.images?.[0] && !editing && (
+          <Image
+            source={{ uri: outlet.images[0] }}
+            style={styles.outletHero}
+            resizeMode="cover"
+          />
+        )}
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.outletName}>{outlet.name}</Text>
@@ -168,6 +181,14 @@ export default function OutletDetailScreen({ route }: Props) {
         {editing ? (
           /* Edit form */
           <View style={styles.form}>
+            <Text style={styles.label}>Photo</Text>
+            <ImagePickerButton
+              imageUrl={imageUrl || undefined}
+              folder="outlets"
+              onUpload={setImageUrl}
+              onRemove={() => setImageUrl('')}
+              size={110}
+            />
             <Text style={styles.label}>Name *</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} />
 
@@ -258,6 +279,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scroll: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
 
+  outletHero: { width: '100%', height: 180, borderRadius: radius.lg, marginBottom: spacing.sm },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   outletName: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text },
   outletType: { fontSize: typography.sm, color: colors.primary, marginTop: 4 },

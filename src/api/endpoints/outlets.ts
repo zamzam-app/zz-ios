@@ -30,6 +30,7 @@ export interface UpdateOutletPayload {
   address?: string;
   outletType?: string;
   managerIds?: string[];
+  images?: string[];
 }
 
 interface RawOutlet {

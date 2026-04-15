@@ -1,5 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, categoriesApi } from '../api/endpoints/products';
+import { cakeApi } from '../api/endpoints/upload';
+
+export const useCustomCakes = () =>
+  useQuery({
+    queryKey: ['custom-cakes'],
+    queryFn: cakeApi.listCustomCakes,
+    staleTime: 5 * 60 * 1000,
+  });
 
 export const useProducts = (categoryId?: string) =>
   useQuery({
