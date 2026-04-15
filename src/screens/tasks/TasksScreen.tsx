@@ -3,7 +3,6 @@ import {
   View,
   Text,
   FlatList,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
@@ -16,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTasks } from '../../hooks/useTasks';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
+import { FilterDropdown, FilterOption } from '../../components/FilterDropdown';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
@@ -32,9 +32,9 @@ const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {
-  HIGH: colors.priorityHigh,
+  HIGH:   colors.priorityHigh,
   MEDIUM: colors.priorityMedium,
-  LOW: colors.priorityLow,
+  LOW:    colors.priorityLow,
 };
 
 function formatDate(iso: string) {
@@ -63,8 +63,8 @@ function formatRelativeTime(iso?: string | null) {
 
 function OpenTaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
   const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
-  const outletName = getTaskOutletName(task);
-  const categoryName = getTaskCategoryName(task);
+  const outletName    = getTaskOutletName(task);
+  const categoryName  = getTaskCategoryName(task);
   const assigneeNames = getTaskAssigneeNames(task);
   const priorityColor = PRIORITY_COLORS[task.priority] ?? colors.textSecondary;
 
