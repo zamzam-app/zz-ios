@@ -5,16 +5,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useForms, useCreateForm, useUpdateForm, useDeleteForm, useForm } from '../../hooks/useForms';
-import { Form, Question, QuestionType } from '../../api/endpoints/forms';
+import { Question, QuestionType, QUESTION_TYPE_OPTIONS, SupportedQuestion } from '../../api/endpoints/forms';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-
-const QUESTION_TYPES: { label: string; value: QuestionType }[] = [
-  { label: 'Short Answer', value: 'short_answer' },
-  { label: 'Paragraph', value: 'paragraph' },
-  { label: 'Multiple Choice', value: 'multiple_choice' },
-  { label: 'Checkbox', value: 'checkbox' },
-  { label: 'Rating', value: 'rating' },
-];
 
 // ─── Form Editor Modal ────────────────────────────────────────────────────────
 
@@ -56,12 +48,20 @@ function FormEditorModal({ visible, formId, onClose }: {
     setShowAddQuestion(false);
   };
 
-  const updateQuestion = (index: number, patch: Partial<Question>) => {
-    setQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, ...patch } : q)));
+  const updateQuestion = (index: number, patch: Partial<Omit<SupportedQuestion, 'type'>>) => {
+    setQuestions((prev) => prev.map((q, i) => {
+      if (i !== index || q.type === 'unsupported') return q;
+      return { ...q, ...patch };
+    }));
   };
 
   const removeQuestion = (index: number) => {
     setQuestions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const getQuestionTypeLabel = (question: Question) => {
+    if (question.type === 'unsupported') return `Unsupported (${question.rawType})`;
+    return QUESTION_TYPE_OPTIONS.find((option) => option.value === question.type)?.label ?? question.type;
   };
 
   return (
@@ -95,66 +95,76 @@ function FormEditorModal({ visible, formId, onClose }: {
                 <View key={q._id} style={styles.questionCard}>
                   <View style={styles.questionHeader}>
                     <View style={styles.qTypePill}>
-                      <Text style={styles.qTypeText}>{q.type.replace(/_/g, ' ')}</Text>
+                      <Text style={styles.qTypeText}>{getQuestionTypeLabel(q)}</Text>
                     </View>
                     <TouchableOpacity onPress={() => removeQuestion(index)}>
                       <Text style={styles.deleteText}>Remove</Text>
                     </TouchableOpacity>
                   </View>
-                  <TextInput
-                    style={styles.input}
-                    value={q.title}
-                    onChangeText={(v) => updateQuestion(index, { title: v })}
-                    placeholder="Question text..."
-                    placeholderTextColor={colors.textDisabled}
-                  />
-                  {(q.type === 'multiple_choice' || q.type === 'checkbox') && (
-                    <View style={{ gap: spacing.xs }}>
-                      {(q.options ?? []).map((opt, oi) => (
-                        <View key={oi} style={styles.optionRow}>
-                          <TextInput
-                            style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                            value={opt.text}
-                            onChangeText={(v) => {
-                              const newOptions = [...(q.options ?? [])];
-                              newOptions[oi] = { text: v };
-                              updateQuestion(index, { options: newOptions });
-                            }}
-                            placeholder={`Option ${oi + 1}`}
-                            placeholderTextColor={colors.textDisabled}
-                          />
-                          <TouchableOpacity onPress={() => {
-                            const newOptions = (q.options ?? []).filter((_, i) => i !== oi);
-                            updateQuestion(index, { options: newOptions });
-                          }}>
-                            <Text style={styles.deleteText}>✕</Text>
+                  {q.type === 'unsupported' ? (
+                    <View style={styles.unsupportedCard}>
+                      <Text style={styles.unsupportedTitle}>Unsupported question type</Text>
+                      <Text style={styles.unsupportedType}>{q.rawType}</Text>
+                      {!!q.title && <Text style={styles.unsupportedText}>Title: {q.title}</Text>}
+                    </View>
+                  ) : (
+                    <>
+                      <TextInput
+                        style={styles.input}
+                        value={q.title}
+                        onChangeText={(v) => updateQuestion(index, { title: v })}
+                        placeholder="Question text..."
+                        placeholderTextColor={colors.textDisabled}
+                      />
+                      {(q.type === 'multiple_choice' || q.type === 'checkbox') && (
+                        <View style={{ gap: spacing.xs }}>
+                          {(q.options ?? []).map((opt, oi) => (
+                            <View key={oi} style={styles.optionRow}>
+                              <TextInput
+                                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                                value={opt.text}
+                                onChangeText={(v) => {
+                                  const newOptions = [...(q.options ?? [])];
+                                  newOptions[oi] = { ...newOptions[oi], text: v };
+                                  updateQuestion(index, { options: newOptions });
+                                }}
+                                placeholder={`Option ${oi + 1}`}
+                                placeholderTextColor={colors.textDisabled}
+                              />
+                              <TouchableOpacity onPress={() => {
+                                const newOptions = (q.options ?? []).filter((_, i) => i !== oi);
+                                updateQuestion(index, { options: newOptions });
+                              }}>
+                                <Text style={styles.deleteText}>✕</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                          <TouchableOpacity onPress={() => updateQuestion(index, { options: [...(q.options ?? []), { text: '' }] })}>
+                            <Text style={{ color: colors.primary, fontSize: typography.sm }}>+ Add option</Text>
                           </TouchableOpacity>
                         </View>
-                      ))}
-                      <TouchableOpacity onPress={() => updateQuestion(index, { options: [...(q.options ?? []), { text: '' }] })}>
-                        <Text style={{ color: colors.primary, fontSize: typography.sm }}>+ Add option</Text>
+                      )}
+                      {q.type === 'rating' && (
+                        <View style={styles.ratingRow}>
+                          <Text style={styles.label}>Max stars:</Text>
+                          {[3, 5, 10].map((n) => (
+                            <TouchableOpacity key={n} style={[styles.chip, q.maxRatings === n && styles.chipActive]} onPress={() => updateQuestion(index, { maxRatings: n })}>
+                              <Text style={[styles.chipText, q.maxRatings === n && styles.chipTextActive]}>{n}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={styles.requiredRow}
+                        onPress={() => updateQuestion(index, { isRequired: !q.isRequired })}
+                      >
+                        <View style={[styles.checkbox, q.isRequired && styles.checkboxChecked]}>
+                          {q.isRequired && <Text style={{ color: colors.textInverse, fontSize: 10 }}>✓</Text>}
+                        </View>
+                        <Text style={styles.requiredLabel}>Required</Text>
                       </TouchableOpacity>
-                    </View>
+                    </>
                   )}
-                  {q.type === 'rating' && (
-                    <View style={styles.ratingRow}>
-                      <Text style={styles.label}>Max stars:</Text>
-                      {[3, 5, 10].map((n) => (
-                        <TouchableOpacity key={n} style={[styles.chip, q.maxRatings === n && styles.chipActive]} onPress={() => updateQuestion(index, { maxRatings: n })}>
-                          <Text style={[styles.chipText, q.maxRatings === n && styles.chipTextActive]}>{n}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={styles.requiredRow}
-                    onPress={() => updateQuestion(index, { isRequired: !q.isRequired })}
-                  >
-                    <View style={[styles.checkbox, q.isRequired && styles.checkboxChecked]}>
-                      {q.isRequired && <Text style={{ color: colors.textInverse, fontSize: 10 }}>✓</Text>}
-                    </View>
-                    <Text style={styles.requiredLabel}>Required</Text>
-                  </TouchableOpacity>
                 </View>
               ))}
 
@@ -176,7 +186,7 @@ function FormEditorModal({ visible, formId, onClose }: {
               <Text style={{ color: colors.textSecondary }}>Cancel</Text>
             </TouchableOpacity>
           </View>
-          {QUESTION_TYPES.map((t) => (
+          {QUESTION_TYPE_OPTIONS.map((t) => (
             <TouchableOpacity key={t.value} style={styles.typeRow} onPress={() => addQuestion(t.value)}>
               <Text style={styles.typeLabel}>{t.label}</Text>
             </TouchableOpacity>
@@ -282,6 +292,17 @@ const styles = StyleSheet.create({
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   requiredLabel: { fontSize: typography.sm, color: colors.textSecondary },
+  unsupportedCard: {
+    borderWidth: 1,
+    borderColor: colors.warning + '55',
+    backgroundColor: colors.warning + '12',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  unsupportedTitle: { fontSize: typography.sm, fontWeight: typography.semibold, color: colors.warning },
+  unsupportedType: { fontSize: typography.sm, color: colors.text, fontWeight: typography.medium },
+  unsupportedText: { fontSize: typography.sm, color: colors.textSecondary },
   addQuestionBtn: { borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md, paddingVertical: 13, alignItems: 'center', borderStyle: 'dashed' },
   addQuestionText: { color: colors.primary, fontSize: typography.base, fontWeight: typography.medium },
   typeRow: { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },

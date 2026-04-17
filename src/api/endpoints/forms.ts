@@ -1,15 +1,25 @@
 import client from '../client';
 
 export type QuestionType = 'short_answer' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'rating';
+export type UnsupportedQuestionType = 'unsupported';
+
+export const QUESTION_TYPE_OPTIONS: ReadonlyArray<{ label: string; value: QuestionType }> = [
+  { label: 'Short Answer', value: 'short_answer' },
+  { label: 'Paragraph', value: 'paragraph' },
+  { label: 'Multiple Choice', value: 'multiple_choice' },
+  { label: 'Checkbox', value: 'checkbox' },
+  { label: 'Rating', value: 'rating' },
+];
+
+export const QUESTION_TYPES: QuestionType[] = QUESTION_TYPE_OPTIONS.map((option) => option.value);
 
 export interface Option {
   text: string;
   selected?: boolean;
 }
 
-export interface Question {
+interface BaseQuestion {
   _id: string;
-  type: QuestionType;
   title: string;
   isRequired: boolean;
   hint?: string;
@@ -17,6 +27,17 @@ export interface Question {
   maxRatings?: number;
   starStep?: number;
 }
+
+export interface SupportedQuestion extends BaseQuestion {
+  type: QuestionType;
+}
+
+export interface UnsupportedQuestion extends BaseQuestion {
+  type: UnsupportedQuestionType;
+  rawType: string;
+}
+
+export type Question = SupportedQuestion | UnsupportedQuestion;
 
 export interface Form {
   id: string;
@@ -49,7 +70,7 @@ interface RawQuestion {
 }
 
 interface UpdateQuestionPayload {
-  type: QuestionType;
+  type: string;
   title: string;
   isRequired: boolean;
   hint?: string;
@@ -58,16 +79,16 @@ interface UpdateQuestionPayload {
   starStep?: number;
 }
 
-const QUESTION_TYPES: QuestionType[] = [
-  'short_answer',
-  'paragraph',
-  'multiple_choice',
-  'checkbox',
-  'rating',
-];
-
 function isQuestionType(value: unknown): value is QuestionType {
   return typeof value === 'string' && QUESTION_TYPES.includes(value as QuestionType);
+}
+
+const warnedUnknownQuestionTypes = new Set<string>();
+
+function warnUnknownQuestionType(rawType: string) {
+  if (!__DEV__ || warnedUnknownQuestionTypes.has(rawType)) return;
+  warnedUnknownQuestionTypes.add(rawType);
+  console.warn(`[formsApi] Unsupported question type "${rawType}" received from backend.`);
 }
 
 function mapOption(raw: RawOption): Option | null {
@@ -79,9 +100,8 @@ function mapOption(raw: RawOption): Option | null {
 }
 
 function mapQuestion(raw: RawQuestion, index: number): Question {
-  return {
+  const common: BaseQuestion = {
     _id: String(raw._id ?? raw.id ?? `q_${index}`),
-    type: isQuestionType(raw.type) ? raw.type : 'short_answer',
     title: typeof raw.title === 'string' ? raw.title : '',
     isRequired: typeof raw.isRequired === 'boolean' ? raw.isRequired : false,
     ...(typeof raw.hint === 'string' ? { hint: raw.hint } : {}),
@@ -95,11 +115,28 @@ function mapQuestion(raw: RawQuestion, index: number): Question {
     ...(typeof raw.maxRatings === 'number' ? { maxRatings: raw.maxRatings } : {}),
     ...(typeof raw.starStep === 'number' ? { starStep: raw.starStep } : {}),
   };
+
+  if (isQuestionType(raw.type)) {
+    return {
+      ...common,
+      type: raw.type,
+    };
+  }
+
+  const rawType = typeof raw.type === 'string' ? raw.type : String(raw.type ?? 'unknown');
+  warnUnknownQuestionType(rawType);
+  return {
+    ...common,
+    type: 'unsupported',
+    rawType,
+  };
 }
 
 function toUpdateQuestionPayload(question: Question): UpdateQuestionPayload {
+  const type = question.type === 'unsupported' ? question.rawType : question.type;
+
   return {
-    type: question.type,
+    type,
     title: question.title,
     isRequired: question.isRequired,
     ...(typeof question.hint === 'string' ? { hint: question.hint } : {}),
