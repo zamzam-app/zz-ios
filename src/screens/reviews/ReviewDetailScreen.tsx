@@ -74,7 +74,7 @@ export default function ReviewDetailScreen({ route }: Props) {
 
   const canResolve =
     review?.isComplaint &&
-    (review.complaintStatus === 'pending' || !review.complaintStatus || review.overallRating < 2.5);
+    (review.complaintStatus === 'pending' || !review.complaintStatus);
 
   const handleResolve = (status: 'resolved' | 'dismissed') => {
     if (!review || !user) return;
