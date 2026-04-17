@@ -11,7 +11,6 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
-  accessToken: string | null;
   isLoading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
@@ -21,7 +20,6 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  accessToken: null,
   isLoading: true,
 
   login: async (email, password) => {
@@ -40,7 +38,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     const { data: profile } = await client.get<AuthUser>('/auth/profile');
 
-    set({ user: profile, accessToken: data.access_token });
+    set({ user: profile });
   },
 
   logout: async () => {
@@ -51,7 +49,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     await tokenStorage.clear();
     await refreshTokenStorage.clear();
-    set({ user: null, accessToken: null });
+    set({ user: null });
   },
 
   restoreSession: async () => {
@@ -60,7 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (!token) return;
 
       const { data: profile } = await client.get<AuthUser>('/auth/profile');
-      set({ user: profile, accessToken: token });
+      set({ user: profile });
     } catch {
       await tokenStorage.clear();
     } finally {
