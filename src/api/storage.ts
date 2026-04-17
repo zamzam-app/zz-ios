@@ -20,13 +20,7 @@ const assertRefreshTokenIsSafeToStore = (token: unknown): string => {
     throw new Error('Invalid refresh token type. Expected string.');
   }
 
-  const utf8Bytes = [...token].reduce((count, char) => {
-    const code = char.codePointAt(0) ?? 0;
-    if (code <= 0x7f) return count + 1;
-    if (code <= 0x7ff) return count + 2;
-    if (code <= 0xffff) return count + 3;
-    return count + 4;
-  }, 0);
+  const utf8Bytes = new TextEncoder().encode(token).length;
 
   if (utf8Bytes > SECURE_STORE_MAX_VALUE_BYTES) {
     throw new Error(

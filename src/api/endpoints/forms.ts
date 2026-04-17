@@ -167,7 +167,17 @@ export const formsApi = {
       .get<{ data: RawForm[] } | RawForm[]>('/forms', { params: { limit: 100 } })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawForm[] }).data ?? [];
-        return raw.map(mapForm);
+        const mapped: Form[] = [];
+        for (let index = 0; index < raw.length; index += 1) {
+          const record = raw[index];
+          try {
+            mapped.push(mapForm(record));
+          } catch (error) {
+            const recordId = String(record?._id ?? record?.id ?? 'unknown');
+            console.warn(`[forms] skipping malformed record at index ${index} (id: ${recordId})`, error);
+          }
+        }
+        return mapped;
       }),
 
   getById: (id: string) =>
