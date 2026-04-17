@@ -1,5 +1,7 @@
 import client from '../client';
 
+const CLOUDINARY_UPLOAD_TIMEOUT_MS = 60_000;
+
 interface SignatureResponse {
   signature: string;
   timestamp: number;
@@ -27,10 +29,24 @@ export async function uploadToCloudinary(localUri: string, folder = 'zam-zam'): 
   formData.append('signature', sig.signature);
   formData.append('folder', sig.folder);
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
-    { method: 'POST', body: formData },
-  );
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CLOUDINARY_UPLOAD_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
+      { method: 'POST', body: formData, signal: controller.signal },
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Upload timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   const json = await response.json();
   if (!json.secure_url) throw new Error(json.error?.message ?? 'Upload failed');
   return json.secure_url as string;
