@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 export type ComplaintStatus = 'pending' | 'resolved' | 'dismissed';
 
@@ -89,7 +90,7 @@ export const reviewsApi = {
       .get<{ data: RawReview[]; meta?: unknown } | RawReview[]>('/review', { params: query })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawReview[] }).data ?? [];
-        return raw.map(mapReview);
+        return mapListSafely(raw, 'reviews', mapReview);
       }),
 
   getById: (id: string) =>

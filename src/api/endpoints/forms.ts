@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 export type QuestionType = 'short_answer' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'rating';
 export type UnsupportedQuestionType = 'unsupported';
@@ -167,17 +168,7 @@ export const formsApi = {
       .get<{ data: RawForm[] } | RawForm[]>('/forms', { params: { limit: 100 } })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawForm[] }).data ?? [];
-        const mapped: Form[] = [];
-        for (let index = 0; index < raw.length; index += 1) {
-          const record = raw[index];
-          try {
-            mapped.push(mapForm(record));
-          } catch (error) {
-            const recordId = String(record?._id ?? record?.id ?? 'unknown');
-            console.warn(`[forms] skipping malformed record at index ${index} (id: ${recordId})`, error);
-          }
-        }
-        return mapped;
+        return mapListSafely(raw, 'forms', mapForm);
       }),
 
   getById: (id: string) =>

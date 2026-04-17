@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 export interface OutletType {
   id: string;
@@ -27,7 +28,7 @@ export const outletTypesApi = {
       .get<{ data: RawOutletType[] } | RawOutletType[]>('/outlet-type', { params: { limit: 100 } })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawOutletType[] }).data ?? [];
-        return raw.map(mapOutletType);
+        return mapListSafely(raw, 'outlet-types', mapOutletType);
       }),
 
   create: (payload: { name: string; description: string }) =>

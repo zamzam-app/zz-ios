@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 export interface Category {
   id: string;
@@ -60,7 +61,7 @@ export const categoriesApi = {
       .get<{ data: RawCategory[] } | RawCategory[]>('/category', { params: { limit: 100 } })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawCategory[] }).data ?? [];
-        return raw.map(mapCategory);
+        return mapListSafely(raw, 'categories', mapCategory);
       }),
 
   create: (payload: { name: string; description?: string }) =>
@@ -80,7 +81,7 @@ export const productsApi = {
       })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawProduct[] }).data ?? [];
-        return raw.map(mapProduct);
+        return mapListSafely(raw, 'products', mapProduct);
       }),
 
   create: (payload: { name: string; price: number; description: string; categoryList?: string[]; images?: string[] }) =>

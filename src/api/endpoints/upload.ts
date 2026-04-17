@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 const CLOUDINARY_UPLOAD_TIMEOUT_MS = 60_000;
 
@@ -101,7 +102,7 @@ export const cakeApi = {
     client
       .get<{ data: RawCustomCake[] } | RawCustomCake[]>('/custom-cakes', { params: { limit: 50 } })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : ((r.data as any).data ?? []);
-        return (raw as RawCustomCake[]).map(mapCustomCake);
+        const raw = Array.isArray(r.data) ? r.data : (((r.data as any).data ?? []) as RawCustomCake[]);
+        return mapListSafely(raw, 'custom-cakes', mapCustomCake);
       }),
 };
