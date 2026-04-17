@@ -169,7 +169,17 @@ export const tasksApi = {
       .get<{ data: RawTask[]; total?: number } | RawTask[]>('/tasks', { params: query })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawTask[] }).data ?? [];
-        return raw.map(mapTask);
+        const mapped: Task[] = [];
+        for (let index = 0; index < raw.length; index += 1) {
+          const record = raw[index];
+          try {
+            mapped.push(mapTask(record));
+          } catch (error) {
+            const recordId = String(record?._id ?? record?.id ?? 'unknown');
+            console.warn(`[tasks] skipping malformed record at index ${index} (id: ${recordId})`, error);
+          }
+        }
+        return mapped;
       }),
 
   getById: (id: string) =>

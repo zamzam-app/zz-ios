@@ -113,7 +113,17 @@ export const outletsApi = {
       .get<{ data: RawOutlet[] } | RawOutlet[]>('/outlet', { params: { limit: 100 } })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawOutlet[] }).data ?? [];
-        return raw.map(mapOutlet);
+        const mapped: Outlet[] = [];
+        for (let index = 0; index < raw.length; index += 1) {
+          const record = raw[index];
+          try {
+            mapped.push(mapOutlet(record));
+          } catch (error) {
+            const recordId = String(record?._id ?? record?.id ?? 'unknown');
+            console.warn(`[outlets] skipping malformed record at index ${index} (id: ${recordId})`, error);
+          }
+        }
+        return mapped;
       }),
 
   getById: (id: string) =>
