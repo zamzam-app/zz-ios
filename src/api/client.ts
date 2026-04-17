@@ -21,14 +21,22 @@ client.interceptors.request.use(async (config) => {
 
 // ─── Response interceptor ────────────────────────────────────────────────────
 // On 401: attempt one token refresh, retry the original request.
-// If refresh also fails, clear the session — the auth store / navigator
-// will detect the missing token and redirect to Login.
+// If refresh returns 401, clear session; otherwise preserve tokens so
+// transient failures (timeouts/5xx) do not force logout.
 
 let isRefreshing = false;
-let pendingRequests: Array<(token: string) => void> = [];
+let pendingRequests: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
 
-const flushPending = (token: string) => {
-  pendingRequests.forEach((resolve) => resolve(token));
+const flushPendingSuccess = (token: string) => {
+  pendingRequests.forEach(({ resolve }) => resolve(token));
+  pendingRequests = [];
+};
+
+const flushPendingFailure = (error: unknown) => {
+  pendingRequests.forEach(({ reject }) => reject(error));
   pendingRequests = [];
 };
 
@@ -44,15 +52,20 @@ client.interceptors.response.use(
     // Avoid infinite loop if the refresh call itself 401s
     if (original.url === '/auth/refresh') {
       await tokenStorage.clear();
+      flushPendingFailure(error);
       return Promise.reject(error);
     }
 
     if (isRefreshing) {
       // Queue requests while a refresh is already in flight
-      return new Promise((resolve) => {
-        pendingRequests.push((token: string) => {
-          original.headers.Authorization = `Bearer ${token}`;
-          resolve(client(original));
+      return new Promise((resolve, reject) => {
+        pendingRequests.push({
+          resolve: (token: string) => {
+            original.headers = original.headers ?? {};
+            original.headers.Authorization = `Bearer ${token}`;
+            resolve(client(original));
+          },
+          reject,
         });
       });
     }
@@ -62,13 +75,21 @@ client.interceptors.response.use(
     try {
       const { data } = await client.post<{ access_token: string }>('/auth/refresh');
       await tokenStorage.set(data.access_token);
-      flushPending(data.access_token);
+      flushPendingSuccess(data.access_token);
+      original.headers = original.headers ?? {};
       original.headers.Authorization = `Bearer ${data.access_token}`;
       return client(original);
-    } catch {
-      await tokenStorage.clear();
-      pendingRequests = [];
-      return Promise.reject(error);
+    } catch (refreshError) {
+      const refreshStatus = axios.isAxiosError(refreshError)
+        ? refreshError.response?.status
+        : undefined;
+
+      if (refreshStatus === 401) {
+        await tokenStorage.clear();
+      }
+
+      flushPendingFailure(refreshError);
+      return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
     }
