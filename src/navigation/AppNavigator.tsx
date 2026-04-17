@@ -1,7 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
 import { colors, typography } from '../theme/theme';
 import OverviewScreen from '../screens/overview/OverviewScreen';
 import TasksNavigator from './TasksNavigator';
@@ -9,12 +8,6 @@ import ReviewsNavigator from './ReviewsNavigator';
 import InfrastructureNavigator from './InfrastructureNavigator';
 import MoreNavigator from './MoreNavigator';
 import { useReviews } from '../hooks/useReviews';
-
-// Placeholder screens — will be replaced as we build each tab
-function PlaceholderScreen({ name }: { name: string }) {
-  return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.textSecondary }}>{name}</Text></View>;
-}
-
 
 export type AppTabParamList = {
   Overview: undefined;
