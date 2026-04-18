@@ -16,7 +16,6 @@ export const QUESTION_TYPES: QuestionType[] = QUESTION_TYPE_OPTIONS.map((option)
 
 export interface Option {
   text: string;
-  selected?: boolean;
 }
 
 interface BaseQuestion {
@@ -55,7 +54,6 @@ interface RawForm {
 
 interface RawOption {
   text?: unknown;
-  selected?: unknown;
 }
 
 interface RawQuestion {
@@ -96,7 +94,6 @@ function mapOption(raw: RawOption): Option | null {
   if (typeof raw.text !== 'string') return null;
   return {
     text: raw.text,
-    ...(typeof raw.selected === 'boolean' ? { selected: raw.selected } : {}),
   };
 }
 
@@ -145,7 +142,6 @@ function toUpdateQuestionPayload(question: Question): UpdateQuestionPayload {
       ? {
           options: question.options.map((option) => ({
             text: option.text,
-            ...(typeof option.selected === 'boolean' ? { selected: option.selected } : {}),
           })),
         }
       : {}),
