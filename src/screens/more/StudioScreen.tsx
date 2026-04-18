@@ -10,7 +10,6 @@ import {
   useCreateCategory, useUpdateCategory, useDeleteCategory, useCustomCakes,
 } from '../../hooks/useProducts';
 import { Product, Category } from '../../api/endpoints/products';
-import { cakeApi, VisualiseCakePayload, VisualiseResult } from '../../api/endpoints/upload';
 import ImagePickerButton from '../../components/ImagePickerButton';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
@@ -119,123 +118,11 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
 
 // ─── AI Studio Tab ────────────────────────────────────────────────────────────
 
-const SHAPES = ['Round', 'Square', 'Heart', 'Rectangle'];
-const FLAVORS = ['Vanilla', 'Chocolate', 'Red Velvet', 'Lemon', 'Strawberry'];
-
 function AIStudioTab() {
   const { data: savedCakes, isLoading: cakesLoading } = useCustomCakes();
 
-  const [form, setForm] = useState<VisualiseCakePayload>({});
-  const [baseImageUrl, setBaseImageUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<VisualiseResult | null>(null);
-
-  const toggleChip = (key: 'shape' | 'flavor', value: string) =>
-    setForm((f) => ({ ...f, [key]: f[key] === value ? undefined : value }));
-
-  const handleVisualise = async () => {
-    setLoading(true);
-    setResult(null);
-    try {
-      const res = await cakeApi.visualise({ ...form, baseImage: baseImageUrl || undefined });
-      setResult(res);
-    } catch {
-      Alert.alert('Error', 'Failed to generate cake visualisation. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <ScrollView contentContainerStyle={aiStyles.container} keyboardShouldPersistTaps="handled">
-      <Text style={aiStyles.sectionTitle}>Customise Cake</Text>
-
-      <Text style={styles.label}>Base Image (optional)</Text>
-      <ImagePickerButton
-        imageUrl={baseImageUrl || undefined}
-        folder="cake-base"
-        onUpload={setBaseImageUrl}
-        onRemove={() => setBaseImageUrl('')}
-        size={120}
-      />
-
-      <Text style={[styles.label, { marginTop: spacing.md }]}>Shape</Text>
-      <View style={styles.chipRow}>
-        {SHAPES.map((s) => (
-          <TouchableOpacity
-            key={s}
-            style={[styles.chip, form.shape === s && styles.chipActive]}
-            onPress={() => toggleChip('shape', s)}
-          >
-            <Text style={[styles.chipText, form.shape === s && styles.chipTextActive]}>{s}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={[styles.label, { marginTop: spacing.md }]}>Flavour</Text>
-      <View style={styles.chipRow}>
-        {FLAVORS.map((f) => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.chip, form.flavor === f && styles.chipActive]}
-            onPress={() => toggleChip('flavor', f)}
-          >
-            <Text style={[styles.chipText, form.flavor === f && styles.chipTextActive]}>{f}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={[styles.label, { marginTop: spacing.md }]}>Text on Cake</Text>
-      <TextInput
-        style={styles.input}
-        value={form.text ?? ''}
-        onChangeText={(v) => setForm((f) => ({ ...f, text: v || undefined }))}
-        placeholder="e.g. Happy Birthday!"
-        placeholderTextColor={colors.textDisabled}
-      />
-
-      <Text style={styles.label}>Extra Requests</Text>
-      <TextInput
-        style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-        value={form.extraRequests ?? ''}
-        onChangeText={(v) => setForm((f) => ({ ...f, extraRequests: v || undefined }))}
-        placeholder="e.g. Add roses, gold drip, sparklers..."
-        placeholderTextColor={colors.textDisabled}
-        multiline
-      />
-
-      <TouchableOpacity
-        style={[aiStyles.visualiseBtn, loading && { opacity: 0.6 }]}
-        onPress={handleVisualise}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={aiStyles.visualiseBtnText}>✨ Visualise Cake</Text>
-        )}
-      </TouchableOpacity>
-
-      {result && (
-        <View style={aiStyles.resultCard}>
-          <Text style={aiStyles.resultTitle}>Result</Text>
-          {result.success && result.imageBase64 ? (
-            <Image
-              source={{ uri: `data:${result.mimeType ?? 'image/jpeg'};base64,${result.imageBase64}` }}
-              style={aiStyles.resultImage}
-              resizeMode="contain"
-            />
-          ) : result.placeholderImage ? (
-            <>
-              <Image source={{ uri: result.placeholderImage }} style={aiStyles.resultImage} resizeMode="cover" />
-              <Text style={aiStyles.comingSoon}>{result.message ?? 'AI generation coming soon'}</Text>
-            </>
-          ) : (
-            <Text style={aiStyles.comingSoon}>{result.prompt ?? 'No image generated'}</Text>
-          )}
-        </View>
-      )}
-
       <Text style={aiStyles.sectionTitle}>Customer Cake Orders</Text>
       {cakesLoading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
@@ -470,12 +357,6 @@ const styles = StyleSheet.create({
 const aiStyles = StyleSheet.create({
   container: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.sm },
   sectionTitle: { fontSize: typography.md, fontWeight: typography.bold, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.xs },
-  visualiseBtn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 15, alignItems: 'center', marginTop: spacing.md },
-  visualiseBtnText: { color: '#fff', fontSize: typography.base, fontWeight: typography.semibold },
-  resultCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm, ...shadow.sm, marginTop: spacing.md },
-  resultTitle: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
-  resultImage: { width: '100%', height: 280, borderRadius: radius.md },
-  comingSoon: { fontSize: typography.sm, color: colors.textSecondary, textAlign: 'center', paddingVertical: spacing.md },
   empty: { fontSize: typography.sm, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.md },
   cakeCard: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, ...shadow.sm, alignItems: 'center' },
   cakeThumbnail: { width: 64, height: 64, borderRadius: radius.md, overflow: 'hidden' },
