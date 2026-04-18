@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import client from '../api/client';
-import { tokenStorage } from '../api/storage';
+import { refreshTokenStorage, tokenStorage } from '../api/storage';
 
 export interface AuthUser {
   id: string;
@@ -12,7 +11,6 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
-  accessToken: string | null;
   isLoading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
@@ -22,7 +20,6 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  accessToken: null,
   isLoading: true,
 
   login: async (email, password) => {
@@ -34,12 +31,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     await tokenStorage.set(data.access_token);
 
     if (data.refresh_token) {
-      await AsyncStorage.setItem('refresh_token', data.refresh_token);
+      await refreshTokenStorage.set(data.refresh_token);
+    } else {
+      await refreshTokenStorage.clear();
     }
 
     const { data: profile } = await client.get<AuthUser>('/auth/profile');
 
-    set({ user: profile, accessToken: data.access_token });
+    set({ user: profile });
   },
 
   logout: async () => {
@@ -49,8 +48,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       // best-effort
     }
     await tokenStorage.clear();
-    await AsyncStorage.removeItem('refresh_token');
-    set({ user: null, accessToken: null });
+    await refreshTokenStorage.clear();
+    set({ user: null });
   },
 
   restoreSession: async () => {
@@ -59,7 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (!token) return;
 
       const { data: profile } = await client.get<AuthUser>('/auth/profile');
-      set({ user: profile, accessToken: token });
+      set({ user: profile });
     } catch {
       await tokenStorage.clear();
     } finally {

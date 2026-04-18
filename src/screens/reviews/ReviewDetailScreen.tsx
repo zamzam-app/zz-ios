@@ -16,20 +16,9 @@ import { useAuthStore } from '../../store/authStore';
 import { UserResponse } from '../../api/endpoints/reviews';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
+import StarRating from '../../components/StarRating';
 
 type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewDetail'>;
-
-function StarRating({ rating, size = 16 }: { rating: number; size?: number }) {
-  return (
-    <View style={{ flexDirection: 'row', gap: 2 }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} style={{ fontSize: size, color: i <= Math.round(rating) ? '#f59e0b' : colors.border }}>
-          ★
-        </Text>
-      ))}
-    </View>
-  );
-}
 
 function ResponseItem({ response }: { response: UserResponse }) {
   const questionTitle =
@@ -74,7 +63,7 @@ export default function ReviewDetailScreen({ route }: Props) {
 
   const canResolve =
     review?.isComplaint &&
-    (review.complaintStatus === 'pending' || !review.complaintStatus || review.overallRating < 2.5);
+    (review.complaintStatus === 'pending' || !review.complaintStatus);
 
   const handleResolve = (status: 'resolved' | 'dismissed') => {
     if (!review || !user) return;

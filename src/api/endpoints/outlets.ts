@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 export interface Outlet {
   id: string;
@@ -113,7 +114,7 @@ export const outletsApi = {
       .get<{ data: RawOutlet[] } | RawOutlet[]>('/outlet', { params: { limit: 100 } })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawOutlet[] }).data ?? [];
-        return raw.map(mapOutlet);
+        return mapListSafely(raw, 'outlets', mapOutlet);
       }),
 
   getById: (id: string) =>

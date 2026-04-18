@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -169,7 +170,7 @@ export const tasksApi = {
       .get<{ data: RawTask[]; total?: number } | RawTask[]>('/tasks', { params: query })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawTask[] }).data ?? [];
-        return raw.map(mapTask);
+        return mapListSafely(raw, 'tasks', mapTask);
       }),
 
   getById: (id: string) =>
@@ -185,8 +186,7 @@ export const tasksApi = {
     const raw = Array.isArray(response.data)
       ? response.data
       : (response.data as { data: RawTaskCategory[] }).data ?? [];
-    return raw
-      .map(mapTaskCategory)
+    return mapListSafely(raw, 'task-categories', mapTaskCategory)
       .filter((category) => category.id.length > 0 && category.name.length > 0);
   },
 

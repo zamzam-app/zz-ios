@@ -21,6 +21,7 @@ import { Review, ComplaintStatus } from '../../api/endpoints/reviews';
 import { FranchiseRankingItem, MetricsHeatmapItem, Period } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
+import StarRating from '../../components/StarRating';
 
 type Nav = NativeStackNavigationProp<ReviewsStackParamList, 'ReviewsList'>;
 type ComplaintFilter = 'all' | 'pending' | 'resolved';
@@ -183,16 +184,6 @@ function FranchiseRanking({
 
 // ─── Review Card ──────────────────────────────────────────────────────────────
 
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <View style={styles.stars}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} style={{ fontSize: 12, color: i <= Math.round(rating) ? '#f59e0b' : colors.border }}>★</Text>
-      ))}
-    </View>
-  );
-}
-
 function ReviewCard({ review, onPress }: { review: Review; onPress: () => void }) {
   const firstTextAnswer = review.userResponses.find((r) => typeof r.answer === 'string' && r.answer.trim());
   const comment = typeof firstTextAnswer?.answer === 'string' ? firstTextAnswer.answer : '';
@@ -211,7 +202,7 @@ function ReviewCard({ review, onPress }: { review: Review; onPress: () => void }
           <Text style={styles.outletName}>{review.outletName}</Text>
         </View>
         <View style={styles.cardRight}>
-          <StarRating rating={review.overallRating} />
+          <StarRating rating={review.overallRating} size={12} />
           <Text style={styles.date}>
             {new Date(review.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
           </Text>
@@ -409,7 +400,6 @@ const styles = StyleSheet.create({
   customerName: { fontSize: typography.sm, fontWeight: typography.semibold, color: colors.text },
   outletName: { fontSize: typography.xs, color: colors.textSecondary, marginTop: 2 },
   cardRight: { alignItems: 'flex-end', gap: 4 },
-  stars: { flexDirection: 'row' },
   date: { fontSize: typography.xs, color: colors.textSecondary },
   comment: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 18, marginBottom: spacing.sm },
   complaintBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.full },

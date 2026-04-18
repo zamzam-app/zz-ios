@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 export type QuestionType = 'short_answer' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'rating';
 export type UnsupportedQuestionType = 'unsupported';
@@ -167,7 +168,7 @@ export const formsApi = {
       .get<{ data: RawForm[] } | RawForm[]>('/forms', { params: { limit: 100 } })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawForm[] }).data ?? [];
-        return raw.map(mapForm);
+        return mapListSafely(raw, 'forms', mapForm);
       }),
 
   getById: (id: string) =>

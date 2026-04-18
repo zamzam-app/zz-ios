@@ -1,4 +1,5 @@
 import client from '../client';
+import { mapListSafely } from './mapListSafely';
 
 export interface User {
   id: string;
@@ -68,7 +69,7 @@ export const usersApi = {
       .get<{ data: RawUser[] } | RawUser[]>('/users', { params: { limit: 100, role } })
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawUser[] }).data ?? [];
-        return raw.map(mapUser);
+        return mapListSafely(raw, 'users', mapUser);
       }),
 
   create: (payload: CreateManagerPayload) =>
