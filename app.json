@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.zzios",
+      "bundleIdentifier": "com.zamzam.adminapp",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
