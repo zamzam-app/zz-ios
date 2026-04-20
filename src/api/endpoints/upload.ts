@@ -53,23 +53,6 @@ export async function uploadToCloudinary(localUri: string, folder = 'zam-zam'): 
   return json.secure_url as string;
 }
 
-export interface VisualiseCakePayload {
-  text?: string;
-  baseImage?: string;
-  shape?: string;
-  flavor?: string;
-  extraRequests?: string;
-}
-
-export interface VisualiseResult {
-  success: boolean;
-  imageBase64: string | null;
-  mimeType?: string;
-  prompt?: string;
-  message?: string;
-  placeholderImage?: string;
-}
-
 export interface CustomCake {
   id: string;
   prompt: string;
@@ -95,9 +78,6 @@ function mapCustomCake(raw: RawCustomCake): CustomCake {
 }
 
 export const cakeApi = {
-  visualise: (payload: VisualiseCakePayload) =>
-    client.post<VisualiseResult>('/visualise-cake', payload).then((r) => r.data),
-
   listCustomCakes: () =>
     client
       .get<{ data: RawCustomCake[] } | RawCustomCake[]>('/custom-cakes', { params: { limit: 50 } })
