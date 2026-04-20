@@ -135,12 +135,16 @@ type CreateTaskContentProps = {
   onSuccess: () => void;
   submitLabel?: string;
   bottomPadding?: number;
+  fill?: boolean;
+  backgroundColor?: string;
 };
 
 export function CreateTaskContent({
   onSuccess,
   submitLabel = 'Create Task',
   bottomPadding = 40,
+  fill = true,
+  backgroundColor = colors.background,
 }: CreateTaskContentProps) {
   const [description, setDescription] = useState('');
   const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>();
@@ -204,7 +208,7 @@ export function CreateTaskContent({
   };
 
   return (
-    <View style={styles.root}>
+    <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]}
         keyboardShouldPersistTaps="handled"
@@ -337,14 +341,15 @@ type Props = NativeStackScreenProps<TasksStackParamList, 'CreateTask'>;
 
 export default function CreateTaskScreen({ navigation }: Props) {
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={[styles.rootFill, { backgroundColor: colors.background }]} edges={['bottom']}>
       <CreateTaskContent onSuccess={() => navigation.goBack()} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  rootFill: { flex: 1 },
+  rootAuto: {},
   scroll: { paddingHorizontal: spacing.md, gap: spacing.sm },
 
   label: {

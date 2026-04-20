@@ -286,7 +286,9 @@ export default function TasksScreen() {
                 setShowCreateModal(false);
                 void refetch();
               }}
-              bottomPadding={24}
+              bottomPadding={12}
+              fill={false}
+              backgroundColor={colors.surface}
             />
           </View>
         </View>
@@ -502,7 +504,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(25, 28, 30, 0.4)',
   },
   createSheet: {
-    height: '92%',
+    maxHeight: '92%',
     backgroundColor: colors.surface,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
