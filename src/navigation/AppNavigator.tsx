@@ -21,13 +21,22 @@ export type AppTabParamList = {
 const Tab = createBottomTabNavigator<AppTabParamList>();
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+type TabRouteName = keyof AppTabParamList;
 
-const TAB_ICONS: Record<string, { outline: IoniconName; filled: IoniconName }> = {
-  Overview:       { outline: 'grid-outline',       filled: 'grid' },
-  Tasks:          { outline: 'checkbox-outline',   filled: 'checkbox' },
-  Reviews:        { outline: 'star-outline',        filled: 'star' },
-  Infrastructure: { outline: 'storefront-outline', filled: 'storefront' },
-  More:           { outline: 'menu-outline',        filled: 'menu' },
+const TAB_ICONS: Record<TabRouteName, { outline: IoniconName; filled: IoniconName }> = {
+  Overview: { outline: 'speedometer-outline',       filled: 'speedometer' },
+  Tasks: { outline: 'document-text-outline',      filled: 'document-text' },
+  Reviews: { outline: 'chatbubble-ellipses-outline', filled: 'chatbubble-ellipses' },
+  Infrastructure: { outline: 'storefront-outline',       filled: 'storefront' },
+  More: { outline: 'menu-outline',             filled: 'menu' },
+};
+
+const TAB_LABELS: Record<TabRouteName, string> = {
+  Overview: 'Dashboard',
+  Tasks: 'Tasks',
+  Reviews: 'Reviews',
+  Infrastructure: 'Outlets',
+  More: 'Menu',
 };
 
 function ReviewsTabIcon({ color, focused }: { color: string; focused: boolean }) {
@@ -47,7 +56,7 @@ function ReviewsTabIcon({ color, focused }: { color: string; focused: boolean })
   );
 }
 
-function TabIcon({ name, color, focused }: { name: string; color: string; focused: boolean }) {
+function TabIcon({ name, color, focused }: { name: TabRouteName; color: string; focused: boolean }) {
   if (name === 'Reviews') return <ReviewsTabIcon color={color} focused={focused} />;
   const icons = TAB_ICONS[name];
   if (!icons) return null;
@@ -59,27 +68,35 @@ export default function AppNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: '#F59E0B',
+        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarLabel: TAB_LABELS[route.name as TabRouteName],
         tabBarLabelStyle: {
-          fontSize: typography.xs,
+          fontSize: 10,
           fontWeight: typography.medium,
-          marginBottom: 6,
+          textTransform: 'uppercase',
+          letterSpacing: 0.6,
+          marginBottom: 2,
+          marginTop: 1,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 4,
         },
         tabBarStyle: {
           position: 'absolute',
           bottom: 20,
-          left: 16,
-          right: 16,
-          borderRadius: 32,
-          height: 72,
-          backgroundColor: 'rgba(255,255,255,0.97)',
+          left: 14,
+          right: 14,
+          borderRadius: 24,
+          height: 76,
+          backgroundColor: '#1A202C',
           borderTopWidth: 0,
-          paddingTop: 8,
+          paddingTop: 6,
+          paddingBottom: 6,
           ...shadow.lg,
         },
         tabBarIcon: ({ color, focused }) => (
-          <TabIcon name={route.name} color={color} focused={focused} />
+          <TabIcon name={route.name as TabRouteName} color={color} focused={focused} />
         ),
       })}
     >
@@ -95,8 +112,8 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -8,
+    top: -6,
+    right: -10,
     backgroundColor: colors.error,
     borderRadius: 8,
     minWidth: 16,
