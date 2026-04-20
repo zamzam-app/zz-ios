@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +19,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
+import { CreateTaskContent } from './CreateTaskScreen';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type PriorityFilter = TaskPriority | 'ALL';
@@ -133,6 +135,7 @@ function CompletedTaskCard({ task, onPress }: { task: Task; onPress: () => void 
 export default function TasksScreen() {
   const navigation = useNavigation<Nav>();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { data: tasks, isLoading, isFetching, refetch } = useTasks({ limit: 50 });
   const allTasks = tasks ?? [];
@@ -154,7 +157,7 @@ export default function TasksScreen() {
           <Text style={styles.heading}>Task Board</Text>
           <Text style={styles.subheading}>Manage operational flows across all outlets</Text>
         </View>
-        <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateTask')} activeOpacity={0.84}>
+        <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
           <Text style={styles.createBtnText}>+ New</Text>
         </TouchableOpacity>
       </View>
@@ -252,6 +255,42 @@ export default function TasksScreen() {
           )}
         </View>
       </View>
+
+      <Modal
+        visible={showCreateModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <View style={styles.createModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.createModalScrim}
+            onPress={() => setShowCreateModal(false)}
+          />
+          <View style={styles.createSheet}>
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Assign New Task</Text>
+                <TouchableOpacity
+                  style={styles.createSheetClose}
+                  onPress={() => setShowCreateModal(false)}
+                >
+                  <Text style={styles.createSheetCloseText}>X</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <CreateTaskContent
+              onSuccess={() => {
+                setShowCreateModal(false);
+                void refetch();
+              }}
+              bottomPadding={24}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -453,4 +492,65 @@ const styles = StyleSheet.create({
   emptyWrap: { paddingVertical: spacing.xl },
   empty: { textAlign: 'center', color: colors.textSecondary, fontSize: typography.sm },
   completedEmpty: { color: colors.textSecondary, fontSize: typography.sm, marginBottom: spacing.md },
+
+  createModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  createModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+  },
+  createSheet: {
+    height: '92%',
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#191c1e',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 24,
+  },
+  createSheetTop: {
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D3C5AC40',
+    backgroundColor: '#F7F9FBD9',
+  },
+  createSheetHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: '#E6E8EA',
+    marginBottom: spacing.sm,
+  },
+  createSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  createSheetTitle: {
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.3,
+  },
+  createSheetClose: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F4F6',
+  },
+  createSheetCloseText: {
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
 });
