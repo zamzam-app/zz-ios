@@ -9,9 +9,14 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import QRCode from 'react-native-qrcode-svg';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useOutlets, useDeleteOutlet } from '../../hooks/useOutlets';
@@ -19,6 +24,7 @@ import { Outlet } from '../../api/endpoints/outlets';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { useAuthStore } from '../../store/authStore';
+import { CreateOutletContent } from './CreateOutletScreen';
 
 type Nav = NativeStackNavigationProp<InfrastructureStackParamList, 'OutletsList'>;
 
@@ -26,6 +32,7 @@ type OutletCardProps = {
   outlet: Outlet;
   isAdmin: boolean;
   onPress: () => void;
+  onQrPress: () => void;
   onDelete: () => void;
 };
 
@@ -38,19 +45,11 @@ function FallbackOutletImage({ name }: { name: string }) {
   );
 }
 
-function OutletCard({ outlet, isAdmin, onPress, onDelete }: OutletCardProps) {
+function OutletCard({ outlet, isAdmin, onPress, onQrPress, onDelete }: OutletCardProps) {
   const imageUri = outlet.images?.[0];
   const managerLabel = outlet.managerNames && outlet.managerNames.length > 0
     ? `Manager: ${outlet.managerNames[0]}`
     : 'Manager unavailable';
-
-  const handleQrPress = () => {
-    if (outlet.qrToken) {
-      Alert.alert('QR Token', outlet.qrToken);
-      return;
-    }
-    Alert.alert('QR Code', 'QR code is not available for this outlet yet.');
-  };
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.88}>
@@ -105,7 +104,7 @@ function OutletCard({ outlet, isAdmin, onPress, onDelete }: OutletCardProps) {
       </View>
 
       <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={handleQrPress}>
+        <TouchableOpacity style={styles.actionBtn} onPress={onQrPress}>
           <Ionicons name="qr-code-outline" size={16} color={colors.textInverse} />
           <Text style={styles.actionBtnText}>QR Code</Text>
         </TouchableOpacity>
@@ -123,6 +122,9 @@ export default function InfrastructureScreen() {
   const { data: outlets, isLoading, isFetching, refetch } = useOutlets();
   const deleteOutlet = useDeleteOutlet();
   const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
+  const [showCreateModal, setShowCreateModal] = React.useState(false);
+  const [selectedQrOutlet, setSelectedQrOutlet] = React.useState<Outlet | null>(null);
+  const qrRef = React.useRef<any>(null);
 
   const handleDelete = (outlet: Outlet) => {
     Alert.alert('Delete Outlet', `Delete "${outlet.name}"? This cannot be undone.`, [
@@ -133,6 +135,59 @@ export default function InfrastructureScreen() {
         onPress: () => deleteOutlet.mutate(outlet.id),
       },
     ]);
+  };
+
+  const buildQrUrl = (token: string) => `https://zz-user.vercel.app//review/${token}`;
+
+  const handleOpenQrModal = (outlet: Outlet) => {
+    if (!outlet.qrToken) {
+      Alert.alert('QR Code', 'QR code is not available for this outlet yet.');
+      return;
+    }
+    setSelectedQrOutlet(outlet);
+  };
+
+  const handleDownloadQr = async () => {
+    if (!selectedQrOutlet?.qrToken || !qrRef.current) return;
+
+    try {
+      qrRef.current.toDataURL(async (base64Data: string) => {
+        try {
+          const safeName = selectedQrOutlet.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          const fileName = `${safeName || 'outlet'}-qr.png`;
+          const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+          await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: 'image/png',
+              dialogTitle: 'Download QR Code',
+              UTI: 'public.png',
+            });
+          } else {
+            Alert.alert('Saved', 'QR code PNG has been generated.');
+          }
+        } catch {
+          Alert.alert('Error', 'Failed to save QR code PNG.');
+        }
+      });
+    } catch {
+      Alert.alert('Error', 'Failed to generate QR code PNG.');
+    }
+  };
+
+  const handleOpenReviewUrl = async () => {
+    if (!selectedQrOutlet?.qrToken) return;
+    const url = buildQrUrl(selectedQrOutlet.qrToken);
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) {
+      Alert.alert('Error', 'Unable to open review page.');
+      return;
+    }
+    await Linking.openURL(url);
   };
 
   return (
@@ -150,7 +205,7 @@ export default function InfrastructureScreen() {
             </TouchableOpacity>
           )}
           {isAdmin && (
-            <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateOutlet')}>
+            <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)}>
               <Text style={styles.createBtnText}>+ New</Text>
             </TouchableOpacity>
           )}
@@ -170,12 +225,102 @@ export default function InfrastructureScreen() {
               outlet={item}
               isAdmin={isAdmin}
               onPress={() => navigation.navigate('OutletDetail', { outletId: item.id })}
+              onQrPress={() => handleOpenQrModal(item)}
               onDelete={() => handleDelete(item)}
             />
           )}
           ListEmptyComponent={<Text style={styles.empty}>No outlets found</Text>}
         />
       )}
+
+      <Modal
+        visible={showCreateModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <View style={styles.createModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.createModalScrim}
+            onPress={() => setShowCreateModal(false)}
+          />
+          <View style={styles.createSheet}>
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Create Outlet</Text>
+                <TouchableOpacity
+                  style={styles.createSheetClose}
+                  onPress={() => setShowCreateModal(false)}
+                >
+                  <Text style={styles.createSheetCloseText}>X</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <CreateOutletContent
+              onSuccess={() => {
+                setShowCreateModal(false);
+                void refetch();
+              }}
+              bottomPadding={20}
+              fill={false}
+              backgroundColor={colors.surface}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={selectedQrOutlet !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedQrOutlet(null)}
+      >
+        <View style={styles.qrModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.qrModalScrim}
+            onPress={() => setSelectedQrOutlet(null)}
+          />
+          <View style={styles.qrModalCard}>
+            <View style={styles.qrHeader}>
+              <Text style={styles.qrTitle}>{selectedQrOutlet?.name ?? 'Outlet'}</Text>
+              <TouchableOpacity
+                style={styles.qrCloseBtn}
+                onPress={() => setSelectedQrOutlet(null)}
+              >
+                <Text style={styles.qrCloseText}>X</Text>
+              </TouchableOpacity>
+            </View>
+
+            {selectedQrOutlet?.qrToken && (
+              <>
+                <View style={styles.qrCanvasWrap}>
+                  <QRCode
+                    value={buildQrUrl(selectedQrOutlet.qrToken)}
+                    size={170}
+                    backgroundColor={colors.surface}
+                    color="#000000"
+                    getRef={(ref) => { qrRef.current = ref; }}
+                  />
+                </View>
+                <Text style={styles.qrHint}>Scan to access review page</Text>
+              </>
+            )}
+
+            <View style={styles.qrActionRow}>
+              <TouchableOpacity style={styles.qrActionBtn} onPress={handleDownloadQr}>
+                <Ionicons name="download-outline" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.qrActionBtn} onPress={handleOpenReviewUrl}>
+                <Ionicons name="open-outline" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -375,4 +520,148 @@ const styles = StyleSheet.create({
   },
 
   empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
+
+  createModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  createModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+  },
+  createSheet: {
+    maxHeight: '92%',
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#191c1e',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 24,
+  },
+  createSheetTop: {
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D3C5AC40',
+    backgroundColor: '#F7F9FBD9',
+  },
+  createSheetHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: '#E6E8EA',
+    marginBottom: spacing.sm,
+  },
+  createSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  createSheetTitle: {
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.3,
+  },
+  createSheetClose: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F4F6',
+  },
+  createSheetCloseText: {
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
+
+  qrModalRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  qrModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(25, 28, 30, 0.48)',
+  },
+  qrModalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#D3C5AC40',
+    ...shadow.md,
+  },
+  qrHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D3C5AC33',
+  },
+  qrTitle: {
+    flex: 1,
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  qrCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F4F6',
+  },
+  qrCloseText: {
+    fontSize: typography.base,
+    color: colors.textSecondary,
+    fontWeight: typography.semibold,
+  },
+  qrCanvasWrap: {
+    marginTop: spacing.lg,
+    alignSelf: 'center',
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#D3C5AC99',
+    backgroundColor: '#FFFFFF',
+  },
+  qrHint: {
+    marginTop: spacing.sm,
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontWeight: typography.medium,
+  },
+  qrActionRow: {
+    marginTop: spacing.md,
+    marginBottom: spacing.lg,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  qrActionBtn: {
+    width: 48,
+    height: 36,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC80',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

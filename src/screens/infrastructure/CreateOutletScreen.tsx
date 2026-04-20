@@ -22,6 +22,22 @@ import { InfrastructureStackParamList } from '../../navigation/InfrastructureNav
 import { getApiErrorMessage } from '../../utils/errors';
 
 type Props = NativeStackScreenProps<InfrastructureStackParamList, 'CreateOutlet'>;
+type CreateOutletContentProps = {
+  onSuccess: () => void;
+  submitLabel?: string;
+  bottomPadding?: number;
+  fill?: boolean;
+  backgroundColor?: string;
+};
+
+function Label({ text, required }: { text: string; required?: boolean }) {
+  return (
+    <Text style={styles.label}>
+      {text}
+      {required && <Text style={{ color: colors.error }}> *</Text>}
+    </Text>
+  );
+}
 
 function PickerModal({
   visible,
@@ -43,11 +59,11 @@ function PickerModal({
   const selectedArr = Array.isArray(selected) ? selected : [selected];
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <SafeAreaView style={styles.pickerRoot}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>{title}</Text>
           <TouchableOpacity onPress={onClose}>
-            <Text style={{ color: colors.primary, fontSize: typography.base }}>Done</Text>
+            <Text style={styles.modalDone}>Done</Text>
           </TouchableOpacity>
         </View>
         <FlatList
@@ -68,7 +84,13 @@ function PickerModal({
   );
 }
 
-export default function CreateOutletScreen({ navigation }: Props) {
+export function CreateOutletContent({
+  onSuccess,
+  submitLabel = 'Create Outlet',
+  bottomPadding = 120,
+  fill = true,
+  backgroundColor = colors.background,
+}: CreateOutletContentProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
@@ -110,16 +132,16 @@ export default function CreateOutletScreen({ navigation }: Props) {
         ...(managerIds.length > 0 ? { managerIds } : {}),
       },
       {
-        onSuccess: () => navigation.goBack(),
+        onSuccess,
         onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to create outlet.')),
       },
     );
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.label}>Name *</Text>
+    <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]} keyboardShouldPersistTaps="handled">
+        <Label text="Name" required />
         <TextInput
           style={styles.input}
           placeholder="Outlet name"
@@ -128,7 +150,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
           onChangeText={setName}
         />
 
-        <Text style={styles.label}>Description *</Text>
+        <Label text="Description" required />
         <TextInput
           style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
           placeholder="Describe this outlet..."
@@ -138,7 +160,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
           multiline
         />
 
-        <Text style={styles.label}>Address</Text>
+        <Label text="Address" />
         <TextInput
           style={styles.input}
           placeholder="Street address"
@@ -147,7 +169,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
           onChangeText={setAddress}
         />
 
-        <Text style={styles.label}>Outlet Type *</Text>
+        <Label text="Outlet Type" required />
         {isLoadingOutletTypes ? (
           <View style={styles.fieldState}>
             <ActivityIndicator color={colors.primary} />
@@ -175,7 +197,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
           </TouchableOpacity>
         )}
 
-        <Text style={styles.label}>Managers</Text>
+        <Label text="Managers" />
         <TouchableOpacity style={styles.input} onPress={() => setShowManagerPicker(true)}>
           <Text style={{ color: selectedManagers.length > 0 ? colors.text : colors.textDisabled }}>
             {selectedManagers.length > 0 ? selectedManagers.map((m) => m.name).join(', ') : 'Select managers...'}
@@ -189,7 +211,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
         >
           {createOutlet.isPending
             ? <ActivityIndicator color={colors.textInverse} />
-            : <Text style={styles.submitBtnText}>Create Outlet</Text>}
+            : <Text style={styles.submitBtnText}>{submitLabel}</Text>}
         </TouchableOpacity>
         {!isAdmin && (
           <Text style={styles.helperText}>Only admins can create outlets.</Text>
@@ -215,14 +237,29 @@ export default function CreateOutletScreen({ navigation }: Props) {
         )}
         onClose={() => setShowManagerPicker(false)}
       />
+    </View>
+  );
+}
+
+export default function CreateOutletScreen({ navigation }: Props) {
+  return (
+    <SafeAreaView style={[styles.rootFill, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <CreateOutletContent onSuccess={() => navigation.goBack()} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.sm },
-  label: { fontSize: typography.sm, fontWeight: typography.medium, color: colors.text },
+  rootFill: { flex: 1 },
+  rootAuto: {},
+  scroll: { paddingHorizontal: spacing.md, gap: spacing.sm },
+  label: {
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+    color: colors.text,
+    marginBottom: 2,
+    marginTop: spacing.sm,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -272,6 +309,7 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
     textAlign: 'center',
   },
+  pickerRoot: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -280,6 +318,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  modalDone: { color: colors.primary, fontSize: typography.base },
   modalTitle: { fontSize: typography.md, fontWeight: typography.semibold, color: colors.text },
   pickerRow: {
     flexDirection: 'row',
