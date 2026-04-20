@@ -33,6 +33,7 @@ type OutletCardProps = {
   isAdmin: boolean;
   onPress: () => void;
   onQrPress: () => void;
+  onEditPress: () => void;
   onDelete: () => void;
 };
 
@@ -45,7 +46,7 @@ function FallbackOutletImage({ name }: { name: string }) {
   );
 }
 
-function OutletCard({ outlet, isAdmin, onPress, onQrPress, onDelete }: OutletCardProps) {
+function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete }: OutletCardProps) {
   const imageUri = outlet.images?.[0];
   const managerLabel = outlet.managerNames && outlet.managerNames.length > 0
     ? `Manager: ${outlet.managerNames[0]}`
@@ -108,7 +109,7 @@ function OutletCard({ outlet, isAdmin, onPress, onQrPress, onDelete }: OutletCar
           <Ionicons name="qr-code-outline" size={16} color={colors.textInverse} />
           <Text style={styles.actionBtnText}>QR Code</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
+        <TouchableOpacity style={styles.actionBtn} onPress={onEditPress}>
           <Ionicons name="create-outline" size={16} color={colors.textInverse} />
           <Text style={styles.actionBtnText}>Edit</Text>
         </TouchableOpacity>
@@ -123,6 +124,7 @@ export default function InfrastructureScreen() {
   const deleteOutlet = useDeleteOutlet();
   const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
   const [showCreateModal, setShowCreateModal] = React.useState(false);
+  const [editingOutlet, setEditingOutlet] = React.useState<Outlet | null>(null);
   const [selectedQrOutlet, setSelectedQrOutlet] = React.useState<Outlet | null>(null);
   const qrRef = React.useRef<any>(null);
 
@@ -226,6 +228,7 @@ export default function InfrastructureScreen() {
               isAdmin={isAdmin}
               onPress={() => navigation.navigate('OutletDetail', { outletId: item.id })}
               onQrPress={() => handleOpenQrModal(item)}
+              onEditPress={() => setEditingOutlet(item)}
               onDelete={() => handleDelete(item)}
             />
           )}
@@ -264,6 +267,48 @@ export default function InfrastructureScreen() {
                 setShowCreateModal(false);
                 void refetch();
               }}
+              bottomPadding={20}
+              fill={false}
+              backgroundColor={colors.surface}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={editingOutlet !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingOutlet(null)}
+      >
+        <View style={styles.createModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.createModalScrim}
+            onPress={() => setEditingOutlet(null)}
+          />
+          <View style={styles.createSheet}>
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Edit Outlet</Text>
+                <TouchableOpacity
+                  style={styles.createSheetClose}
+                  onPress={() => setEditingOutlet(null)}
+                >
+                  <Text style={styles.createSheetCloseText}>X</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <CreateOutletContent
+              mode="edit"
+              outletToEdit={editingOutlet}
+              onSuccess={() => {
+                setEditingOutlet(null);
+                void refetch();
+              }}
+              submitLabel="Save Changes"
               bottomPadding={20}
               fill={false}
               backgroundColor={colors.surface}

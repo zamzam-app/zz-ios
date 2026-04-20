@@ -13,16 +13,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCreateOutlet } from '../../hooks/useOutlets';
+import { useCreateOutlet, useUpdateOutlet } from '../../hooks/useOutlets';
 import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';
 import { useAuthStore } from '../../store/authStore';
+import { Outlet } from '../../api/endpoints/outlets';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
 
 type Props = NativeStackScreenProps<InfrastructureStackParamList, 'CreateOutlet'>;
 type CreateOutletContentProps = {
+  mode?: 'create' | 'edit';
+  outletToEdit?: Outlet | null;
   onSuccess: () => void;
   submitLabel?: string;
   bottomPadding?: number;
@@ -85,8 +88,10 @@ function PickerModal({
 }
 
 export function CreateOutletContent({
+  mode = 'create',
+  outletToEdit = null,
   onSuccess,
-  submitLabel = 'Create Outlet',
+  submitLabel = mode === 'edit' ? 'Save Changes' : 'Create Outlet',
   bottomPadding = 120,
   fill = true,
   backgroundColor = colors.background,
@@ -108,11 +113,33 @@ export function CreateOutletContent({
   } = useOutletTypes();
   const { data: managers } = useManagers();
   const createOutlet = useCreateOutlet();
+  const updateOutlet = useUpdateOutlet();
   const userRole = useAuthStore((state) => state.user?.role);
   const isAdmin = userRole === 'admin';
 
+  React.useEffect(() => {
+    if (mode !== 'edit' || !outletToEdit) {
+      return;
+    }
+    setName(outletToEdit.name ?? '');
+    setDescription(outletToEdit.description ?? '');
+    setAddress(outletToEdit.address ?? '');
+    setOutletTypeId(outletToEdit.outletTypeId ?? '');
+    setManagerIds(outletToEdit.managerIds ?? []);
+  }, [mode, outletToEdit]);
+
+  React.useEffect(() => {
+    if (mode !== 'create') return;
+    setName('');
+    setDescription('');
+    setAddress('');
+    setOutletTypeId('');
+    setManagerIds([]);
+  }, [mode]);
+
   const selectedType = outletTypes?.find((t) => t.id === outletTypeId);
   const selectedManagers = managers?.filter((m) => managerIds.includes(m.id)) ?? [];
+  const isSubmitting = createOutlet.isPending || updateOutlet.isPending;
 
   const handleSubmit = () => {
     if (!isAdmin) {
@@ -121,6 +148,27 @@ export function CreateOutletContent({
     if (!name.trim()) return Alert.alert('Required', 'Outlet name is required.');
     if (!description.trim()) return Alert.alert('Required', 'Description is required.');
     if (!outletTypeId) return Alert.alert('Required', 'Please select an outlet type.');
+
+    if (mode === 'edit') {
+      if (!outletToEdit) return;
+      updateOutlet.mutate(
+        {
+          id: outletToEdit.id,
+          payload: {
+            name: name.trim(),
+            description: description.trim(),
+            address: address.trim() || undefined,
+            outletType: outletTypeId,
+            managerIds,
+          },
+        },
+        {
+          onSuccess,
+          onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to update outlet.')),
+        },
+      );
+      return;
+    }
 
     createOutlet.mutate(
       {
@@ -205,11 +253,11 @@ export function CreateOutletContent({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.submitBtn, (createOutlet.isPending || !isAdmin) && { opacity: 0.6 }]}
+          style={[styles.submitBtn, (isSubmitting || !isAdmin) && { opacity: 0.6 }]}
           onPress={handleSubmit}
-          disabled={createOutlet.isPending || !isAdmin}
+          disabled={isSubmitting || !isAdmin}
         >
-          {createOutlet.isPending
+          {isSubmitting
             ? <ActivityIndicator color={colors.textInverse} />
             : <Text style={styles.submitBtnText}>{submitLabel}</Text>}
         </TouchableOpacity>
