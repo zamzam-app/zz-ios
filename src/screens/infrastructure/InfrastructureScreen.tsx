@@ -8,7 +8,9 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,45 +22,97 @@ import { useAuthStore } from '../../store/authStore';
 
 type Nav = NativeStackNavigationProp<InfrastructureStackParamList, 'OutletsList'>;
 
-function OutletCard({ outlet, onPress, onDelete }: {
+type OutletCardProps = {
   outlet: Outlet;
+  isAdmin: boolean;
   onPress: () => void;
   onDelete: () => void;
-}) {
+};
+
+function FallbackOutletImage({ name }: { name: string }) {
+  const letter = name.trim().charAt(0).toUpperCase() || 'O';
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleRow}>
-          <Text style={styles.outletName}>{outlet.name}</Text>
-          {outlet.outletTypeName && (
-            <View style={styles.typePill}>
-              <Text style={styles.typePillText}>{outlet.outletTypeName}</Text>
-            </View>
+    <View style={styles.outletImageFallback}>
+      <Text style={styles.outletImageFallbackText}>{letter}</Text>
+    </View>
+  );
+}
+
+function OutletCard({ outlet, isAdmin, onPress, onDelete }: OutletCardProps) {
+  const imageUri = outlet.images?.[0];
+  const managerLabel = outlet.managerNames && outlet.managerNames.length > 0
+    ? `Manager: ${outlet.managerNames[0]}`
+    : 'Manager unavailable';
+
+  const handleQrPress = () => {
+    if (outlet.qrToken) {
+      Alert.alert('QR Token', outlet.qrToken);
+      return;
+    }
+    Alert.alert('QR Code', 'QR code is not available for this outlet yet.');
+  };
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.88}>
+      <View style={styles.cardMainRow}>
+        <View style={styles.imageWrap}>
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.outletImage} resizeMode="cover" />
+          ) : (
+            <FallbackOutletImage name={outlet.name} />
           )}
         </View>
-        <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={styles.deleteIcon}>✕</Text>
-        </TouchableOpacity>
+
+        <View style={styles.cardContent}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleGroup}>
+              <Text style={styles.outletName}>{outlet.name}</Text>
+              {outlet.outletTypeName ? (
+                <View style={styles.typeChip}>
+                  <Text style={styles.typeChipText}>{outlet.outletTypeName}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.rightMeta}>
+              <View style={styles.activePill}>
+                <View style={styles.activeDot} />
+                <Text style={styles.activeText}>ACTIVE</Text>
+              </View>
+              {isAdmin && (
+                <TouchableOpacity
+                  onPress={onDelete}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.deleteBtn}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.metaRows}>
+            <View style={styles.metaRow}>
+              <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.metaText} numberOfLines={1}>{outlet.address ?? 'No address'}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Ionicons name="person-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.metaText} numberOfLines={1}>{managerLabel}</Text>
+            </View>
+          </View>
+        </View>
       </View>
 
-      {outlet.address ? (
-        <Text style={styles.address} numberOfLines={1}>{outlet.address}</Text>
-      ) : (
-        <Text style={styles.addressEmpty}>No address</Text>
-      )}
-
-      <View style={styles.cardFooter}>
-        {outlet.managerNames && outlet.managerNames.length > 0 ? (
-          <Text style={styles.managers} numberOfLines={1}>
-            {outlet.managerNames.join(', ')}
-          </Text>
-        ) : (
-          <Text style={styles.managers}>No manager assigned</Text>
-        )}
-        <View style={styles.ratingRow}>
-          <Text style={styles.ratingText}>★ {(outlet.rating ?? 0).toFixed(1)}</Text>
-          <Text style={styles.feedbackText}> · {outlet.totalFeedback} reviews</Text>
-        </View>
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.actionBtn} onPress={handleQrPress}>
+          <Ionicons name="qr-code-outline" size={16} color={colors.textInverse} />
+          <Text style={styles.actionBtnText}>QR Code</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
+          <Ionicons name="create-outline" size={16} color={colors.textInverse} />
+          <Text style={styles.actionBtnText}>Edit</Text>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -84,21 +138,19 @@ export default function InfrastructureScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.heading}>Infrastructure</Text>
+        <View>
+          <Text style={styles.heading}>Outlets</Text>
+          <Text style={styles.subheading}>Manage your restaurant locations</Text>
+        </View>
+
         <View style={styles.headerBtns}>
           {isAdmin && (
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={() => navigation.navigate('OutletTypes')}
-            >
-              <Text style={styles.secondaryBtnText}>Types</Text>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate('OutletTypes')}>
+              <Text style={styles.secondaryBtnText}>Type</Text>
             </TouchableOpacity>
           )}
           {isAdmin && (
-            <TouchableOpacity
-              style={styles.createBtn}
-              onPress={() => navigation.navigate('CreateOutlet')}
-            >
+            <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateOutlet')}>
               <Text style={styles.createBtnText}>+ New</Text>
             </TouchableOpacity>
           )}
@@ -116,6 +168,7 @@ export default function InfrastructureScreen() {
           renderItem={({ item }) => (
             <OutletCard
               outlet={item}
+              isAdmin={isAdmin}
               onPress={() => navigation.navigate('OutletDetail', { outletId: item.id })}
               onDelete={() => handleDelete(item)}
             />
@@ -128,58 +181,198 @@ export default function InfrastructureScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1, backgroundColor: '#F7F9FB' },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
-  heading: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text, letterSpacing: -0.5 },
-  headerBtns: { flexDirection: 'row', gap: spacing.sm },
+  heading: {
+    fontSize: typography.xl,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+  subheading: {
+    marginTop: 2,
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+
+  headerBtns: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
   secondaryBtn: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm - 2,
-    borderRadius: radius.full,
+    paddingVertical: 9,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: '#D3C5AC80',
+    backgroundColor: '#FFFFFF',
   },
-  secondaryBtnText: { color: colors.primary, fontWeight: typography.semibold, fontSize: typography.sm },
+  secondaryBtnText: {
+    color: colors.text,
+    fontWeight: typography.semibold,
+    fontSize: typography.sm,
+  },
   createBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#785A00',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm - 2,
-    borderRadius: radius.full,
-  },
-  createBtnText: { color: colors.textInverse, fontWeight: typography.semibold, fontSize: typography.sm },
-
-  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: 120 },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingVertical: 9,
+    borderRadius: radius.md,
     ...shadow.sm,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xs },
-  cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  outletName: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
-  typePill: {
-    backgroundColor: colors.primary + '18',
+  createBtnText: {
+    color: colors.textInverse,
+    fontWeight: typography.semibold,
+    fontSize: typography.sm,
+  },
+
+  list: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: 120 },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC26',
+    ...shadow.sm,
+    gap: spacing.sm,
+  },
+  cardMainRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  imageWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: '#F2F4F6',
+    flexShrink: 0,
+  },
+  outletImage: {
+    width: '100%',
+    height: '100%',
+  },
+  outletImageFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E6E8EA',
+  },
+  outletImageFallbackText: {
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: '#5A4300',
+  },
+
+  cardContent: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  titleGroup: {
+    flex: 1,
+    gap: 4,
+  },
+  outletName: {
+    fontSize: typography.base,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  typeChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FDF4E7',
+    borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: radius.full,
   },
-  typePillText: { fontSize: typography.xs, color: colors.primary, fontWeight: typography.medium },
-  deleteIcon: { fontSize: 14, color: colors.textSecondary, paddingLeft: spacing.sm },
-  address: { fontSize: typography.sm, color: colors.textSecondary, marginBottom: spacing.sm },
-  addressEmpty: { fontSize: typography.sm, color: colors.textDisabled, marginBottom: spacing.sm },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  managers: { fontSize: typography.xs, color: colors.textSecondary, flex: 1 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center' },
-  ratingText: { fontSize: typography.xs, color: '#f59e0b', fontWeight: typography.semibold },
-  feedbackText: { fontSize: typography.xs, color: colors.textSecondary },
+  typeChipText: {
+    color: '#92400E',
+    fontSize: 10,
+    fontWeight: typography.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+
+  rightMeta: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+  },
+  activePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DCFCE7',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  activeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: radius.full,
+    backgroundColor: '#16A34A',
+  },
+  activeText: {
+    fontSize: 10,
+    fontWeight: typography.bold,
+    color: '#15803D',
+    letterSpacing: 0.3,
+  },
+  deleteBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5EFE6',
+  },
+
+  metaRows: {
+    gap: 2,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  metaText: {
+    flex: 1,
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingTop: 2,
+  },
+  actionBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: '#1A202C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  actionBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+  },
 
   empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
 });
