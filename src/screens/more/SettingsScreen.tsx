@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, TouchableOpacity,
-  Alert, ActivityIndicator, ScrollView,
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { useChangePassword } from '../../hooks/useUsers';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
@@ -40,90 +47,183 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Profile */}
-        <Text style={styles.sectionTitle}>Profile</Text>
-        <View style={styles.card}>
-          <Row label="Name" value={user?.name ?? '—'} />
-          <Row label="Email" value={user?.email ?? '—'} />
-          <Row label="Role" value={user?.role?.toUpperCase() ?? '—'} last />
+        <View style={styles.pageHeader}>
+          <Text style={styles.pageTitle}>Account Settings</Text>
+          <Text style={styles.pageSubtitle}>Manage your digital atelier profile and security protocols.</Text>
         </View>
 
-        {/* Change password */}
-        <Text style={styles.sectionTitle}>Change Password</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>Current Password</Text>
-          <TextInput
-            style={styles.input}
-            secureTextEntry
-            value={oldPassword}
-            onChangeText={setOldPassword}
-            placeholder="••••••••"
-            placeholderTextColor={colors.textDisabled}
-          />
-          <Text style={styles.label}>New Password</Text>
-          <TextInput
-            style={styles.input}
-            secureTextEntry
-            value={newPassword}
-            onChangeText={setNewPassword}
-            placeholder="••••••••"
-            placeholderTextColor={colors.textDisabled}
-          />
-          <Text style={styles.label}>Confirm New Password</Text>
-          <TextInput
-            style={[styles.input, { marginBottom: 0 }]}
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            placeholder="••••••••"
-            placeholderTextColor={colors.textDisabled}
-          />
-        </View>
+        <View style={styles.stack}>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="person-outline" size={18} color={colors.primary} />
+              <Text style={styles.cardTitle}>Profile Information</Text>
+            </View>
+            <View style={styles.formStack}>
+              <Field label="Name" value={user?.name ?? '—'} />
+              <Field label="Email" value={user?.email ?? '—'} />
+              <Field label="Role" value={user?.role?.toUpperCase() ?? '—'} />
+            </View>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.saveBtn, changePassword.isPending && { opacity: 0.6 }]}
-          onPress={handleChangePassword}
-          disabled={changePassword.isPending}
-        >
-          {changePassword.isPending
-            ? <ActivityIndicator color={colors.textInverse} />
-            : <Text style={styles.saveBtnText}>Update Password</Text>}
-        </TouchableOpacity>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+              <Text style={styles.cardTitle}>Security</Text>
+            </View>
+
+            <Text style={styles.label}>Current Password</Text>
+            <TextInput
+              style={styles.input}
+              secureTextEntry
+              value={oldPassword}
+              onChangeText={setOldPassword}
+              placeholder="••••••••••••"
+              placeholderTextColor={colors.textDisabled}
+            />
+
+            <Text style={styles.label}>New Password</Text>
+            <TextInput
+              style={styles.input}
+              secureTextEntry
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="Min 12 characters"
+              placeholderTextColor={colors.textDisabled}
+            />
+
+            <Text style={styles.label}>Confirm New Password</Text>
+            <TextInput
+              style={styles.input}
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter new password"
+              placeholderTextColor={colors.textDisabled}
+            />
+
+            <TouchableOpacity
+              style={[styles.updateBtn, changePassword.isPending && { opacity: 0.6 }]}
+              onPress={handleChangePassword}
+              disabled={changePassword.isPending}
+            >
+              {changePassword.isPending
+                ? <ActivityIndicator color={colors.textInverse} />
+                : <Text style={styles.updateBtnText}>Update Password</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
+function Field({ label, value }: { label: string; value: string }) {
   return (
-    <View style={[styles.row, !last && styles.rowBorder]}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+    <View style={styles.fieldWrap}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.readonlyField}>
+        <Text style={styles.readonlyFieldText}>{value}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.md },
-  sectionTitle: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, ...shadow.sm, gap: spacing.sm },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.sm },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  rowLabel: { fontSize: typography.sm, color: colors.textSecondary },
-  rowValue: { fontSize: typography.sm, color: colors.text, fontWeight: typography.medium },
-  label: { fontSize: typography.sm, fontWeight: typography.medium, color: colors.text },
+  root: {
+    flex: 1,
+    backgroundColor: '#F7F9FB',
+  },
+  scroll: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: 120,
+  },
+  pageHeader: {
+    marginBottom: spacing.md,
+    gap: 4,
+  },
+  pageTitle: {
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: typography.bold,
+    color: '#191C1E',
+    letterSpacing: -0.5,
+  },
+  pageSubtitle: {
+    fontSize: typography.sm,
+    color: '#545F73',
+  },
+  stack: {
+    gap: spacing.md,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(211, 197, 172, 0.25)',
+    padding: spacing.md,
+    ...shadow.sm,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: spacing.md,
+  },
+  cardTitle: {
+    fontSize: typography.md,
+    fontWeight: typography.bold,
+    color: '#191C1E',
+  },
+  formStack: {
+    gap: spacing.sm,
+  },
+  fieldWrap: {
+    gap: 6,
+  },
+  label: {
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    color: '#4F4633',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    paddingLeft: 2,
+  },
+  readonlyField: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F2F4F6',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  readonlyFieldText: {
+    fontSize: typography.sm,
+    color: '#191C1E',
+  },
   input: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
-    paddingHorizontal: spacing.md, paddingVertical: 13,
-    fontSize: typography.base, color: colors.text, backgroundColor: colors.background,
-    marginBottom: spacing.xs,
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: '#F2F4F6',
+    paddingHorizontal: spacing.md,
+    fontSize: typography.sm,
+    color: '#191C1E',
+    marginBottom: spacing.sm,
   },
-  saveBtn: {
-    backgroundColor: colors.primary, borderRadius: radius.md,
-    paddingVertical: 15, alignItems: 'center',
+  updateBtn: {
+    marginTop: spacing.xs,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: '#785A00',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  saveBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
+  updateBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.sm,
+    fontWeight: typography.bold,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
 });
