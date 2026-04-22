@@ -38,9 +38,9 @@ export const useOutletFeedbackSummary = (period: Period) =>
     staleTime: ANALYTICS_STALE_TIME_MS,
   });
 
-export const useFranchiseAnalytics = (period: Period) =>
+export const useFranchiseAnalytics = (period?: Period) =>
   useQuery({
-    queryKey: ['franchise-analytics', period],
+    queryKey: ['franchise-analytics', period ?? 'all'],
     queryFn: () => analyticsApi.getFranchiseAnalytics(period).then((r) => r.data),
     staleTime: ANALYTICS_STALE_TIME_MS,
   });

@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useReviews } from '../../hooks/useReviews';
 import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
 import { Review, ComplaintStatus } from '../../api/endpoints/reviews';
-import { FranchiseRankingItem, MetricsHeatmapItem, Period } from '../../api/endpoints/analytics';
+import { FranchiseRankingItem, MetricsHeatmapItem } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import StarRating from '../../components/StarRating';
@@ -30,8 +30,6 @@ type MetricTone = {
   border: string;
   text: string;
 };
-
-const ANALYTICS_PERIOD: Period = 'weekly';
 
 const METRIC_ORDER: MetricKey[] = ['staff', 'speed', 'clean', 'quality', 'overall'];
 const METRIC_LABELS: Record<MetricKey, string> = {
@@ -184,14 +182,14 @@ export default function ReviewsScreen() {
     isLoading: isReviewsLoading,
     isFetching: isReviewsFetching,
     refetch: refetchReviews,
-  } = useReviews({ limit: 100 });
+  } = useReviews();
 
   const {
     data: analytics,
     isLoading: isAnalyticsLoading,
     isFetching: isAnalyticsFetching,
     refetch: refetchAnalytics,
-  } = useFranchiseAnalytics(ANALYTICS_PERIOD);
+  } = useFranchiseAnalytics();
 
   const ranking = analytics?.franchiseRanking ?? [];
   const heatmap = analytics?.metricsHeatmap ?? [];
