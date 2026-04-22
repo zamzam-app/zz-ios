@@ -139,7 +139,7 @@ export default function InfrastructureScreen() {
     ]);
   };
 
-  const buildQrUrl = (token: string) => `https://zz-user.vercel.app//review/${token}`;
+  const buildQrUrl = (token: string) => `https://zz-user.vercel.app/review/${token}`;
 
   const handleOpenQrModal = (outlet: Outlet) => {
     if (!outlet.qrToken) {
