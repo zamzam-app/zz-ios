@@ -1,10 +1,9 @@
 import axios, { AxiosError } from 'axios';
 import { tokenStorage } from './storage';
-
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL + '/api';
+import { API_URL } from '../config/env';
 
 const client = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_URL,
   withCredentials: true,
   timeout: 15_000,
 });

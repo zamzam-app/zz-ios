@@ -25,6 +25,7 @@ import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { CreateOutletContent } from './CreateOutletScreen';
+import { QR_REVIEW_BASE_URL } from '../../config/env';
 
 type Nav = NativeStackNavigationProp<InfrastructureStackParamList, 'OutletsList'>;
 
@@ -139,7 +140,7 @@ export default function InfrastructureScreen() {
     ]);
   };
 
-  const buildQrUrl = (token: string) => `https://zz-user.vercel.app/review/${token}`;
+  const buildQrUrl = (token: string) => `${QR_REVIEW_BASE_URL}/review/${encodeURIComponent(token)}`;
 
   const handleOpenQrModal = (outlet: Outlet) => {
     if (!outlet.qrToken) {

@@ -34,6 +34,7 @@ npx expo start --ios
 | Variable | Description |
 |----------|-------------|
 | `EXPO_PUBLIC_API_BASE_URL` | Backend base URL (without `/api` suffix) |
+| `EXPO_PUBLIC_QR_REVIEW_BASE_URL` | Public web base URL used in outlet QR links |
 
 ## Project structure
 
