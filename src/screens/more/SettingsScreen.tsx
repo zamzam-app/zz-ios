@@ -155,7 +155,7 @@ function Field({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F7F9FB',
+    backgroundColor: colors.screenBackground,
   },
   scroll: {
     paddingHorizontal: spacing.md,
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     height: 48,
     borderRadius: 10,
-    backgroundColor: '#785A00',
+    backgroundColor: colors.buttonPrimaryBg,
     alignItems: 'center',
     justifyContent: 'center',
   },

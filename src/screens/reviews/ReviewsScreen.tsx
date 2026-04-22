@@ -367,7 +367,7 @@ export default function ReviewsScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F7F9FB',
+    backgroundColor: colors.screenBackground,
   },
   scroll: {
     paddingHorizontal: spacing.md,
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   exportButton: {
-    backgroundColor: '#785A00',
+    backgroundColor: colors.buttonPrimaryBg,
     width: 42,
     height: 42,
     borderRadius: radius.md,

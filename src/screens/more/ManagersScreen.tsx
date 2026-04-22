@@ -164,7 +164,7 @@ export default function ManagersScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F7F9FB',
+    backgroundColor: colors.screenBackground,
   },
   page: {
     flex: 1,

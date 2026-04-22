@@ -89,7 +89,7 @@ export default function AppNavigator() {
           right: 14,
           borderRadius: 24,
           height: 76,
-          backgroundColor: '#1A202C',
+          backgroundColor: colors.tabBarBg,
           borderTopWidth: 0,
           paddingTop: 6,
           paddingBottom: 6,

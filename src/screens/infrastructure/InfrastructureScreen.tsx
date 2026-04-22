@@ -371,7 +371,7 @@ export default function InfrastructureScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F9FB' },
+  root: { flex: 1, backgroundColor: colors.screenBackground },
 
   header: {
     flexDirection: 'row',
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
   },
   createBtn: {
-    backgroundColor: '#785A00',
+    backgroundColor: colors.buttonPrimaryBg,
     paddingHorizontal: spacing.md,
     paddingVertical: 9,
     borderRadius: radius.md,
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 36,
     borderRadius: radius.md,
-    backgroundColor: '#1A202C',
+    backgroundColor: colors.buttonDarkBg,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: '#D3C5AC40',
-    backgroundColor: '#F7F9FBD9',
+    backgroundColor: colors.surfaceOverlay,
   },
   createSheetHandle: {
     alignSelf: 'center',

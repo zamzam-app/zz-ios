@@ -298,7 +298,7 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F9FB' },
+  root: { flex: 1, backgroundColor: colors.screenBackground },
 
   header: {
     flexDirection: 'row',
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   createBtn: {
-    backgroundColor: '#785A00',
+    backgroundColor: colors.buttonPrimaryBg,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     borderRadius: radius.md,
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: '#D3C5AC40',
-    backgroundColor: '#F7F9FBD9',
+    backgroundColor: colors.surfaceOverlay,
   },
   createSheetHandle: {
     alignSelf: 'center',

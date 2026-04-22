@@ -13,8 +13,10 @@ export const colors = {
 
   // Backgrounds
   background: '#FAF7F2',         // warm cream
+  screenBackground: '#F7F9FB',   // app screen base
   surface: '#FFFFFF',
   surfaceElevated: '#F5EFE6',    // warm off-white
+  surfaceOverlay: '#F7F9FBD9',   // elevated/translucent sheet cap
 
   // Text
   text: '#1C1917',               // warm near-black
@@ -35,6 +37,11 @@ export const colors = {
   warningLight: '#FEF3C7',
   info: '#0369A1',
   infoLight: '#E0F2FE',
+
+  // Component-specific
+  buttonPrimaryBg: '#785A00',
+  buttonDarkBg: '#1A202C',
+  tabBarBg: '#1A202C',
 
   // Task status
   statusOpen: '#78716C',
