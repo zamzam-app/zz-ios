@@ -8,15 +8,20 @@ import {
   ActivityIndicator,
   Switch,
   TouchableOpacity,
+  Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useManagers, useUpdateManager } from '../../hooks/useUsers';
+import { useManagers, useUpdateManager, useCreateManager, useDeleteManager } from '../../hooks/useUsers';
 import { User } from '../../api/endpoints/users';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
+import { useAuthStore } from '../../store/authStore';
 
 function getInitial(value: string) {
   return value.trim().charAt(0).toUpperCase() || 'M';
@@ -25,11 +30,15 @@ function getInitial(value: string) {
 function ManagerRow({
   manager,
   onToggle,
+  onDelete,
   isMutating,
+  canDelete,
 }: {
   manager: User;
   onToggle: (manager: User, next: boolean) => void;
+  onDelete: (manager: User) => void;
   isMutating: boolean;
+  canDelete: boolean;
 }) {
   const isActive = manager.isActive ?? true;
 
@@ -46,24 +55,45 @@ function ManagerRow({
         </View>
       </View>
 
-      <Switch
-        value={isActive}
-        disabled={isMutating}
-        onValueChange={(next) => onToggle(manager, next)}
-        trackColor={{ false: '#D6D3D1', true: colors.primaryLight }}
-        thumbColor={colors.surface}
-        ios_backgroundColor="#D6D3D1"
-      />
+      <View style={styles.rowRight}>
+        <Switch
+          value={isActive}
+          disabled={isMutating}
+          onValueChange={(next) => onToggle(manager, next)}
+          trackColor={{ false: '#D6D3D1', true: colors.primaryLight }}
+          thumbColor={colors.surface}
+          ios_backgroundColor="#D6D3D1"
+        />
+        {canDelete ? (
+          <TouchableOpacity
+            onPress={() => onDelete(manager)}
+            disabled={isMutating}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.deleteBtn}
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 export default function ManagersScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
   const { data: managers, isLoading, isFetching, refetch } = useManagers();
   const updateManager = useUpdateManager();
+  const createManager = useCreateManager();
+  const deleteManager = useDeleteManager();
 
   const [query, setQuery] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newPassword, setNewPassword] = useState('');
 
   const filteredManagers = useMemo(() => {
     const source = managers ?? [];
@@ -98,6 +128,61 @@ export default function ManagersScreen() {
     navigation.navigate('MoreMenu');
   };
 
+  const resetCreateForm = () => {
+    setNewName('');
+    setNewEmail('');
+    setNewUserName('');
+    setNewPhone('');
+    setNewPassword('');
+  };
+
+  const handleCreateManager = () => {
+    const name = newName.trim();
+    const email = newEmail.trim();
+    const userName = newUserName.trim();
+    const password = newPassword.trim();
+    const phoneNumber = newPhone.trim();
+
+    if (!name || !email || !userName || !password) {
+      Alert.alert('Required', 'Name, email, username, and password are required.');
+      return;
+    }
+
+    createManager.mutate(
+      {
+        name,
+        email,
+        userName,
+        password,
+        role: 'manager',
+        phoneNumber: phoneNumber || undefined,
+      },
+      {
+        onSuccess: () => {
+          setShowCreateModal(false);
+          resetCreateForm();
+          Alert.alert('Done', 'Manager created successfully.');
+        },
+        onError: () => Alert.alert('Error', 'Failed to create manager.'),
+      },
+    );
+  };
+
+  const handleDeleteManager = (manager: User) => {
+    Alert.alert('Delete Manager', `Delete "${manager.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteManager.mutate(manager.id, {
+            onError: () => Alert.alert('Error', 'Failed to delete manager.'),
+          });
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.page}>
@@ -114,6 +199,14 @@ export default function ManagersScreen() {
             <Text style={styles.title}>Managers Directory</Text>
           </View>
           <Text style={styles.subtitle}>High-density administrative control panel</Text>
+          {isAdmin ? (
+            <TouchableOpacity
+              style={styles.createBtn}
+              onPress={() => setShowCreateModal(true)}
+            >
+              <Text style={styles.createBtnText}>+ New Manager</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.searchWrap}>
@@ -149,7 +242,9 @@ export default function ManagersScreen() {
                 <ManagerRow
                   manager={item}
                   onToggle={handleToggleActive}
-                  isMutating={updateManager.isPending}
+                  onDelete={handleDeleteManager}
+                  isMutating={updateManager.isPending || deleteManager.isPending}
+                  canDelete={isAdmin}
                 />
               )}
               ListEmptyComponent={<Text style={styles.emptyText}>No managers found.</Text>}
@@ -157,6 +252,87 @@ export default function ManagersScreen() {
           )}
         </View>
       </View>
+
+      <Modal
+        visible={showCreateModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <SafeAreaView style={styles.modalRoot}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Text style={styles.modalHeaderCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>New Manager</Text>
+              <TouchableOpacity onPress={handleCreateManager} disabled={createManager.isPending}>
+                {createManager.isPending ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={styles.modalHeaderSave}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formWrap}>
+              <Text style={styles.label}>Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="Manager name"
+                placeholderTextColor={colors.textDisabled}
+              />
+
+              <Text style={styles.label}>Email *</Text>
+              <TextInput
+                style={styles.input}
+                value={newEmail}
+                onChangeText={setNewEmail}
+                placeholder="name@example.com"
+                placeholderTextColor={colors.textDisabled}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+
+              <Text style={styles.label}>Username *</Text>
+              <TextInput
+                style={styles.input}
+                value={newUserName}
+                onChangeText={setNewUserName}
+                placeholder="username"
+                placeholderTextColor={colors.textDisabled}
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.label}>Phone</Text>
+              <TextInput
+                style={styles.input}
+                value={newPhone}
+                onChangeText={setNewPhone}
+                placeholder="Optional"
+                placeholderTextColor={colors.textDisabled}
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.label}>Temporary Password *</Text>
+              <TextInput
+                style={styles.input}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="At least 4 characters"
+                placeholderTextColor={colors.textDisabled}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -205,6 +381,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: typography.base,
     color: colors.textSecondary,
+  },
+  createBtn: {
+    marginTop: spacing.sm,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.buttonPrimaryBg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    ...shadow.sm,
+  },
+  createBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
   },
   searchWrap: {
     marginTop: spacing.md,
@@ -281,6 +471,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     backgroundColor: colors.surface,
   },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginLeft: spacing.sm,
+  },
   rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,10 +512,66 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     color: colors.textSecondary,
   },
+  deleteBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   emptyText: {
     textAlign: 'center',
     color: colors.textSecondary,
     marginTop: spacing.xl,
     fontSize: typography.sm,
+  },
+  modalRoot: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: typography.md,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
+  modalHeaderCancel: {
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+  },
+  modalHeaderSave: {
+    color: colors.primary,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+  },
+  formWrap: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  label: {
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+    color: colors.text,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: typography.base,
+    color: colors.text,
+    backgroundColor: colors.surface,
   },
 });
