@@ -23,7 +23,7 @@ export default function MoreNavigator() {
       screenOptions={{
         headerTintColor: colors.primary,
         headerTitleStyle: { fontWeight: typography.semibold, color: colors.text },
-        headerBackTitle: 'Back',
+        headerBackTitle: '',
       }}
     >
       <Stack.Screen name="MoreMenu" component={MoreScreen} options={{ headerShown: false }} />

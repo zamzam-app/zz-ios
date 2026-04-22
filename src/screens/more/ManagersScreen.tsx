@@ -7,12 +7,16 @@ import {
   TextInput,
   ActivityIndicator,
   Switch,
+  TouchableOpacity,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useManagers, useUpdateManager } from '../../hooks/useUsers';
 import { User } from '../../api/endpoints/users';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 
 function getInitial(value: string) {
   return value.trim().charAt(0).toUpperCase() || 'M';
@@ -55,6 +59,7 @@ function ManagerRow({
 }
 
 export default function ManagersScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();
   const { data: managers, isLoading, isFetching, refetch } = useManagers();
   const updateManager = useUpdateManager();
 
@@ -85,12 +90,29 @@ export default function ManagersScreen() {
     });
   };
 
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('MoreMenu');
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>Organization Management</Text>
-          <Text style={styles.title}>Managers Directory</Text>
+          <View style={styles.titleRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={handleBack}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.title}>Managers Directory</Text>
+          </View>
           <Text style={styles.subtitle}>High-density administrative control panel</Text>
         </View>
 
@@ -153,6 +175,17 @@ const styles = StyleSheet.create({
   header: {
     gap: 4,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   eyebrow: {
     fontSize: typography.xs,
     fontWeight: typography.semibold,
@@ -166,6 +199,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.bold,
     color: colors.text,
     letterSpacing: -0.5,
+    flexShrink: 1,
   },
   subtitle: {
     marginTop: 2,

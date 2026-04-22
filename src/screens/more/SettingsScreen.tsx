@@ -9,13 +9,17 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { useChangePassword } from '../../hooks/useUsers';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 
 export default function SettingsScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();
   const { user } = useAuthStore();
   const changePassword = useChangePassword();
 
@@ -46,11 +50,29 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('MoreMenu');
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Account Settings</Text>
+          <View style={styles.pageTitleRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={handleBack}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.pageTitle}>Account Settings</Text>
+          </View>
           <Text style={styles.pageSubtitle}>Manage your digital atelier profile and security protocols.</Text>
         </View>
 
@@ -144,12 +166,24 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     gap: 4,
   },
+  pageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pageTitle: {
     fontSize: 32,
     lineHeight: 38,
     fontWeight: typography.bold,
     color: '#191C1E',
     letterSpacing: -0.5,
+    flexShrink: 1,
   },
   pageSubtitle: {
     fontSize: typography.sm,
