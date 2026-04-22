@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -22,6 +23,7 @@ import StarRating from '../../components/StarRating';
 
 type Nav = NativeStackNavigationProp<ReviewsStackParamList, 'ReviewsList'>;
 type MetricKey = keyof MetricsHeatmapItem['metrics'];
+type OutletOption = { id: string; label: string };
 
 type MetricTone = {
   bg: string;
@@ -174,6 +176,8 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
 
 export default function ReviewsScreen() {
   const navigation = useNavigation<Nav>();
+  const [selectedOutletId, setSelectedOutletId] = useState('all');
+  const [showOutletPicker, setShowOutletPicker] = useState(false);
 
   const {
     data: reviews,
@@ -192,15 +196,57 @@ export default function ReviewsScreen() {
   const ranking = analytics?.franchiseRanking ?? [];
   const heatmap = analytics?.metricsHeatmap ?? [];
 
+  const outletOptions = useMemo<OutletOption[]>(() => {
+    if (!reviews || reviews.length === 0) {
+      return [{ id: 'all', label: 'All Outlets' }];
+    }
+
+    const byOutlet = new Map<string, string>();
+    for (const review of reviews) {
+      const key = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+      if (!byOutlet.has(key)) {
+        byOutlet.set(key, review.outletName || 'Unknown Outlet');
+      }
+    }
+
+    const options = Array.from(byOutlet.entries())
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    return [{ id: 'all', label: 'All Outlets' }, ...options];
+  }, [reviews]);
+
+  useEffect(() => {
+    if (selectedOutletId === 'all') return;
+    if (!outletOptions.some((option) => option.id === selectedOutletId)) {
+      setSelectedOutletId('all');
+    }
+  }, [outletOptions, selectedOutletId]);
+
+  const selectedOutletLabel = useMemo(
+    () => outletOptions.find((option) => option.id === selectedOutletId)?.label ?? 'All Outlets',
+    [outletOptions, selectedOutletId],
+  );
+
+  const filteredReviews = useMemo(() => {
+    if (!reviews) return [];
+    if (selectedOutletId === 'all') return reviews;
+
+    return reviews.filter((review) => {
+      const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+      return outletKey === selectedOutletId;
+    });
+  }, [reviews, selectedOutletId]);
+
   const pendingCount = useMemo(
-    () => reviews?.filter((review) => review.isComplaint && review.complaintStatus === 'pending').length ?? 0,
-    [reviews],
+    () => filteredReviews.filter((review) => review.isComplaint && review.complaintStatus === 'pending').length,
+    [filteredReviews],
   );
 
   const criticalFeed = useMemo(() => {
-    if (!reviews) return [];
+    if (!filteredReviews || filteredReviews.length === 0) return [];
 
-    const filtered = reviews.filter((review) => review.isComplaint || review.overallRating <= 2);
+    const filtered = filteredReviews.filter((review) => review.isComplaint || review.overallRating <= 2);
 
     const sorted = [...filtered].sort((a, b) => {
       const aScore = a.isComplaint && a.complaintStatus === 'pending' ? 2 : a.isComplaint ? 1 : 0;
@@ -211,10 +257,15 @@ export default function ReviewsScreen() {
 
     if (sorted.length > 0) return sorted;
 
-    return [...reviews]
+    return [...filteredReviews]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 10);
-  }, [reviews]);
+  }, [filteredReviews]);
+
+  const allReviews = useMemo(
+    () => [...filteredReviews].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [filteredReviews],
+  );
 
   const heatmapRows = useMemo(() => {
     const heatmapByOutlet = new Map(heatmap.map((item) => [item.outletId, item]));
@@ -309,6 +360,14 @@ export default function ReviewsScreen() {
           </View>
         </View>
 
+        <View style={styles.filterRow}>
+          <Text style={styles.sectionEyebrow}>Outlet Filter</Text>
+          <TouchableOpacity style={styles.filterButton} activeOpacity={0.85} onPress={() => setShowOutletPicker(true)}>
+            <Text style={styles.filterButtonText} numberOfLines={1}>{selectedOutletLabel}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.feedbackHeaderRow}>
           <Text style={styles.sectionEyebrow}>Critical Feedback Feed</Text>
           <View style={styles.urgentBadge}>
@@ -359,7 +418,93 @@ export default function ReviewsScreen() {
             })
           )}
         </View>
+
+        <View style={styles.feedbackHeaderRow}>
+          <Text style={styles.sectionEyebrow}>All Reviews</Text>
+          <View style={styles.totalBadge}>
+            <Text style={styles.totalBadgeText}>{allReviews.length} TOTAL</Text>
+          </View>
+        </View>
+
+        <View style={styles.feedbackContainer}>
+          {isReviewsLoading ? (
+            <ActivityIndicator color={colors.primary} style={styles.loading} />
+          ) : allReviews.length === 0 ? (
+            <Text style={styles.emptyText}>No reviews available.</Text>
+          ) : (
+            allReviews.map((review, index) => {
+              const tags = getReviewTags(review);
+              return (
+                <TouchableOpacity
+                  key={`all-${review.id}`}
+                  style={[styles.feedbackItem, index < allReviews.length - 1 && styles.feedbackItemBorder]}
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
+                >
+                  <View style={styles.feedbackTopRow}>
+                    <View style={styles.feedbackMetaLeft}>
+                      <Text style={styles.feedbackName}>{review.customerName}</Text>
+                      <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
+                    </View>
+                    <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
+                  </View>
+
+                  <Text style={styles.feedbackBody}>{getComment(review)}</Text>
+
+                  <View style={styles.feedbackFooterRow}>
+                    <StarRating rating={review.overallRating} size={12} />
+                    <View style={styles.feedbackTagRow}>
+                      {tags.map((tag) => (
+                        <Text key={`all-${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
+                      ))}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
       </ScrollView>
+
+      <Modal
+        visible={showOutletPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOutletPicker(false)}
+      >
+        <View style={styles.pickerRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.pickerScrim}
+            onPress={() => setShowOutletPicker(false)}
+          />
+          <View style={styles.pickerCard}>
+            <Text style={styles.pickerTitle}>Select Outlet</Text>
+            <ScrollView
+              style={styles.pickerList}
+              contentContainerStyle={styles.pickerListContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {outletOptions.map((option) => {
+                const active = option.id === selectedOutletId;
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[styles.pickerItem, active && styles.pickerItemActive]}
+                    onPress={() => {
+                      setSelectedOutletId(option.id);
+                      setShowOutletPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.pickerItemText, active && styles.pickerItemTextActive]}>{option.label}</Text>
+                    {active ? <Ionicons name="checkmark" size={16} color={colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -545,6 +690,32 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.xs,
   },
+  filterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  filterButton: {
+    minWidth: 180,
+    maxWidth: '68%',
+    height: 36,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  filterButtonText: {
+    flex: 1,
+    fontSize: typography.sm,
+    color: colors.text,
+  },
   urgentBadge: {
     backgroundColor: colors.errorLight,
     borderRadius: radius.sm,
@@ -554,6 +725,19 @@ const styles = StyleSheet.create({
   urgentBadgeText: {
     fontSize: 10,
     color: colors.error,
+    fontWeight: typography.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  totalBadge: {
+    backgroundColor: colors.primaryTint,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  totalBadgeText: {
+    fontSize: 10,
+    color: colors.primaryDark,
     fontWeight: typography.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
@@ -640,6 +824,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
+  },
+
+  pickerRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  pickerScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(25, 28, 30, 0.45)',
+  },
+  pickerCard: {
+    maxHeight: '70%',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    ...shadow.md,
+  },
+  pickerTitle: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    fontSize: typography.md,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  pickerList: {
+    maxHeight: 360,
+  },
+  pickerListContent: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  pickerItem: {
+    height: 42,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  pickerItemActive: {
+    backgroundColor: colors.primaryTint,
+  },
+  pickerItemText: {
+    flex: 1,
+    fontSize: typography.sm,
+    color: colors.text,
+  },
+  pickerItemTextActive: {
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
   },
 
   loading: {
