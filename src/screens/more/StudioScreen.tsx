@@ -440,7 +440,7 @@ export default function StudioScreen() {
               <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
             <View>
-              <Text style={styles.heading}>Menu Management</Text>
+              <Text style={styles.heading}>Studio</Text>
               <Text style={styles.subheading}>Organize and curate your bakery storefront.</Text>
             </View>
           </View>
