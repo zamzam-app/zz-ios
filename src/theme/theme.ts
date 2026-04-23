@@ -41,6 +41,7 @@ export const colors = {
   // Component-specific
   buttonPrimaryBg: '#785A00',
   buttonDarkBg: '#1A202C',
+  buttonLightBg: '#FFFFFF',
   tabBarBg: '#1A202C',
 
   // Task status

@@ -107,11 +107,11 @@ function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete
 
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.actionBtn} onPress={onQrPress}>
-          <Ionicons name="qr-code-outline" size={16} color={colors.textInverse} />
+          <Ionicons name="qr-code-outline" size={16} color={colors.text} />
           <Text style={styles.actionBtnText}>QR Code</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} onPress={onEditPress}>
-          <Ionicons name="create-outline" size={16} color={colors.textInverse} />
+          <Ionicons name="create-outline" size={16} color={colors.text} />
           <Text style={styles.actionBtnText}>Edit</Text>
         </TouchableOpacity>
       </View>
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: '#D3C5AC80',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.buttonLightBg,
   },
   secondaryBtnText: {
     color: colors.text,
@@ -553,14 +553,16 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 36,
     borderRadius: radius.md,
-    backgroundColor: colors.buttonDarkBg,
+    backgroundColor: colors.buttonLightBg,
+    borderWidth: 1,
+    borderColor: colors.textSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 6,
   },
   actionBtnText: {
-    color: colors.textInverse,
+    color: colors.text,
     fontSize: typography.xs,
     fontWeight: typography.semibold,
   },
