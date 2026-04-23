@@ -18,7 +18,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useManagers, useUpdateManager, useCreateManager, useDeleteManager } from '../../hooks/useUsers';
-import { User } from '../../api/endpoints/users';
+import { User, UpdateManagerPayload } from '../../api/endpoints/users';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 import { useAuthStore } from '../../store/authStore';
@@ -31,12 +31,14 @@ function ManagerRow({
   manager,
   onToggle,
   onDelete,
+  onPress,
   isMutating,
   canDelete,
 }: {
   manager: User;
   onToggle: (manager: User, next: boolean) => void;
   onDelete: (manager: User) => void;
+  onPress: (manager: User) => void;
   isMutating: boolean;
   canDelete: boolean;
 }) {
@@ -44,7 +46,7 @@ function ManagerRow({
 
   return (
     <View style={styles.managerRow}>
-      <View style={styles.rowLeft}>
+      <TouchableOpacity style={styles.rowLeft} activeOpacity={0.86} onPress={() => onPress(manager)}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{getInitial(manager.name)}</Text>
         </View>
@@ -53,7 +55,7 @@ function ManagerRow({
           <Text style={styles.managerName} numberOfLines={1}>{manager.name}</Text>
           <Text style={styles.managerEmail} numberOfLines={1}>{manager.email}</Text>
         </View>
-      </View>
+      </TouchableOpacity>
 
       <View style={styles.rowRight}>
         <Switch
@@ -89,6 +91,7 @@ export default function ManagersScreen() {
 
   const [query, setQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingManager, setEditingManager] = useState<User | null>(null);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
@@ -136,13 +139,53 @@ export default function ManagersScreen() {
     setNewPassword('');
   };
 
-  const handleCreateManager = () => {
-    const name = newName.trim();
-    const email = newEmail.trim();
-    const userName = newUserName.trim();
-    const password = newPassword.trim();
-    const phoneNumber = newPhone.trim();
+  const openCreateModal = () => {
+    setEditingManager(null);
+    resetCreateForm();
+    setShowCreateModal(true);
+  };
 
+  const openEditModal = (manager: User) => {
+    setEditingManager(manager);
+    setNewName(manager.name ?? '');
+    setNewEmail(manager.email ?? '');
+    setNewUserName(manager.userName ?? '');
+    setNewPhone(manager.phoneNumber ?? '');
+    setNewPassword('');
+    setShowCreateModal(true);
+  };
+
+  const closeManagerModal = () => {
+    setShowCreateModal(false);
+    setEditingManager(null);
+    resetCreateForm();
+  };
+
+  const name = newName.trim();
+  const email = newEmail.trim();
+  const userName = newUserName.trim();
+  const phoneNumber = newPhone.trim();
+  const password = newPassword.trim();
+  const isEditMode = Boolean(editingManager);
+
+  const hasRequiredCreateFields = Boolean(name && email && userName && password);
+  const hasRequiredEditFields = Boolean(name && email && userName);
+
+  const hasEditChanges = useMemo(() => {
+    if (!editingManager) return false;
+    return (
+      name !== (editingManager.name ?? '').trim()
+      || email !== (editingManager.email ?? '').trim()
+      || userName !== (editingManager.userName ?? '').trim()
+      || phoneNumber !== (editingManager.phoneNumber ?? '').trim()
+    );
+  }, [editingManager, name, email, userName, phoneNumber]);
+
+  const canSaveManager = isEditMode
+    ? hasRequiredEditFields && hasEditChanges && !updateManager.isPending
+    : hasRequiredCreateFields && !createManager.isPending;
+
+  const handleCreateManager = () => {
     if (!name || !email || !userName || !password) {
       Alert.alert('Required', 'Name, email, username, and password are required.');
       return;
@@ -159,11 +202,36 @@ export default function ManagersScreen() {
       },
       {
         onSuccess: () => {
-          setShowCreateModal(false);
-          resetCreateForm();
+          closeManagerModal();
           Alert.alert('Done', 'Manager created successfully.');
         },
         onError: () => Alert.alert('Error', 'Failed to create manager.'),
+      },
+    );
+  };
+
+  const handleUpdateManager = () => {
+    if (!editingManager) return;
+    if (!name || !email || !userName) {
+      Alert.alert('Required', 'Name, email, and username are required.');
+      return;
+    }
+    if (!hasEditChanges) return;
+
+    const payload: UpdateManagerPayload = {};
+    if (name !== (editingManager.name ?? '').trim()) payload.name = name;
+    if (email !== (editingManager.email ?? '').trim()) payload.email = email;
+    if (userName !== (editingManager.userName ?? '').trim()) payload.userName = userName;
+    if (phoneNumber !== (editingManager.phoneNumber ?? '').trim()) payload.phoneNumber = phoneNumber || undefined;
+
+    updateManager.mutate(
+      { id: editingManager.id, payload },
+      {
+        onSuccess: () => {
+          closeManagerModal();
+          Alert.alert('Done', 'Manager updated successfully.');
+        },
+        onError: () => Alert.alert('Error', 'Failed to update manager.'),
       },
     );
   };
@@ -202,7 +270,7 @@ export default function ManagersScreen() {
           {isAdmin ? (
             <TouchableOpacity
               style={styles.createBtn}
-              onPress={() => setShowCreateModal(true)}
+              onPress={openCreateModal}
             >
               <Text style={styles.createBtnText}>+ New Manager</Text>
             </TouchableOpacity>
@@ -243,6 +311,7 @@ export default function ManagersScreen() {
                   manager={item}
                   onToggle={handleToggleActive}
                   onDelete={handleDeleteManager}
+                  onPress={openEditModal}
                   isMutating={updateManager.isPending || deleteManager.isPending}
                   canDelete={isAdmin}
                 />
@@ -257,7 +326,7 @@ export default function ManagersScreen() {
         visible={showCreateModal}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowCreateModal(false)}
+        onRequestClose={closeManagerModal}
       >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -265,15 +334,18 @@ export default function ManagersScreen() {
         >
           <SafeAreaView style={styles.modalRoot}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+              <TouchableOpacity onPress={closeManagerModal}>
                 <Text style={styles.modalHeaderCancel}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>New Manager</Text>
-              <TouchableOpacity onPress={handleCreateManager} disabled={createManager.isPending}>
-                {createManager.isPending ? (
+              <Text style={styles.modalTitle}>{isEditMode ? 'Edit Manager' : 'New Manager'}</Text>
+              <TouchableOpacity
+                onPress={isEditMode ? handleUpdateManager : handleCreateManager}
+                disabled={!canSaveManager}
+              >
+                {(isEditMode ? updateManager.isPending : createManager.isPending) ? (
                   <ActivityIndicator color={colors.primary} />
                 ) : (
-                  <Text style={styles.modalHeaderSave}>Save</Text>
+                  <Text style={[styles.modalHeaderSave, !canSaveManager && styles.modalHeaderSaveDisabled]}>Save</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -319,16 +391,20 @@ export default function ManagersScreen() {
                 keyboardType="phone-pad"
               />
 
-              <Text style={styles.label}>Temporary Password *</Text>
-              <TextInput
-                style={styles.input}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                placeholder="At least 4 characters"
-                placeholderTextColor={colors.textDisabled}
-                secureTextEntry
-                autoCapitalize="none"
-              />
+              {!isEditMode ? (
+                <>
+                  <Text style={styles.label}>Temporary Password *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    placeholder="At least 4 characters"
+                    placeholderTextColor={colors.textDisabled}
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
+                </>
+              ) : null}
             </View>
           </SafeAreaView>
         </KeyboardAvoidingView>
@@ -554,6 +630,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: typography.sm,
     fontWeight: typography.semibold,
+  },
+  modalHeaderSaveDisabled: {
+    color: colors.textDisabled,
   },
   formWrap: {
     padding: spacing.md,
