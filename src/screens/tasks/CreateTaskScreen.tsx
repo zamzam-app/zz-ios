@@ -14,6 +14,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useOutlets } from '../../hooks/useOutlets';
@@ -24,6 +34,15 @@ import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
+
+type AttachmentType = 'image' | 'video' | 'audio' | 'file';
+
+type AttachmentItem = {
+  id: string;
+  type: AttachmentType;
+  name: string;
+  uri: string;
+};
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -131,6 +150,13 @@ function PickerModal({
   );
 }
 
+function getAttachmentIcon(type: AttachmentType): keyof typeof MaterialCommunityIcons.glyphMap {
+  if (type === 'image') return 'image-outline';
+  if (type === 'video') return 'video-outline';
+  if (type === 'audio') return 'microphone-outline';
+  return 'file-outline';
+}
+
 type CreateTaskContentProps = {
   onSuccess: () => void;
   submitLabel?: string;
@@ -155,6 +181,9 @@ export function CreateTaskContent({
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [showOutletPicker, setShowOutletPicker] = useState(false);
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const [recordingBusy, setRecordingBusy] = useState(false);
 
   const { data: outlets } = useOutlets();
   const { data: managers } = useManagers();
@@ -166,6 +195,10 @@ export function CreateTaskContent({
     refetch: refetchTaskCategories,
   } = useTaskCategories();
   const createTask = useCreateTask();
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 250);
+  const isRecordingAudio = recorderState.isRecording;
+  const recordingMillis = recorderState.durationMillis;
 
   const selectedOutlet = outlets?.find((o) => o.id === outletId);
   const filteredManagers = useMemo(() => {
@@ -184,6 +217,116 @@ export function CreateTaskContent({
   useEffect(() => {
     setAssigneeIds((prev) => prev.filter((id) => filteredManagers.some((manager) => manager.id === id)));
   }, [filteredManagers]);
+
+  useEffect(() => {
+    return () => {
+      void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+    };
+  }, []);
+
+  const formatDuration = (ms: number) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  const addAttachment = (type: AttachmentType, uri: string, name: string) => {
+    setAttachments((prev) => [
+      ...prev,
+      {
+        id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type,
+        uri,
+        name,
+      },
+    ]);
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const pickMedia = async (kind: 'image' | 'video') => {
+    setShowAttachmentMenu(false);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Media library access is required.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: kind === 'image' ? 'images' : 'videos',
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const picked = result.assets[0];
+    const fallbackName = `${kind}-${attachments.length + 1}`;
+    addAttachment(kind, picked.uri, picked.fileName ?? fallbackName);
+  };
+
+  const pickFile = async () => {
+    setShowAttachmentMenu(false);
+    const result = await DocumentPicker.getDocumentAsync({
+      multiple: true,
+      copyToCacheDirectory: true,
+      type: '*/*',
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    result.assets.forEach((asset) => {
+      addAttachment('file', asset.uri, asset.name);
+    });
+  };
+
+  const startAudioRecording = async () => {
+    if (recordingBusy || isRecordingAudio) return;
+    setRecordingBusy(true);
+    setShowAttachmentMenu(false);
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission needed', 'Microphone access is required to record audio.');
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch {
+      Alert.alert('Error', 'Could not start recording. Please try again.');
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
+
+  const stopAudioRecording = async () => {
+    if (recordingBusy || !isRecordingAudio) return;
+    setRecordingBusy(true);
+    try {
+      await recorder.stop();
+      const status = recorder.getStatus();
+      const uri = status.url;
+      if (uri) {
+        const duration = status.durationMillis;
+        addAttachment('audio', uri, `Voice note ${formatDuration(duration)}`);
+      }
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+    } catch {
+      Alert.alert('Error', 'Could not stop recording. Please try again.');
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
 
   const handleSubmit = () => {
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
@@ -210,8 +353,11 @@ export function CreateTaskContent({
   return (
     <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]}
+        style={styles.formScroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(bottomPadding, spacing.xl) }]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
+        nestedScrollEnabled
       >
         <Label text="Description" required />
         <TextInput
@@ -223,6 +369,96 @@ export function CreateTaskContent({
           value={description}
           onChangeText={setDescription}
         />
+
+        <Label text="Attachments" />
+        <View style={styles.attachmentSection}>
+          <View style={styles.attachmentHeaderRow}>
+            <Text style={styles.attachmentHint}>
+              Add image, video, file or record live audio
+            </Text>
+            <TouchableOpacity
+              style={styles.addAttachmentBtn}
+              onPress={() => setShowAttachmentMenu((prev) => !prev)}
+              activeOpacity={0.85}
+            >
+              <MaterialCommunityIcons name="plus" size={22} color={colors.textInverse} />
+            </TouchableOpacity>
+          </View>
+
+          {showAttachmentMenu && (
+            <View style={styles.attachmentMenu}>
+              <TouchableOpacity
+                style={styles.attachmentMenuItem}
+                onPress={() => { void pickMedia('image'); }}
+              >
+                <MaterialCommunityIcons name="image-outline" size={18} color={colors.text} />
+                <Text style={styles.attachmentMenuText}>Image</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.attachmentMenuItem}
+                onPress={() => { void pickMedia('video'); }}
+              >
+                <MaterialCommunityIcons name="video-outline" size={18} color={colors.text} />
+                <Text style={styles.attachmentMenuText}>Video</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.attachmentMenuItem}
+                onPress={() => {
+                  if (isRecordingAudio) {
+                    void stopAudioRecording();
+                  } else {
+                    void startAudioRecording();
+                  }
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={isRecordingAudio ? 'stop-circle-outline' : 'microphone-outline'}
+                  size={18}
+                  color={isRecordingAudio ? colors.error : colors.text}
+                />
+                <Text style={[styles.attachmentMenuText, isRecordingAudio && { color: colors.error }]}>
+                  {isRecordingAudio ? 'Stop Recording' : 'Record Audio'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.attachmentMenuItem}
+                onPress={() => { void pickFile(); }}
+              >
+                <MaterialCommunityIcons name="file-outline" size={18} color={colors.text} />
+                <Text style={styles.attachmentMenuText}>File</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {isRecordingAudio && (
+            <View style={styles.recordingBanner}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>Recording {formatDuration(recordingMillis)}</Text>
+            </View>
+          )}
+
+          {attachments.length === 0 ? (
+            <Text style={styles.noAttachmentsText}>No attachments selected</Text>
+          ) : (
+            <View style={styles.attachmentList}>
+              {attachments.map((item) => (
+                <View key={item.id} style={styles.attachmentChip}>
+                  <MaterialCommunityIcons
+                    name={getAttachmentIcon(item.type)}
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.attachmentChipText} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <TouchableOpacity onPress={() => removeAttachment(item.id)}>
+                    <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
 
         <Label text="Category" required />
         {isLoadingTaskCategories ? (
@@ -350,6 +586,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   rootFill: { flex: 1 },
   rootAuto: {},
+  formScroll: { flex: 1 },
   scroll: { paddingHorizontal: spacing.md, gap: spacing.sm },
 
   label: {
@@ -375,6 +612,97 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
     paddingTop: 13,
+  },
+  attachmentSection: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    backgroundColor: colors.surface,
+    gap: spacing.sm,
+  },
+  attachmentHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  attachmentHint: {
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+    flexShrink: 1,
+    paddingRight: spacing.sm,
+  },
+  addAttachmentBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  attachmentMenu: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.background,
+  },
+  attachmentMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  attachmentMenuText: {
+    color: colors.text,
+    fontSize: typography.base,
+    fontWeight: typography.medium,
+  },
+  recordingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: '#FFECEA',
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: radius.full,
+    backgroundColor: colors.error,
+  },
+  recordingText: {
+    color: colors.error,
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+  },
+  noAttachmentsText: {
+    color: colors.textDisabled,
+    fontSize: typography.sm,
+  },
+  attachmentList: {
+    gap: spacing.xs,
+  },
+  attachmentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+  },
+  attachmentChipText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: typography.sm,
   },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

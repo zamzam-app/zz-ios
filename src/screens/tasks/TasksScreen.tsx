@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
+  ScrollView,
   FlatList,
   StyleSheet,
   TouchableOpacity,
@@ -286,8 +287,8 @@ export default function TasksScreen() {
                 setShowCreateModal(false);
                 void refetch();
               }}
-              bottomPadding={12}
-              fill={false}
+              bottomPadding={24}
+              fill
               backgroundColor={colors.surface}
             />
           </View>
@@ -504,7 +505,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(25, 28, 30, 0.4)',
   },
   createSheet: {
-    maxHeight: '92%',
+    height: '92%',
+    minHeight: 420,
     backgroundColor: colors.surface,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
