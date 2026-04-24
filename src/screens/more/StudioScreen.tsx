@@ -106,6 +106,7 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
   const [description, setDescription] = useState('');
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState<string>('');
+  const [imageUploading, setImageUploading] = useState(false);
 
   React.useEffect(() => {
     if (visible) {
@@ -114,6 +115,7 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
       setDescription(initial?.description ?? '');
       setSelectedCats(initial?.categoryList ?? []);
       setImageUrl(initial?.images?.[0] ?? '');
+      setImageUploading(false);
     }
   }, [visible, initial]);
 
@@ -131,9 +133,9 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
             <Text style={styles.modalTitle}>{initial ? 'Edit Cake' : 'New Cake'}</Text>
             <TouchableOpacity
               onPress={() => onSubmit(name, price, description, selectedCats, imageUrl ? [imageUrl] : [])}
-              disabled={submitting}
+              disabled={submitting || imageUploading}
             >
-              {submitting
+              {(submitting || imageUploading)
                 ? <ActivityIndicator color={colors.primary} />
                 : <Text style={styles.modalHeaderSave}>Save</Text>}
             </TouchableOpacity>
@@ -146,6 +148,7 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
               folder="products"
               onUpload={setImageUrl}
               onRemove={() => setImageUrl('')}
+              onUploadStateChange={setImageUploading}
               size={110}
             />
 

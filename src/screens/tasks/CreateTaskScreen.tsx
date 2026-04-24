@@ -25,6 +25,12 @@ import {
 } from 'expo-audio';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  cancelUploadJob,
+  enqueueCloudinaryUpload,
+  removeUploadJob,
+  waitForUploadJob,
+} from '../../api/endpoints/uploadQueue';
 import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useManagers } from '../../hooks/useUsers';
@@ -42,6 +48,10 @@ type AttachmentItem = {
   type: AttachmentType;
   name: string;
   uri: string;
+  status: 'uploading' | 'uploaded' | 'failed';
+  uploadJobId?: string;
+  remoteUrl?: string;
+  error?: string;
 };
 
 function Label({ text, required }: { text: string; required?: boolean }) {
@@ -213,6 +223,8 @@ export function CreateTaskContent({
   const selectedManagers = filteredManagers.filter((m) => assigneeIds.includes(m.id));
   const hasTaskCategories = (taskCategories?.length ?? 0) > 0;
   const hasAssignees = assigneeIds.length > 0;
+  const hasPendingAttachmentUploads = attachments.some((item) => item.status === 'uploading');
+  const hasFailedAttachmentUploads = attachments.some((item) => item.status === 'failed');
 
   useEffect(() => {
     setAssigneeIds((prev) => prev.filter((id) => filteredManagers.some((manager) => manager.id === id)));
@@ -231,20 +243,60 @@ export function CreateTaskContent({
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
+  const startAttachmentUpload = async (attachmentId: string, uri: string) => {
+    try {
+      const job = await enqueueCloudinaryUpload(uri, 'tasks');
+      setAttachments((prev) => prev.map((item) => (
+        item.id === attachmentId
+          ? { ...item, uploadJobId: job.id, status: 'uploading', error: undefined }
+          : item
+      )));
+
+      const remoteUrl = await waitForUploadJob(job.id);
+      setAttachments((prev) => prev.map((item) => (
+        item.id === attachmentId
+          ? { ...item, status: 'uploaded', remoteUrl, error: undefined }
+          : item
+      )));
+
+      void removeUploadJob(job.id);
+    } catch (error) {
+      setAttachments((prev) => prev.map((item) => (
+        item.id === attachmentId
+          ? {
+            ...item,
+            status: 'failed',
+            error: error instanceof Error ? error.message : 'Upload failed',
+          }
+          : item
+      )));
+    }
+  };
+
   const addAttachment = (type: AttachmentType, uri: string, name: string) => {
+    const attachmentId = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setAttachments((prev) => [
       ...prev,
       {
-        id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: attachmentId,
         type,
         uri,
         name,
+        status: 'uploading',
       },
     ]);
+    void startAttachmentUpload(attachmentId, uri);
   };
 
   const removeAttachment = (id: string) => {
-    setAttachments((prev) => prev.filter((item) => item.id !== id));
+    setAttachments((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (target?.uploadJobId) {
+        void cancelUploadJob(target.uploadJobId);
+        void removeUploadJob(target.uploadJobId);
+      }
+      return prev.filter((item) => item.id !== id);
+    });
   };
 
   const pickMedia = async (kind: 'image' | 'video') => {
@@ -332,6 +384,19 @@ export function CreateTaskContent({
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
     if (!taskCategoryId) return Alert.alert('Required', 'Please select a category.');
     if (!hasAssignees) return Alert.alert('Required', 'Please assign at least one manager.');
+    if (hasPendingAttachmentUploads) {
+      return Alert.alert('Uploading', 'Please wait for attachments to finish uploading.');
+    }
+    if (hasFailedAttachmentUploads) {
+      return Alert.alert('Upload failed', 'Please remove failed attachments or try selecting them again.');
+    }
+
+    const uploaded = attachments.filter((item) => item.status === 'uploaded' && item.remoteUrl);
+    const images = uploaded.filter((item) => item.type === 'image').map((item) => item.remoteUrl as string);
+    const videos = uploaded.filter((item) => item.type === 'video').map((item) => item.remoteUrl as string);
+    const audios = uploaded.filter((item) => item.type === 'audio').map((item) => item.remoteUrl as string);
+    const files = uploaded.filter((item) => item.type === 'file').map((item) => item.remoteUrl as string);
+    const hasUploadedAttachments = images.length > 0 || videos.length > 0 || audios.length > 0 || files.length > 0;
 
     createTask.mutate(
       {
@@ -341,6 +406,18 @@ export function CreateTaskContent({
         dueDate: dueDate.toISOString(),
         ...(outletId ? { outletId } : {}),
         assigneeIds,
+        ...(hasUploadedAttachments
+          ? {
+            adminSubmission: {
+              attachments: {
+                images,
+                videos,
+                audios,
+                files,
+              },
+            },
+          }
+          : {}),
       },
       {
         onSuccess,
@@ -451,6 +528,22 @@ export function CreateTaskContent({
                   <Text style={styles.attachmentChipText} numberOfLines={1}>
                     {item.name}
                   </Text>
+                  <Text
+                    style={[
+                      styles.attachmentStatusText,
+                      item.status === 'failed'
+                        ? styles.attachmentStatusFailed
+                        : item.status === 'uploaded'
+                          ? styles.attachmentStatusUploaded
+                          : styles.attachmentStatusUploading,
+                    ]}
+                  >
+                    {item.status === 'uploaded'
+                      ? 'Uploaded'
+                      : item.status === 'failed'
+                        ? 'Failed'
+                        : 'Uploading'}
+                  </Text>
                   <TouchableOpacity onPress={() => removeAttachment(item.id)}>
                     <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
                   </TouchableOpacity>
@@ -531,13 +624,29 @@ export function CreateTaskContent({
           </Text>
         </TouchableOpacity>
 
+        {hasPendingAttachmentUploads && (
+          <Text style={styles.pendingUploadHint}>Uploading attachments in background...</Text>
+        )}
+
         <TouchableOpacity
           style={[
             styles.submitBtn,
-            (createTask.isPending || isLoadingTaskCategories || !hasTaskCategories || !hasAssignees) && styles.submitBtnDisabled,
+            (
+              createTask.isPending
+              || isLoadingTaskCategories
+              || !hasTaskCategories
+              || !hasAssignees
+              || hasPendingAttachmentUploads
+            ) && styles.submitBtnDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={createTask.isPending || isLoadingTaskCategories || !hasTaskCategories || !hasAssignees}
+          disabled={
+            createTask.isPending
+            || isLoadingTaskCategories
+            || !hasTaskCategories
+            || !hasAssignees
+            || hasPendingAttachmentUploads
+          }
         >
           {createTask.isPending ? (
             <ActivityIndicator color={colors.textInverse} />
@@ -704,6 +813,20 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.sm,
   },
+  attachmentStatusText: {
+    fontSize: typography.xs,
+    fontWeight: typography.medium,
+    marginRight: spacing.xs,
+  },
+  attachmentStatusUploading: {
+    color: colors.textSecondary,
+  },
+  attachmentStatusUploaded: {
+    color: colors.success,
+  },
+  attachmentStatusFailed: {
+    color: colors.error,
+  },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
@@ -740,6 +863,11 @@ const styles = StyleSheet.create({
   },
   retryBtnDisabled: { opacity: 0.7 },
   retryBtnText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
+  pendingUploadHint: {
+    marginTop: spacing.sm,
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+  },
 
   submitBtn: {
     backgroundColor: colors.primary,

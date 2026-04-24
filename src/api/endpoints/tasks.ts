@@ -54,6 +54,15 @@ export interface CreateTaskPayload {
   outletId?: string;
   assigneeIds?: string[];
   status?: TaskStatus;
+  adminSubmission?: {
+    text?: string;
+    attachments?: {
+      images?: string[];
+      videos?: string[];
+      audios?: string[];
+      files?: string[];
+    };
+  };
 }
 
 // ─── Raw API shape (backend returns nested objects) ───────────────────────────
