@@ -3,7 +3,7 @@ import { mapListSafely } from './mapListSafely';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TaskStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'READY_FOR_REVIEW' | 'COMPLETED';
+export type TaskStatus = 'OPEN' | 'COMPLETED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 export type TaskCategory = string;
 

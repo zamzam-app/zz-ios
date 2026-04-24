@@ -5,9 +5,6 @@ import { TaskStatus } from '../api/endpoints/tasks';
 
 const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string }> = {
   OPEN: { label: 'Open', color: colors.statusOpen },
-  ASSIGNED: { label: 'Assigned', color: colors.statusAssigned },
-  IN_PROGRESS: { label: 'In Progress', color: colors.statusInProgress },
-  READY_FOR_REVIEW: { label: 'Review', color: colors.statusReadyForReview },
   COMPLETED: { label: 'Completed', color: colors.statusCompleted },
 };
 

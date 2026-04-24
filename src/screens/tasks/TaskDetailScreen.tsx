@@ -21,12 +21,9 @@ import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
 
-const ALL_STATUSES: TaskStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'READY_FOR_REVIEW', 'COMPLETED'];
+const ALL_STATUSES: TaskStatus[] = ['OPEN', 'COMPLETED'];
 const STATUS_LABELS: Record<TaskStatus, string> = {
   OPEN: 'Open',
-  ASSIGNED: 'Assigned',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
   COMPLETED: 'Completed',
 };
 
