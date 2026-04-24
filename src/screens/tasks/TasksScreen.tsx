@@ -1,77 +1,132 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   FlatList,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { useTasks } from '../../hooks/useTasks';
-import { useOutlets } from '../../hooks/useOutlets';
-import { Task, TaskStatus } from '../../api/endpoints/tasks';
+import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
+import { FilterDropdown, FilterOption } from '../../components/FilterDropdown';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
+import { CreateTaskContent } from './CreateTaskScreen';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
+type PriorityFilter = TaskPriority | 'ALL';
 
-const STATUSES: { label: string; value: TaskStatus | 'ALL' }[] = [
-  { label: 'All', value: 'ALL' },
-  { label: 'Open', value: 'OPEN' },
-  { label: 'Completed', value: 'COMPLETED' },
+const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
+  { label: 'All Tasks', value: 'ALL' },
+  { label: 'High', value: 'HIGH' },
+  { label: 'Medium', value: 'MEDIUM' },
+  { label: 'Low', value: 'LOW' },
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {
-  HIGH: colors.priorityHigh,
+  HIGH:   colors.priorityHigh,
   MEDIUM: colors.priorityMedium,
-  LOW: colors.priorityLow,
+  LOW:    colors.priorityLow,
 };
 
 function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'No due date';
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
 }
 
-function TaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
+function formatRelativeTime(iso?: string | null) {
+  if (!iso) return 'Closed';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Closed';
+
+  const diffMs = Date.now() - date.getTime();
+  const mins = Math.max(1, Math.floor(diffMs / 60000));
+  if (mins < 60) return `Closed ${mins}m ago`;
+
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Closed ${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+  return `Closed ${days}d ago`;
+}
+
+function OpenTaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
   const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
-  const outletName = getTaskOutletName(task);
-  const categoryName = getTaskCategoryName(task);
+  const outletName    = getTaskOutletName(task);
+  const categoryName  = getTaskCategoryName(task);
   const assigneeNames = getTaskAssigneeNames(task);
+  const priorityColor = PRIORITY_COLORS[task.priority] ?? colors.textSecondary;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.cardHeader}>
-        <StatusBadge status={task.status} />
-        <Text style={[styles.dueDate, isOverdue && { color: colors.error }]}>
-          {formatDate(task.dueDate)}
+    <TouchableOpacity style={styles.openCard} onPress={onPress} activeOpacity={0.75}>
+      <View style={styles.openCardInner}>
+        <View style={styles.openCardHeader}>
+          <StatusBadge status={task.status} />
+          <Text style={[styles.dueDate, isOverdue && { color: colors.error }]}>
+            {formatDate(task.dueDate)}
+          </Text>
+        </View>
+
+        <Text style={styles.openTitle} numberOfLines={1}>
+          {task.title || task.description}
         </Text>
+        {outletName ? <Text style={styles.outletName}>{outletName}</Text> : null}
+        <Text style={styles.description} numberOfLines={2}>{task.description}</Text>
+
+        <View style={styles.openCardFooter}>
+          {categoryName ? (
+            <View style={styles.metaPill}>
+              <Text style={styles.categoryText}>{categoryName}</Text>
+            </View>
+          ) : null}
+          {assigneeNames.length > 0 && (
+            <Text style={styles.assignees} numberOfLines={1}>{assigneeNames.join(', ')}</Text>
+          )}
+          <View style={styles.footerSpacer} />
+          <Text style={[styles.priorityLabel, { color: priorityColor }]}>{task.priority}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function CompletedTaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
+  const assigneeNames = getTaskAssigneeNames(task);
+  const priorityColor = PRIORITY_COLORS[task.priority] ?? colors.textSecondary;
+  const categoryName = getTaskCategoryName(task);
+
+  return (
+    <TouchableOpacity style={styles.completedCard} onPress={onPress} activeOpacity={0.78}>
+      <View style={styles.completedMeta}>
+        <Text style={styles.completedId}>ID: #{task.id.slice(-4).toUpperCase()}</Text>
+        <Text style={styles.completedWhen}>{formatRelativeTime(task.completedAt)}</Text>
       </View>
 
-      {outletName && (
-        <Text style={styles.outletName}>{outletName}</Text>
-      )}
-      <Text style={styles.description} numberOfLines={2}>{task.description}</Text>
+      <Text style={styles.completedTitle} numberOfLines={1}>
+        {task.title || task.description}
+      </Text>
+      <Text style={styles.completedDescription} numberOfLines={2}>
+        {task.description}
+      </Text>
 
-      <View style={styles.cardFooter}>
-        {categoryName && (
-          <View style={styles.categoryPill}>
-            <Text style={styles.categoryText}>{categoryName}</Text>
-          </View>
-        )}
-        <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[task.priority] ?? colors.textSecondary }]} />
-        <Text style={styles.priorityText}>{task.priority}</Text>
-        {assigneeNames.length > 0 && (
-          <Text style={styles.assignees} numberOfLines={1}>
-            · {assigneeNames.join(', ')}
-          </Text>
-        )}
+      <View style={styles.completedFooter}>
+        <Text style={styles.completedAssignee} numberOfLines={1}>
+          {assigneeNames[0] ?? 'System'}
+        </Text>
+        {categoryName ? <Text style={styles.completedCategory}>{categoryName}</Text> : null}
+        <View style={styles.footerSpacer} />
+        <Text style={[styles.completedPriority, { color: priorityColor }]}>{task.priority}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -79,168 +134,425 @@ function TaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
 
 export default function TasksScreen() {
   const navigation = useNavigation<Nav>();
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>('ALL');
-  const [outletFilter, setOutletFilter] = useState<string | undefined>();
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const query = {
-    limit: 50,
-    ...(statusFilter !== 'ALL' && { status: statusFilter }),
-    ...(outletFilter && { outletId: outletFilter }),
-  };
+  const { data: tasks, isLoading, isFetching, refetch } = useTasks({ limit: 50 });
+  const allTasks = tasks ?? [];
 
-  const { data: tasks, isLoading, isFetching, refetch } = useTasks(query);
-  const { data: outlets } = useOutlets();
+  const filteredTasks = useMemo(
+    () => (priorityFilter === 'ALL'
+      ? allTasks
+      : allTasks.filter((task) => task.priority === priorityFilter)),
+    [allTasks, priorityFilter],
+  );
 
-  const listData = tasks ?? [];
+  const openTasks = filteredTasks.filter((task) => task.status !== 'COMPLETED');
+  const completedTasks = filteredTasks.filter((task) => task.status === 'COMPLETED');
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-      <FlatList
-        data={listData}
-        keyExtractor={(t) => t.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
-        ListHeaderComponent={(
-          <>
-            <View style={styles.header}>
-              <Text style={styles.heading}>Tasks</Text>
-              <TouchableOpacity
-                style={styles.createBtn}
-                onPress={() => navigation.navigate('CreateTask')}
-              >
-                <Text style={styles.createBtnText}>+ New</Text>
-              </TouchableOpacity>
-            </View>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.heading}>Task Board</Text>
+          <Text style={styles.subheading}>Manage operational flows across all outlets</Text>
+        </View>
+        <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
+          <Text style={styles.createBtnText}>+ New</Text>
+        </TouchableOpacity>
+      </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterRow}
-              style={styles.filterScroll}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.priorityRow}
+        style={styles.priorityRowScroll}
+      >
+        {PRIORITY_FILTERS.map((option) => {
+          const active = option.value === priorityFilter;
+          return (
+            <TouchableOpacity
+              key={option.value}
+              style={[styles.priorityPill, active && styles.priorityPillActive]}
+              onPress={() => setPriorityFilter(option.value)}
+              activeOpacity={0.8}
             >
-              {STATUSES.map((item) => (
-                <TouchableOpacity
-                  key={item.value}
-                  style={[styles.filterChip, statusFilter === item.value && styles.filterChipActive]}
-                  onPress={() => setStatusFilter(item.value)}
-                >
-                  <Text style={[styles.filterChipText, statusFilter === item.value && styles.filterChipTextActive]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
+              <Text style={[styles.priorityPillText, active && styles.priorityPillTextActive]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.sectionsContainer}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeadingWrap}>
+            <View style={styles.sectionDot} />
+            <Text style={styles.sectionTitle}>Open Tasks</Text>
+          </View>
+          <Text style={styles.sectionCount}>{openTasks.length} active</Text>
+        </View>
+
+        <FlatList
+          style={styles.openList}
+          data={openTasks}
+          keyExtractor={(task) => task.id}
+          contentContainerStyle={
+            openTasks.length > 0 ? styles.openListContent : styles.openListEmptyContent
+          }
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+          renderItem={({ item }) => (
+            <View style={styles.openCardWrap}>
+              <OpenTaskCard
+                task={item}
+                onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+              />
+            </View>
+          )}
+          ListEmptyComponent={(
+            isLoading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.empty}>No open tasks found</Text>
+              </View>
+            )
+          )}
+        />
+
+        <View style={styles.completedSection}>
+          <View style={styles.completedSectionHeader}>
+            <View style={styles.sectionHeadingWrap}>
+              <View style={[styles.sectionDot, styles.sectionDotCompleted]} />
+              <Text style={styles.sectionTitle}>Completed Tasks</Text>
+            </View>
+          </View>
+
+          {!isLoading && completedTasks.length === 0 && (
+            <Text style={styles.completedEmpty}>No completed tasks yet</Text>
+          )}
+
+          {isLoading && (
+            <View style={styles.completedLoadingWrap}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          )}
+
+          {!isLoading && completedTasks.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.completedRow}>
+              {completedTasks.map((task) => (
+                <CompletedTaskCard
+                  key={task.id}
+                  task={task}
+                  onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
+                />
               ))}
             </ScrollView>
+          )}
+        </View>
+      </View>
 
-            {outlets && outlets.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filterRow}
-                style={styles.filterScroll}
-              >
+      <Modal
+        visible={showCreateModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <View style={styles.createModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.createModalScrim}
+            onPress={() => setShowCreateModal(false)}
+          />
+          <View style={styles.createSheet}>
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Assign New Task</Text>
                 <TouchableOpacity
-                  style={[styles.filterChip, outletFilter === undefined && styles.filterChipActive]}
-                  onPress={() => setOutletFilter(undefined)}
+                  style={styles.createSheetClose}
+                  onPress={() => setShowCreateModal(false)}
                 >
-                  <Text style={[styles.filterChipText, outletFilter === undefined && styles.filterChipTextActive]}>
-                    All Outlets
-                  </Text>
+                  <Text style={styles.createSheetCloseText}>X</Text>
                 </TouchableOpacity>
-                {outlets.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.filterChip, outletFilter === item.id && styles.filterChipActive]}
-                    onPress={() => setOutletFilter(item.id)}
-                  >
-                    <Text style={[styles.filterChipText, outletFilter === item.id && styles.filterChipTextActive]}>
-                      {item.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </>
-        )}
-        renderItem={({ item }) => (
-          <View style={styles.taskItem}>
-            <TaskCard
-              task={item}
-              onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+              </View>
+            </View>
+            <CreateTaskContent
+              onSuccess={() => {
+                setShowCreateModal(false);
+                void refetch();
+              }}
+              bottomPadding={12}
+              fill={false}
+              backgroundColor={colors.surface}
             />
           </View>
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-        ListEmptyComponent={(
-          <View style={styles.emptyContainer}>
-            {isLoading ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <Text style={styles.empty}>No tasks found</Text>
-            )}
-          </View>
-        )}
-      />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  listContent: { flexGrow: 1, paddingBottom: spacing.xxl },
+  root: { flex: 1, backgroundColor: colors.screenBackground },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
   },
-  heading: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text },
-  createBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm - 2,
-    borderRadius: radius.full,
+  heading: {
+    fontSize: 26,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.5,
   },
-  createBtnText: { color: colors.textInverse, fontWeight: typography.semibold, fontSize: typography.sm },
-
-  filterScroll: { marginBottom: spacing.sm },
-  filterRow: { paddingHorizontal: spacing.md, gap: spacing.sm, alignItems: 'center' },
-  filterChip: {
+  subheading: {
+    marginTop: 2,
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  createBtn: {
+    backgroundColor: colors.buttonPrimaryBg,
     paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.full,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    ...shadow.sm,
+  },
+  createBtnText: {
+    color: colors.textInverse,
+    fontWeight: typography.semibold,
+    fontSize: typography.sm,
+  },
+
+  priorityRowScroll: {
+    flexGrow: 0,
+    minHeight: 48,
+  },
+  priorityRow: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  priorityPill: {
+    paddingHorizontal: 14,
+    minHeight: 36,
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterChipText: { fontSize: typography.sm, color: colors.textSecondary },
-  filterChipTextActive: { color: colors.textInverse, fontWeight: typography.medium },
-
-  taskItem: { paddingHorizontal: spacing.md },
-
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadow.sm,
+  priorityPillActive: {
+    backgroundColor: '#FFDF9A',
+    borderColor: '#FFDF9A',
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  dueDate: { fontSize: typography.xs, color: colors.textSecondary },
-  outletName: { fontSize: typography.sm, fontWeight: typography.semibold, color: colors.primary, marginBottom: 4 },
-  description: { fontSize: typography.sm, color: colors.text, marginBottom: spacing.sm },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
-  categoryPill: {
-    backgroundColor: colors.surfaceElevated,
+  priorityPillText: {
+    fontSize: typography.xs,
+    lineHeight: 14,
+    color: '#4F4633',
+    fontWeight: typography.medium,
+    includeFontPadding: false,
+  },
+  priorityPillTextActive: {
+    color: '#251A00',
+    fontWeight: typography.bold,
+  },
+
+  sectionsContainer: {
+    flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingBottom: 120,
+    paddingTop: spacing.xs,
+  },
+  sectionHeader: {
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionHeadingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionDot: { width: 6, height: 6, borderRadius: radius.full, backgroundColor: '#EAB308' },
+  sectionDotCompleted: { backgroundColor: colors.textSecondary },
+  sectionTitle: {
+    fontSize: typography.xs,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: '#4F4633',
+    fontWeight: typography.bold,
+  },
+  sectionCount: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.sm,
+    backgroundColor: '#E6E8EA',
+    color: colors.text,
+    textTransform: 'uppercase',
+    fontSize: 10,
+    fontWeight: typography.bold,
   },
-  categoryText: { fontSize: typography.xs, color: colors.textSecondary },
-  priorityDot: { width: 6, height: 6, borderRadius: 3 },
-  priorityText: { fontSize: typography.xs, color: colors.textSecondary },
-  assignees: { fontSize: typography.xs, color: colors.textSecondary, flex: 1 },
 
-  emptyContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: spacing.xxl },
-  empty: { textAlign: 'center', color: colors.textSecondary },
+  openList: { flex: 1, minHeight: 0 },
+  openListContent: { paddingBottom: spacing.sm },
+  openListEmptyContent: { flexGrow: 1, justifyContent: 'center' },
+  openCardWrap: { marginBottom: spacing.sm },
+  openCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC40',
+    ...shadow.sm,
+  },
+  openCardInner: { padding: spacing.md },
+  openCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  openTitle: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
+    marginBottom: 2,
+  },
+  dueDate: { fontSize: typography.xs, color: colors.textSecondary },
+  outletName: {
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  description: { fontSize: typography.sm, color: colors.textSecondary, marginBottom: spacing.sm, lineHeight: 19 },
+  openCardFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
+  footerSpacer: { flex: 1 },
+  metaPill: {
+    backgroundColor: colors.primaryTint,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  categoryText: { fontSize: typography.xs, color: colors.primary, fontWeight: typography.medium },
+  priorityLabel: { fontSize: typography.xs, fontWeight: typography.semibold },
+  assignees: { fontSize: typography.xs, color: colors.textSecondary },
+
+  completedSection: {
+    marginTop: spacing.md,
+    minHeight: 210,
+    maxHeight: 250,
+  },
+  completedSectionHeader: { marginBottom: spacing.sm },
+  completedRow: {
+    gap: spacing.sm,
+    paddingBottom: spacing.sm,
+    paddingRight: spacing.md,
+  },
+  completedCard: {
+    width: 300,
+    backgroundColor: '#F2F4F6',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC2A',
+  },
+  completedMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm },
+  completedId: {
+    backgroundColor: colors.text,
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: typography.bold,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  completedWhen: { fontSize: 10, color: colors.textSecondary, fontWeight: typography.medium },
+  completedTitle: { fontSize: typography.base, color: colors.text, fontWeight: typography.bold, marginBottom: 4 },
+  completedDescription: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 19, marginBottom: spacing.md },
+  completedFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  completedAssignee: { fontSize: typography.xs, color: colors.text, fontWeight: typography.semibold, maxWidth: 90 },
+  completedCategory: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  completedPriority: { fontSize: typography.xs, fontWeight: typography.bold },
+
+  loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
+  completedLoadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyWrap: { paddingVertical: spacing.xl },
+  empty: { textAlign: 'center', color: colors.textSecondary, fontSize: typography.sm },
+  completedEmpty: { color: colors.textSecondary, fontSize: typography.sm, marginBottom: spacing.md },
+
+  createModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  createModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+  },
+  createSheet: {
+    maxHeight: '92%',
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#191c1e',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 24,
+  },
+  createSheetTop: {
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D3C5AC40',
+    backgroundColor: colors.surfaceOverlay,
+  },
+  createSheetHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: '#E6E8EA',
+    marginBottom: spacing.sm,
+  },
+  createSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  createSheetTitle: {
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.3,
+  },
+  createSheetClose: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F4F6',
+  },
+  createSheetCloseText: {
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
 });

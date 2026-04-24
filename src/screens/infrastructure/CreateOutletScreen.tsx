@@ -13,15 +13,34 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCreateOutlet } from '../../hooks/useOutlets';
+import { useCreateOutlet, useUpdateOutlet } from '../../hooks/useOutlets';
 import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';
 import { useAuthStore } from '../../store/authStore';
+import { Outlet } from '../../api/endpoints/outlets';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
 
 type Props = NativeStackScreenProps<InfrastructureStackParamList, 'CreateOutlet'>;
+type CreateOutletContentProps = {
+  mode?: 'create' | 'edit';
+  outletToEdit?: Outlet | null;
+  onSuccess: () => void;
+  submitLabel?: string;
+  bottomPadding?: number;
+  fill?: boolean;
+  backgroundColor?: string;
+};
+
+function Label({ text, required }: { text: string; required?: boolean }) {
+  return (
+    <Text style={styles.label}>
+      {text}
+      {required && <Text style={{ color: colors.error }}> *</Text>}
+    </Text>
+  );
+}
 
 function PickerModal({
   visible,
@@ -43,11 +62,11 @@ function PickerModal({
   const selectedArr = Array.isArray(selected) ? selected : [selected];
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <SafeAreaView style={styles.pickerRoot}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>{title}</Text>
           <TouchableOpacity onPress={onClose}>
-            <Text style={{ color: colors.primary, fontSize: typography.base }}>Done</Text>
+            <Text style={styles.modalDone}>Done</Text>
           </TouchableOpacity>
         </View>
         <FlatList
@@ -68,7 +87,15 @@ function PickerModal({
   );
 }
 
-export default function CreateOutletScreen({ navigation }: Props) {
+export function CreateOutletContent({
+  mode = 'create',
+  outletToEdit = null,
+  onSuccess,
+  submitLabel = mode === 'edit' ? 'Save Changes' : 'Create Outlet',
+  bottomPadding = 120,
+  fill = true,
+  backgroundColor = colors.background,
+}: CreateOutletContentProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
@@ -86,11 +113,33 @@ export default function CreateOutletScreen({ navigation }: Props) {
   } = useOutletTypes();
   const { data: managers } = useManagers();
   const createOutlet = useCreateOutlet();
+  const updateOutlet = useUpdateOutlet();
   const userRole = useAuthStore((state) => state.user?.role);
   const isAdmin = userRole === 'admin';
 
+  React.useEffect(() => {
+    if (mode !== 'edit' || !outletToEdit) {
+      return;
+    }
+    setName(outletToEdit.name ?? '');
+    setDescription(outletToEdit.description ?? '');
+    setAddress(outletToEdit.address ?? '');
+    setOutletTypeId(outletToEdit.outletTypeId ?? '');
+    setManagerIds(outletToEdit.managerIds ?? []);
+  }, [mode, outletToEdit]);
+
+  React.useEffect(() => {
+    if (mode !== 'create') return;
+    setName('');
+    setDescription('');
+    setAddress('');
+    setOutletTypeId('');
+    setManagerIds([]);
+  }, [mode]);
+
   const selectedType = outletTypes?.find((t) => t.id === outletTypeId);
   const selectedManagers = managers?.filter((m) => managerIds.includes(m.id)) ?? [];
+  const isSubmitting = createOutlet.isPending || updateOutlet.isPending;
 
   const handleSubmit = () => {
     if (!isAdmin) {
@@ -99,6 +148,27 @@ export default function CreateOutletScreen({ navigation }: Props) {
     if (!name.trim()) return Alert.alert('Required', 'Outlet name is required.');
     if (!description.trim()) return Alert.alert('Required', 'Description is required.');
     if (!outletTypeId) return Alert.alert('Required', 'Please select an outlet type.');
+
+    if (mode === 'edit') {
+      if (!outletToEdit) return;
+      updateOutlet.mutate(
+        {
+          id: outletToEdit.id,
+          payload: {
+            name: name.trim(),
+            description: description.trim(),
+            address: address.trim() || undefined,
+            outletType: outletTypeId,
+            managerIds,
+          },
+        },
+        {
+          onSuccess,
+          onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to update outlet.')),
+        },
+      );
+      return;
+    }
 
     createOutlet.mutate(
       {
@@ -110,16 +180,16 @@ export default function CreateOutletScreen({ navigation }: Props) {
         ...(managerIds.length > 0 ? { managerIds } : {}),
       },
       {
-        onSuccess: () => navigation.goBack(),
+        onSuccess,
         onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to create outlet.')),
       },
     );
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.label}>Name *</Text>
+    <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]} keyboardShouldPersistTaps="handled">
+        <Label text="Name" required />
         <TextInput
           style={styles.input}
           placeholder="Outlet name"
@@ -128,7 +198,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
           onChangeText={setName}
         />
 
-        <Text style={styles.label}>Description *</Text>
+        <Label text="Description" required />
         <TextInput
           style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
           placeholder="Describe this outlet..."
@@ -138,7 +208,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
           multiline
         />
 
-        <Text style={styles.label}>Address</Text>
+        <Label text="Address" />
         <TextInput
           style={styles.input}
           placeholder="Street address"
@@ -147,7 +217,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
           onChangeText={setAddress}
         />
 
-        <Text style={styles.label}>Outlet Type *</Text>
+        <Label text="Outlet Type" required />
         {isLoadingOutletTypes ? (
           <View style={styles.fieldState}>
             <ActivityIndicator color={colors.primary} />
@@ -175,7 +245,7 @@ export default function CreateOutletScreen({ navigation }: Props) {
           </TouchableOpacity>
         )}
 
-        <Text style={styles.label}>Managers</Text>
+        <Label text="Managers" />
         <TouchableOpacity style={styles.input} onPress={() => setShowManagerPicker(true)}>
           <Text style={{ color: selectedManagers.length > 0 ? colors.text : colors.textDisabled }}>
             {selectedManagers.length > 0 ? selectedManagers.map((m) => m.name).join(', ') : 'Select managers...'}
@@ -183,13 +253,13 @@ export default function CreateOutletScreen({ navigation }: Props) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.submitBtn, (createOutlet.isPending || !isAdmin) && { opacity: 0.6 }]}
+          style={[styles.submitBtn, (isSubmitting || !isAdmin) && { opacity: 0.6 }]}
           onPress={handleSubmit}
-          disabled={createOutlet.isPending || !isAdmin}
+          disabled={isSubmitting || !isAdmin}
         >
-          {createOutlet.isPending
+          {isSubmitting
             ? <ActivityIndicator color={colors.textInverse} />
-            : <Text style={styles.submitBtnText}>Create Outlet</Text>}
+            : <Text style={styles.submitBtnText}>{submitLabel}</Text>}
         </TouchableOpacity>
         {!isAdmin && (
           <Text style={styles.helperText}>Only admins can create outlets.</Text>
@@ -215,14 +285,29 @@ export default function CreateOutletScreen({ navigation }: Props) {
         )}
         onClose={() => setShowManagerPicker(false)}
       />
+    </View>
+  );
+}
+
+export default function CreateOutletScreen({ navigation }: Props) {
+  return (
+    <SafeAreaView style={[styles.rootFill, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <CreateOutletContent onSuccess={() => navigation.goBack()} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.sm },
-  label: { fontSize: typography.sm, fontWeight: typography.medium, color: colors.text },
+  rootFill: { flex: 1 },
+  rootAuto: {},
+  scroll: { paddingHorizontal: spacing.md, gap: spacing.sm },
+  label: {
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+    color: colors.text,
+    marginBottom: 2,
+    marginTop: spacing.sm,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -272,6 +357,7 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
     textAlign: 'center',
   },
+  pickerRoot: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -280,6 +366,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  modalDone: { color: colors.primary, fontSize: typography.base },
   modalTitle: { fontSize: typography.md, fontWeight: typography.semibold, color: colors.text },
   pickerRow: {
     flexDirection: 'row',

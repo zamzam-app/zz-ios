@@ -23,14 +23,13 @@ import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
 
-type Props = NativeStackScreenProps<TasksStackParamList, 'CreateTask'>;
-
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
     <Text style={styles.label}>
-      {text}{required && <Text style={{ color: colors.error }}> *</Text>}
+      {text}
+      {required && <Text style={{ color: colors.error }}> *</Text>}
     </Text>
   );
 }
@@ -107,11 +106,11 @@ function PickerModal({
   const selectedArr = Array.isArray(selected) ? selected : [selected];
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={styles.pickerRoot}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>{title}</Text>
           <TouchableOpacity onPress={onClose}>
-            <Text style={{ color: colors.primary, fontSize: typography.base }}>Done</Text>
+            <Text style={styles.modalDone}>Done</Text>
           </TouchableOpacity>
         </View>
         <FlatList
@@ -122,17 +121,31 @@ function PickerModal({
             return (
               <TouchableOpacity style={styles.pickerRow} onPress={() => onSelect(item.id)}>
                 <Text style={styles.pickerName}>{item.name}</Text>
-                {isSelected && <Text style={{ color: colors.primary, fontSize: 18 }}>✓</Text>}
+                {isSelected && <Text style={styles.pickerTick}>✓</Text>}
               </TouchableOpacity>
             );
           }}
         />
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
 
-export default function CreateTaskScreen({ navigation }: Props) {
+type CreateTaskContentProps = {
+  onSuccess: () => void;
+  submitLabel?: string;
+  bottomPadding?: number;
+  fill?: boolean;
+  backgroundColor?: string;
+};
+
+export function CreateTaskContent({
+  onSuccess,
+  submitLabel = 'Create Task',
+  bottomPadding = 40,
+  fill = true,
+  backgroundColor = colors.background,
+}: CreateTaskContentProps) {
   const [description, setDescription] = useState('');
   const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>();
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
@@ -187,7 +200,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
         assigneeIds,
       },
       {
-        onSuccess: () => navigation.goBack(),
+        onSuccess,
         onError: (error) =>
           Alert.alert('Error', getApiErrorMessage(error, 'Failed to create task. Please try again.')),
       },
@@ -195,8 +208,11 @@ export default function CreateTaskScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]}
+        keyboardShouldPersistTaps="handled"
+      >
         <Label text="Description" required />
         <TextInput
           style={[styles.input, styles.multiline]}
@@ -245,7 +261,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
 
         <Label text="Due Date" required />
         <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
-          <Text style={{ color: colors.text }}>
+          <Text style={styles.inputValue}>
             {dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
           </Text>
         </TouchableOpacity>
@@ -290,7 +306,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
           {createTask.isPending ? (
             <ActivityIndicator color={colors.textInverse} />
           ) : (
-            <Text style={styles.submitBtnText}>Create Task</Text>
+            <Text style={styles.submitBtnText}>{submitLabel}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -317,13 +333,24 @@ export default function CreateTaskScreen({ navigation }: Props) {
         }}
         onClose={() => setShowAssigneePicker(false)}
       />
+    </View>
+  );
+}
+
+type Props = NativeStackScreenProps<TasksStackParamList, 'CreateTask'>;
+
+export default function CreateTaskScreen({ navigation }: Props) {
+  return (
+    <SafeAreaView style={[styles.rootFill, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <CreateTaskContent onSuccess={() => navigation.goBack()} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.sm },
+  rootFill: { flex: 1 },
+  rootAuto: {},
+  scroll: { paddingHorizontal: spacing.md, gap: spacing.sm },
 
   label: {
     fontSize: typography.sm,
@@ -343,6 +370,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: 'center',
   },
+  inputValue: { color: colors.text },
   multiline: {
     height: 100,
     textAlignVertical: 'top',
@@ -395,6 +423,7 @@ const styles = StyleSheet.create({
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
 
+  pickerRoot: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -403,6 +432,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  modalDone: { color: colors.primary, fontSize: typography.base },
   modalTitle: { fontSize: typography.md, fontWeight: typography.semibold, color: colors.text },
   pickerRow: {
     flexDirection: 'row',
@@ -413,4 +443,5 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   pickerName: { fontSize: typography.base, color: colors.text },
+  pickerTick: { color: colors.primary, fontSize: 18 },
 });

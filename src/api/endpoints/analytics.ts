@@ -121,6 +121,9 @@ export const analyticsApi = {
   getOutletFeedbackSummary: (period: Period) =>
     client.get<OutletFeedbackSummaryResponse>('/analytics/outlet-feedback-summary', { params: { period } }),
 
-  getFranchiseAnalytics: (period: Period) =>
-    client.get<FranchiseAnalyticsResponse>('/analytics/franchise', { params: { period } }),
+  getFranchiseAnalytics: (period?: Period) =>
+    client.get<FranchiseAnalyticsResponse>(
+      '/analytics/franchise',
+      period ? { params: { period } } : undefined,
+    ),
 };
