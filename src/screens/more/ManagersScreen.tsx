@@ -53,7 +53,6 @@ function ManagerRow({
 
         <View style={styles.identityWrap}>
           <Text style={styles.managerName} numberOfLines={1}>{manager.name}</Text>
-          <Text style={styles.managerEmail} numberOfLines={1}>{manager.email}</Text>
         </View>
       </TouchableOpacity>
 
@@ -93,7 +92,6 @@ export default function ManagersScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingManager, setEditingManager] = useState<User | null>(null);
   const [newName, setNewName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -105,7 +103,7 @@ export default function ManagersScreen() {
     if (!term) return source;
 
     return source.filter((manager) => {
-      const haystack = [manager.name, manager.email, manager.phoneNumber, manager.userName]
+      const haystack = [manager.name, manager.phoneNumber, manager.userName]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -133,7 +131,6 @@ export default function ManagersScreen() {
 
   const resetCreateForm = () => {
     setNewName('');
-    setNewEmail('');
     setNewUserName('');
     setNewPhone('');
     setNewPassword('');
@@ -148,7 +145,6 @@ export default function ManagersScreen() {
   const openEditModal = (manager: User) => {
     setEditingManager(manager);
     setNewName(manager.name ?? '');
-    setNewEmail(manager.email ?? '');
     setNewUserName(manager.userName ?? '');
     setNewPhone(manager.phoneNumber ?? '');
     setNewPassword('');
@@ -162,39 +158,36 @@ export default function ManagersScreen() {
   };
 
   const name = newName.trim();
-  const email = newEmail.trim();
   const userName = newUserName.trim();
   const phoneNumber = newPhone.trim();
   const password = newPassword.trim();
   const isEditMode = Boolean(editingManager);
 
-  const hasRequiredCreateFields = Boolean(name && email && userName && password);
-  const hasRequiredEditFields = Boolean(name && email && userName);
+  const hasRequiredCreateFields = Boolean(name && userName && password);
+  const hasRequiredEditFields = Boolean(name && userName);
 
   const hasEditChanges = useMemo(() => {
     if (!editingManager) return false;
     return (
       name !== (editingManager.name ?? '').trim()
-      || email !== (editingManager.email ?? '').trim()
       || userName !== (editingManager.userName ?? '').trim()
       || phoneNumber !== (editingManager.phoneNumber ?? '').trim()
     );
-  }, [editingManager, name, email, userName, phoneNumber]);
+  }, [editingManager, name, userName, phoneNumber]);
 
   const canSaveManager = isEditMode
     ? hasRequiredEditFields && hasEditChanges && !updateManager.isPending
     : hasRequiredCreateFields && !createManager.isPending;
 
   const handleCreateManager = () => {
-    if (!name || !email || !userName || !password) {
-      Alert.alert('Required', 'Name, email, username, and password are required.');
+    if (!name || !userName || !password) {
+      Alert.alert('Required', 'Name, username, and password are required.');
       return;
     }
 
     createManager.mutate(
       {
         name,
-        email,
         userName,
         password,
         role: 'manager',
@@ -212,15 +205,14 @@ export default function ManagersScreen() {
 
   const handleUpdateManager = () => {
     if (!editingManager) return;
-    if (!name || !email || !userName) {
-      Alert.alert('Required', 'Name, email, and username are required.');
+    if (!name || !userName) {
+      Alert.alert('Required', 'Name and username are required.');
       return;
     }
     if (!hasEditChanges) return;
 
     const payload: UpdateManagerPayload = {};
     if (name !== (editingManager.name ?? '').trim()) payload.name = name;
-    if (email !== (editingManager.email ?? '').trim()) payload.email = email;
     if (userName !== (editingManager.userName ?? '').trim()) payload.userName = userName;
     if (phoneNumber !== (editingManager.phoneNumber ?? '').trim()) payload.phoneNumber = phoneNumber || undefined;
 
@@ -358,17 +350,6 @@ export default function ManagersScreen() {
                 onChangeText={setNewName}
                 placeholder="Manager name"
                 placeholderTextColor={colors.textDisabled}
-              />
-
-              <Text style={styles.label}>Email *</Text>
-              <TextInput
-                style={styles.input}
-                value={newEmail}
-                onChangeText={setNewEmail}
-                placeholder="name@example.com"
-                placeholderTextColor={colors.textDisabled}
-                autoCapitalize="none"
-                keyboardType="email-address"
               />
 
               <Text style={styles.label}>Username *</Text>
@@ -583,10 +564,6 @@ const styles = StyleSheet.create({
     fontSize: typography.base,
     fontWeight: typography.bold,
     color: colors.text,
-  },
-  managerEmail: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
   },
   deleteBtn: {
     width: 24,
