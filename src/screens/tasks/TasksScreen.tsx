@@ -9,14 +9,15 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTasks } from '../../hooks/useTasks';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
-import { FilterDropdown, FilterOption } from '../../components/FilterDropdown';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
@@ -26,7 +27,7 @@ type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type PriorityFilter = TaskPriority | 'ALL';
 
 const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
-  { label: 'All Tasks', value: 'ALL' },
+  { label: 'All priorities', value: 'ALL' },
   { label: 'High', value: 'HIGH' },
   { label: 'Medium', value: 'MEDIUM' },
   { label: 'Low', value: 'LOW' },
@@ -136,16 +137,37 @@ function CompletedTaskCard({ task, onPress }: { task: Task; onPress: () => void 
 export default function TasksScreen() {
   const navigation = useNavigation<Nav>();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { data: tasks, isLoading, isFetching, refetch } = useTasks({ limit: 50 });
   const allTasks = tasks ?? [];
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
   const filteredTasks = useMemo(
-    () => (priorityFilter === 'ALL'
-      ? allTasks
-      : allTasks.filter((task) => task.priority === priorityFilter)),
-    [allTasks, priorityFilter],
+    () => allTasks.filter((task) => {
+      const matchesPriority = priorityFilter === 'ALL' || task.priority === priorityFilter;
+      if (!matchesPriority) return false;
+      if (!normalizedSearchQuery) return true;
+
+      const searchTokens = [
+        task.id,
+        task.title,
+        task.description,
+        task.priority,
+        task.status,
+        getTaskOutletName(task),
+        getTaskCategoryName(task),
+        ...getTaskAssigneeNames(task),
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(' ')
+        .toLowerCase();
+
+      return searchTokens.includes(normalizedSearchQuery);
+    }),
+    [allTasks, priorityFilter, normalizedSearchQuery],
   );
 
   const openTasks = filteredTasks.filter((task) => task.status !== 'COMPLETED');
@@ -163,28 +185,82 @@ export default function TasksScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.priorityRow}
-        style={styles.priorityRowScroll}
-      >
-        {PRIORITY_FILTERS.map((option) => {
-          const active = option.value === priorityFilter;
-          return (
+      <View style={styles.controlsRow}>
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+            placeholder="Search tasks..."
+            placeholderTextColor={colors.textSecondary}
+            onFocus={() => setShowPriorityMenu(false)}
+          />
+          {searchQuery.length > 0 && (
             <TouchableOpacity
-              key={option.value}
-              style={[styles.priorityPill, active && styles.priorityPillActive]}
-              onPress={() => setPriorityFilter(option.value)}
-              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              style={styles.searchClearBtn}
+              onPress={() => setSearchQuery('')}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.priorityPillText, active && styles.priorityPillTextActive]}>
-                {option.label}
-              </Text>
+              <Text style={styles.searchClearText}>x</Text>
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          )}
+        </View>
+
+        <View style={styles.filterMenuWrap}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Open priority filters"
+            style={[styles.filterIconBtn, priorityFilter !== 'ALL' && styles.filterIconBtnActive]}
+            onPress={() => setShowPriorityMenu((prev) => !prev)}
+            activeOpacity={0.82}
+          >
+            <Ionicons
+              name="options-outline"
+              size={18}
+              color={priorityFilter === 'ALL' ? colors.textSecondary : colors.primaryDark}
+            />
+          </TouchableOpacity>
+
+          {showPriorityMenu && (
+            <View style={styles.priorityDropdown}>
+              {PRIORITY_FILTERS.map((option, index) => {
+                const active = option.value === priorityFilter;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.priorityOption,
+                      index < PRIORITY_FILTERS.length - 1 && styles.priorityOptionDivider,
+                      active && styles.priorityOptionActive,
+                    ]}
+                    onPress={() => {
+                      setPriorityFilter(option.value);
+                      setShowPriorityMenu(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.priorityOptionText, active && styles.priorityOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                    {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </View>
+
+      {showPriorityMenu && (
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowPriorityMenu(false)}
+          style={styles.priorityMenuBackdrop}
+        />
+      )}
 
       <View style={styles.sectionsContainer}>
         <View style={styles.sectionHeader}>
@@ -195,35 +271,38 @@ export default function TasksScreen() {
           <Text style={styles.sectionCount}>{openTasks.length} active</Text>
         </View>
 
-        <FlatList
-          style={styles.openList}
-          data={openTasks}
-          keyExtractor={(task) => task.id}
-          contentContainerStyle={
-            openTasks.length > 0 ? styles.openListContent : styles.openListEmptyContent
-          }
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
-          renderItem={({ item }) => (
-            <View style={styles.openCardWrap}>
-              <OpenTaskCard
-                task={item}
-                onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-              />
-            </View>
-          )}
-          ListEmptyComponent={(
-            isLoading ? (
-              <View style={styles.loadingWrap}>
-                <ActivityIndicator color={colors.primary} />
+        <View style={styles.openListShell}>
+          <FlatList
+            style={styles.openList}
+            data={openTasks}
+            keyExtractor={(task) => task.id}
+            contentContainerStyle={
+              openTasks.length > 0 ? styles.openListContent : styles.openListEmptyContent
+            }
+            showsVerticalScrollIndicator
+            persistentScrollbar
+            refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+            renderItem={({ item }) => (
+              <View style={styles.openCardWrap}>
+                <OpenTaskCard
+                  task={item}
+                  onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+                />
               </View>
-            ) : (
-              <View style={styles.emptyWrap}>
-                <Text style={styles.empty}>No open tasks found</Text>
-              </View>
-            )
-          )}
-        />
+            )}
+            ListEmptyComponent={(
+              isLoading ? (
+                <View style={styles.loadingWrap}>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : (
+                <View style={styles.emptyWrap}>
+                  <Text style={styles.empty}>No open tasks found</Text>
+                </View>
+              )
+            )}
+          />
+        </View>
 
         <View style={styles.completedSection}>
           <View style={styles.completedSectionHeader}>
@@ -333,40 +412,111 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
   },
 
-  priorityRowScroll: {
-    flexGrow: 0,
-    minHeight: 48,
-  },
-  priorityRow: {
+  controlsRow: {
+    zIndex: 40,
+    flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
     paddingTop: spacing.xs,
   },
-  priorityPill: {
-    paddingHorizontal: 14,
-    minHeight: 36,
+  searchWrap: {
+    flex: 1,
     justifyContent: 'center',
-    borderRadius: 10,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    zIndex: 2,
+  },
+  searchInput: {
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingLeft: 38,
+    paddingRight: 34,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  searchClearBtn: {
+    position: 'absolute',
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E6E8EA',
+  },
+  searchClearText: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.bold,
+    lineHeight: 16,
+    includeFontPadding: false,
+  },
+  filterMenuWrap: {
+    position: 'relative',
+    zIndex: 60,
+  },
+  filterIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.sm,
+  },
+  filterIconBtnActive: {
+    borderColor: colors.primaryTintStrong,
+    backgroundColor: colors.primaryTint,
+  },
+  priorityDropdown: {
+    position: 'absolute',
+    right: 0,
+    top: 46,
+    minWidth: 170,
+    borderRadius: radius.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadow.md,
+    zIndex: 999,
+    overflow: 'hidden',
   },
-  priorityPillActive: {
-    backgroundColor: '#FFDF9A',
-    borderColor: '#FFDF9A',
+  priorityOption: {
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  priorityPillText: {
-    fontSize: typography.xs,
-    lineHeight: 14,
-    color: '#4F4633',
+  priorityOptionDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  priorityOptionActive: {
+    backgroundColor: colors.primaryTint,
+  },
+  priorityOptionText: {
+    fontSize: typography.sm,
+    color: colors.text,
     fontWeight: typography.medium,
-    includeFontPadding: false,
   },
-  priorityPillTextActive: {
-    color: '#251A00',
-    fontWeight: typography.bold,
+  priorityOptionTextActive: {
+    color: colors.primary,
+    fontWeight: typography.semibold,
+  },
+  priorityMenuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
   },
 
   sectionsContainer: {
@@ -402,6 +552,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.bold,
   },
 
+  openListShell: { flex: 1, minHeight: 0, position: 'relative' },
   openList: { flex: 1, minHeight: 0 },
   openListContent: { paddingBottom: spacing.sm },
   openListEmptyContent: { flexGrow: 1, justifyContent: 'center' },
