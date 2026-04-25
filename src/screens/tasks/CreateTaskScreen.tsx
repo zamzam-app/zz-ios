@@ -694,33 +694,33 @@ export function CreateTaskContent({
           </View>
 
           {showAttachmentMenu && (
-            <View style={styles.attachmentMenu}>
+            <View style={styles.attachmentInlineDropdown}>
               <TouchableOpacity
-                style={styles.attachmentMenuItem}
+                style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void pickMedia('image'); }}
               >
-                <View style={styles.attachmentMenuIconBox}>
+                <View style={styles.attachmentInlineDropdownIconBox}>
                   <MaterialCommunityIcons name="image-outline" size={18} color={colors.primary} />
                 </View>
-                <Text style={styles.attachmentMenuText}>Image</Text>
+                <Text style={styles.attachmentInlineDropdownText}>Image</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.attachmentMenuItem}
+                style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void pickMedia('video'); }}
               >
-                <View style={styles.attachmentMenuIconBox}>
+                <View style={styles.attachmentInlineDropdownIconBox}>
                   <MaterialCommunityIcons name="video-outline" size={18} color={colors.primary} />
                 </View>
-                <Text style={styles.attachmentMenuText}>Video</Text>
+                <Text style={styles.attachmentInlineDropdownText}>Video</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.attachmentMenuItem}
+                style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void pickFile(); }}
               >
-                <View style={styles.attachmentMenuIconBox}>
+                <View style={styles.attachmentInlineDropdownIconBox}>
                   <MaterialCommunityIcons name="file-document-outline" size={18} color={colors.primary} />
                 </View>
-                <Text style={styles.attachmentMenuText}>File</Text>
+                <Text style={styles.attachmentInlineDropdownText}>File</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -991,6 +991,7 @@ export function CreateTaskContent({
         }}
         onClose={() => setShowAssigneePicker(false)}
       />
+
     </View>
   );
 }
@@ -1042,6 +1043,8 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     backgroundColor: colors.surface,
     gap: spacing.sm,
+    position: 'relative',
+    overflow: 'visible',
   },
   attachmentHeaderRow: {
     flexDirection: 'row',
@@ -1081,23 +1084,31 @@ const styles = StyleSheet.create({
     minWidth: 48,
     textAlign: 'right',
   },
-  attachmentMenu: {
+  attachmentInlineDropdown: {
+    position: 'absolute',
+    right: spacing.sm,
+    top: 46,
+    width: 170,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    backgroundColor: colors.background,
-    flexDirection: 'row',
-    padding: spacing.sm,
-    gap: spacing.sm,
-  },
-  attachmentMenuItem: {
-    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
     gap: spacing.xs,
-    flex: 1,
+    zIndex: 20,
+    elevation: 6,
   },
-  attachmentMenuIconBox: {
-    width: 44,
-    height: 44,
+  attachmentInlineDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+  },
+  attachmentInlineDropdownIconBox: {
+    width: 36,
+    height: 36,
     borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1105,9 +1116,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  attachmentMenuText: {
-    color: colors.textSecondary,
-    fontSize: typography.xs,
+  attachmentInlineDropdownText: {
+    color: colors.text,
+    fontSize: typography.sm,
     fontWeight: typography.medium,
   },
   attachmentListBox: {
