@@ -45,7 +45,7 @@ import { getApiErrorMessage } from '../../utils/errors';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
 const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
-const AUDIO_FILE_WAIT_RETRIES = 8;
+const AUDIO_FILE_WAIT_RETRIES = 25;
 const AUDIO_FILE_WAIT_DELAY_MS = 120;
 
 type AttachmentType = 'image' | 'video' | 'audio' | 'file';
@@ -308,6 +308,22 @@ export function CreateTaskContent({
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
+  const normalizeLocalFileUri = (uri: string): string => {
+    const trimmed = uri.trim();
+    if (!trimmed) return trimmed;
+    if (trimmed.startsWith('file://') || trimmed.startsWith('content://')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('file:/')) {
+      const pathOnly = trimmed.replace(/^file:\/*/, '/');
+      return `file://${pathOnly}`;
+    }
+    if (trimmed.startsWith('/')) {
+      return `file://${trimmed}`;
+    }
+    return trimmed;
+  };
+
   const waitForRecordedAudioFile = async (uri: string): Promise<number> => {
     for (let attempt = 0; attempt < AUDIO_FILE_WAIT_RETRIES; attempt += 1) {
       const info = await FileSystem.getInfoAsync(uri);
@@ -324,16 +340,44 @@ export function CreateTaskContent({
     return 0;
   };
 
+  const stageRecordedAudioForUpload = async (uri: string): Promise<string> => {
+    const normalizedUri = normalizeLocalFileUri(uri);
+    const recordedSize = await waitForRecordedAudioFile(normalizedUri);
+    if (recordedSize <= 0) {
+      throw new Error('Recorded audio file is unavailable.');
+    }
+
+    const cacheDir = FileSystem.cacheDirectory;
+    if (!cacheDir) return normalizedUri;
+
+    const extFromUri = normalizedUri
+      .split(/[?#]/)[0]
+      .split('.')
+      .pop()
+      ?.toLowerCase();
+    const ext = extFromUri && /^[a-z0-9]+$/.test(extFromUri) ? extFromUri : 'm4a';
+    const stagedUri = `${cacheDir}task-audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    try {
+      await FileSystem.copyAsync({ from: normalizedUri, to: stagedUri });
+      return stagedUri;
+    } catch {
+      return normalizedUri;
+    }
+  };
+
   const saveRecordedAudioAttachment = async (uri: string, duration: number): Promise<boolean> => {
     const normalizedDuration = Math.max(0, duration);
-    // Best effort: allow the recorder a brief window to flush file content,
-    // but do not block adding the attachment to UI if size probing fails.
-    await waitForRecordedAudioFile(uri).catch(() => 0);
-
-    addAttachment('audio', uri, `Voice note ${formatDuration(normalizedDuration)}`, {
-      durationMillis: normalizedDuration,
-    });
-    return true;
+    try {
+      const uploadUri = await stageRecordedAudioForUpload(uri);
+      addAttachment('audio', uploadUri, `Voice note ${formatDuration(normalizedDuration)}`, {
+        durationMillis: normalizedDuration,
+      });
+      return true;
+    } catch {
+      Alert.alert('Error', 'Could not prepare the recorded audio for upload. Please try recording again.');
+      return false;
+    }
   };
 
   const startAttachmentUpload = async (attachmentId: string, uri: string) => {
@@ -470,11 +514,12 @@ export function CreateTaskContent({
     if (recordingBusy || !isRecordingAudio) return;
     setRecordingBusy(true);
     try {
+      const durationBeforeStop = Math.max(0, recordingMillis ?? 0);
       await recorder.stop();
       const status = recorder.getStatus();
-      const uri = status.url;
+      const uri = status.url || recorder.uri || null;
       if (uri) {
-        const duration = Math.max(0, status.durationMillis ?? recordingMillis ?? 0);
+        const duration = Math.max(0, durationBeforeStop, status.durationMillis ?? 0);
         const saved = await saveRecordedAudioAttachment(uri, duration);
         if (!saved) {
           return;
@@ -482,8 +527,8 @@ export function CreateTaskContent({
       }
     } catch {
       const fallbackStatus = recorder.getStatus();
-      const fallbackUri = fallbackStatus.url;
-      const fallbackDuration = Math.max(0, fallbackStatus.durationMillis ?? recordingMillis ?? 0);
+      const fallbackUri = fallbackStatus.url || recorder.uri || null;
+      const fallbackDuration = Math.max(0, recordingMillis ?? 0, fallbackStatus.durationMillis ?? 0);
       if (fallbackUri) {
         const saved = await saveRecordedAudioAttachment(fallbackUri, fallbackDuration);
         if (saved) {
