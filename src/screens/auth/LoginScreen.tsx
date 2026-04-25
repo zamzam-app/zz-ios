@@ -10,23 +10,25 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const login = useAuthStore((s) => s.login);
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) return;
+    if (!identifier.trim() || !password) return;
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
+      await login(identifier.trim(), password, isAdminLogin);
     } catch {
-      Alert.alert('Login failed', 'Check your email and password and try again.');
+      Alert.alert('Login failed', 'Check your credentials and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -40,20 +42,31 @@ export default function LoginScreen() {
       <View style={styles.inner}>
         <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
-        <Text style={styles.heading}>Admin Portal</Text>
+        <Text style={styles.heading}>{isAdminLogin ? 'Admin Portal' : 'Manager Portal'}</Text>
         <Text style={styles.subheading}>Sign in to your account</Text>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
+          <View style={styles.modeRow}>
+            <Text style={styles.modeLabel}>Admin Login</Text>
+            <Switch
+              value={isAdminLogin}
+              onValueChange={setIsAdminLogin}
+              trackColor={{ false: '#D6D3D1', true: colors.primaryLight }}
+              thumbColor={colors.surface}
+              ios_backgroundColor="#D6D3D1"
+            />
+          </View>
+
+          <Text style={styles.label}>{isAdminLogin ? 'Email' : 'Username'}</Text>
           <TextInput
             style={styles.input}
-            placeholder="you@zamzam.com"
+            placeholder={isAdminLogin ? 'you@zamzam.com' : 'manager_username'}
             placeholderTextColor={colors.textDisabled}
-            keyboardType="email-address"
+            keyboardType={isAdminLogin ? 'email-address' : 'default'}
             autoCapitalize="none"
             autoCorrect={false}
-            value={email}
-            onChangeText={setEmail}
+            value={identifier}
+            onChangeText={setIdentifier}
             returnKeyType="next"
           />
 
@@ -118,6 +131,17 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: spacing.sm,
+  },
+  modeRow: {
+    marginBottom: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modeLabel: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
   },
   label: {
     fontSize: typography.sm,
