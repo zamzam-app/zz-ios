@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Polyline, Line, Text as SvgText, Circle } from 'react-native-svg';
 import {
   useQuickInsights,
@@ -17,8 +19,11 @@ import {
   useIncidentsOverview,
   useOutletFeedbackSummary,
 } from '../../hooks/useAnalytics';
+import { useTasks } from '../../hooks/useTasks';
 import { Period } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { AppTabParamList } from '../../navigation/AppNavigator';
+import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
 
 const PERIODS: { label: string; value: Period }[] = [
   { label: 'Daily', value: 'daily' },
@@ -26,74 +31,137 @@ const PERIODS: { label: string; value: Period }[] = [
   { label: 'Monthly', value: 'monthly' },
 ];
 
-// ─── Floating Period Selector ─────────────────────────────────────────────────
+type OverviewTopTab = 'reviews' | 'tasks';
+type OverviewNav = BottomTabNavigationProp<AppTabParamList, 'Overview'>;
 
-function PeriodSelector({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
-  const [open, setOpen] = useState(false);
-  const active = PERIODS.find((p) => p.value === value)!;
+type SummaryMetricItem = {
+  key: TaskMetricFilter;
+  label: string;
+  value: number | string;
+  color: string;
+  onPress?: () => void;
+};
 
+function isSameCalendarDay(iso: string, now = new Date()) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return false;
   return (
-    <View style={styles.periodWrap}>
-      <TouchableOpacity
-        style={styles.periodBtn}
-        onPress={() => setOpen((o) => !o)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.periodBtnText}>{active.label}</Text>
-        <Text style={styles.periodChevron}>{open ? '▲' : '▾'}</Text>
-      </TouchableOpacity>
+    date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate()
+  );
+}
 
-      {open && (
-        <View style={styles.periodDropdown}>
-          {PERIODS.map((p) => (
-            <TouchableOpacity
-              key={p.value}
-              style={[styles.periodOption, p.value === value && styles.periodOptionActive]}
-              onPress={() => { onChange(p.value); setOpen(false); }}
-            >
-              <Text style={[styles.periodOptionText, p.value === value && styles.periodOptionTextActive]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Period) => void }) {
+  return (
+    <View style={styles.periodPillsRow}>
+      {PERIODS.map((periodItem) => {
+        const active = periodItem.value === value;
+        return (
+          <TouchableOpacity
+            key={periodItem.value}
+            style={[styles.periodPill, active && styles.periodPillActive]}
+            onPress={() => onChange(periodItem.value)}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.periodPillText, active && styles.periodPillTextActive]}>{periodItem.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function TopSummaryPanel({
+  period,
+  onPeriodChange,
+  topTab,
+  onTabChange,
+  mainTitle,
+  mainValue,
+  mainSub,
+  metrics,
+}: {
+  period: Period;
+  onPeriodChange: (period: Period) => void;
+  topTab: OverviewTopTab;
+  onTabChange: (tab: OverviewTopTab) => void;
+  mainTitle: string;
+  mainValue: string;
+  mainSub?: string;
+  metrics: SummaryMetricItem[];
+}) {
+  return (
+    <View style={styles.topPanel}>
+      <PeriodPills value={period} onChange={onPeriodChange} />
+
+      <View style={styles.topTabRow}>
+        <TouchableOpacity
+          style={[styles.topTabBtn, topTab === 'reviews' && styles.topTabBtnActive]}
+          onPress={() => onTabChange('reviews')}
+          activeOpacity={0.82}
+        >
+          <Text style={[styles.topTabText, topTab === 'reviews' && styles.topTabTextActive]}>Review</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.topTabBtn, topTab === 'tasks' && styles.topTabBtnActive]}
+          onPress={() => onTabChange('tasks')}
+          activeOpacity={0.82}
+        >
+          <Text style={[styles.topTabText, topTab === 'tasks' && styles.topTabTextActive]}>Task</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.topContentRow}>
+        <View style={styles.mainStatCard}>
+          <Text style={styles.mainStatLabel}>{mainTitle}</Text>
+          <Text style={styles.mainStatValue}>{mainValue}</Text>
+          {mainSub ? <Text style={styles.mainStatSub}>{mainSub}</Text> : null}
         </View>
-      )}
+
+        <View style={styles.metricStackCol}>
+          {metrics.map((metric) => {
+            const content = (
+              <>
+                <Text style={[styles.metricStackLabel, { color: `${metric.color}B0` }]}>{metric.label}</Text>
+                <Text style={[styles.metricStackValue, { color: metric.color }]}>{metric.value}</Text>
+              </>
+            );
+
+            if (!metric.onPress) {
+              return (
+                <View
+                  key={metric.key}
+                  style={[styles.metricStackCard, { backgroundColor: `${metric.color}1A` }]}
+                >
+                  {content}
+                </View>
+              );
+            }
+
+            return (
+              <TouchableOpacity
+                key={metric.key}
+                style={[styles.metricStackCard, { backgroundColor: `${metric.color}1A` }]}
+                activeOpacity={0.84}
+                onPress={metric.onPress}
+              >
+                {content}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
     </View>
   );
 }
-
-// ─── CSAT Hero Card ───────────────────────────────────────────────────────────
-
-function CsatHeroCard({ score, totalRatings }: { score: number | string; totalRatings: number }) {
-  const scoreStr = typeof score === 'number' ? score.toFixed(1) : score;
-  return (
-    <View style={styles.heroCard}>
-      <Text style={styles.heroScore}>{scoreStr}<Text style={styles.heroSuffix}>/5</Text></Text>
-      <Text style={styles.heroLabel}>Overall CSAT Score</Text>
-      <Text style={styles.heroSub}>{totalRatings} ratings this period</Text>
-    </View>
-  );
-}
-
-// ─── Stat Pills ───────────────────────────────────────────────────────────────
-
-function StatPill({ label, value, color }: { label: string; value: number | string; color: string }) {
-  return (
-    <View style={[styles.statPill, { backgroundColor: color + '18' }]}>
-      <Text style={[styles.statPillValue, { color }]}>{value}</Text>
-      <Text style={[styles.statPillLabel, { color: color + 'AA' }]}>{label}</Text>
-    </View>
-  );
-}
-
-// ─── Insight Cards (swipeable row) ────────────────────────────────────────────
 
 function InsightRow({ insights }: { insights: { title: string; value: string; accent: string }[] }) {
   if (!insights.length) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.insightScroll}>
       {insights.map((item, i) => (
-        <View key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}>
+        <View key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}> 
           <Text style={styles.insightTitle}>{item.title}</Text>
           <Text style={[styles.insightValue, { color: item.accent }]}>{item.value}</Text>
         </View>
@@ -101,8 +169,6 @@ function InsightRow({ insights }: { insights: { title: string; value: string; ac
     </ScrollView>
   );
 }
-
-// ─── Trendline Chart ──────────────────────────────────────────────────────────
 
 function TrendlineChart({ current, previous }: { current: number[]; previous: number[] }) {
   const W = 300;
@@ -162,11 +228,9 @@ function TrendlineChart({ current, previous }: { current: number[]; previous: nu
   );
 }
 
-// ─── Feedback Section ─────────────────────────────────────────────────────────
-
 function FeedbackCard({ title, accent, items }: { title: string; accent: string; items: { name: string; value: number }[] }) {
   return (
-    <View style={[styles.feedbackCard, { backgroundColor: accent + '18' }]}>
+    <View style={[styles.feedbackCard, { backgroundColor: accent + '18' }]}> 
       <Text style={[styles.feedbackTitle, { color: accent }]}>{title}</Text>
       {items.slice(0, 4).map((item, i) => (
         <View key={i} style={styles.feedbackRow}>
@@ -180,26 +244,36 @@ function FeedbackCard({ title, accent, items }: { title: string; accent: string;
   );
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
-
 export default function OverviewScreen() {
+  const navigation = useNavigation<OverviewNav>();
   const [period, setPeriod] = useState<Period>('weekly');
+  const [topTab, setTopTab] = useState<OverviewTopTab>('reviews');
 
   const insights = useQuickInsights(period);
   const csat = useGlobalCsat(period);
   const trendline = useCsatTrendline(period);
   const incidents = useIncidentsOverview(period);
   const feedback = useOutletFeedbackSummary(period);
+  const tasks = useTasks({ limit: 100 });
 
   const isLoading = insights.isLoading || csat.isLoading;
-  const isRefreshing = insights.isFetching || csat.isFetching || trendline.isFetching;
+  const isRefreshing = insights.isFetching
+    || csat.isFetching
+    || trendline.isFetching
+    || incidents.isFetching
+    || feedback.isFetching
+    || tasks.isFetching;
 
   const refetchAll = () => {
-    insights.refetch(); csat.refetch(); trendline.refetch();
-    incidents.refetch(); feedback.refetch();
+    void insights.refetch();
+    void csat.refetch();
+    void trendline.refetch();
+    void incidents.refetch();
+    void feedback.refetch();
+    void tasks.refetch();
   };
 
-  const csatScore = csat.data?.globalCsatScore ?? '--';
+  const csatScore = csat.data?.globalCsatScore;
   const totalRatings = csat.data?.totalRatings ?? 0;
 
   const insightItems = [
@@ -224,32 +298,108 @@ export default function OverviewScreen() {
   const totalSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.totalFeedbacks - a.totalFeedbacks);
   const resolvedSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.resolvedFeedbacks - a.resolvedFeedbacks);
 
+  const allTasks = tasks.data ?? [];
+  const taskOpenCount = useMemo(
+    () => allTasks.filter((task) => task.status !== 'COMPLETED').length,
+    [allTasks],
+  );
+  const taskCriticalCount = useMemo(
+    () => allTasks.filter((task) => task.status !== 'COMPLETED' && task.priority === 'HIGH').length,
+    [allTasks],
+  );
+  const taskCompletedCount = useMemo(
+    () => allTasks.filter((task) => task.status === 'COMPLETED').length,
+    [allTasks],
+  );
+  const dueTodayCount = useMemo(
+    () => allTasks.filter((task) => task.status !== 'COMPLETED' && isSameCalendarDay(task.dueDate)).length,
+    [allTasks],
+  );
+
+  const navigateToTasksWithFilter = (metric: TaskMetricFilter, source: TaskFilterSource) => {
+    navigation.navigate('Tasks', {
+      screen: 'TasksList',
+      params: {
+        initialTaskFilter: {
+          metric,
+          source,
+          nonce: Date.now(),
+        },
+      },
+    });
+  };
+
+  const reviewMetrics: SummaryMetricItem[] = [
+    {
+      key: 'open',
+      label: 'Open',
+      value: incidents.data?.totalOpenIncidents ?? '--',
+      color: colors.warning,
+    },
+    {
+      key: 'critical',
+      label: 'Critical',
+      value: incidents.data?.criticalIssues ?? '--',
+      color: colors.error,
+    },
+    {
+      key: 'resolved',
+      label: 'Resolved',
+      value: incidents.data?.incidentsResolvedToday ?? '--',
+      color: colors.success,
+    },
+  ];
+
+  const taskMetrics: SummaryMetricItem[] = [
+    {
+      key: 'open',
+      label: 'Open',
+      value: taskOpenCount,
+      color: colors.warning,
+      onPress: () => navigateToTasksWithFilter('open', 'overview_tasks_metric'),
+    },
+    {
+      key: 'resolved',
+      label: 'Completed',
+      value: taskCompletedCount,
+      color: colors.success,
+      onPress: () => navigateToTasksWithFilter('resolved', 'overview_tasks_metric'),
+    },
+  ];
+
+  const mainTitle = topTab === 'reviews' ? 'Overall CSAT Score' : 'Due today';
+  const mainValue = topTab === 'reviews'
+    ? (typeof csatScore === 'number' ? `${csatScore.toFixed(1)}/5` : '--')
+    : String(dueTodayCount);
+  const mainSub = topTab === 'reviews'
+    ? `${totalRatings} ratings this period`
+    : `${taskCriticalCount} critical tasks`; // critical hidden in metric stack for Tasks tab
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={isRefreshing && !isLoading} onRefresh={refetchAll} tintColor={colors.primary} />}
       >
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.heading}>Overview</Text>
-          <PeriodSelector value={period} onChange={setPeriod} />
         </View>
+
+        <TopSummaryPanel
+          period={period}
+          onPeriodChange={setPeriod}
+          topTab={topTab}
+          onTabChange={setTopTab}
+          mainTitle={mainTitle}
+          mainValue={mainValue}
+          mainSub={mainSub}
+          metrics={topTab === 'reviews' ? reviewMetrics : taskMetrics}
+        />
 
         {isLoading ? (
           <ActivityIndicator style={{ marginTop: spacing.xxl }} color={colors.primary} />
         ) : (
           <>
-            <CsatHeroCard score={csatScore} totalRatings={totalRatings} />
-
-            {/* Incident stat pills */}
-            <View style={styles.statRow}>
-              <StatPill label="critical" value={incidents.data?.criticalIssues ?? '--'} color={colors.error} />
-              <StatPill label="open" value={incidents.data?.totalOpenIncidents ?? '--'} color={colors.warning} />
-              <StatPill label="resolved" value={incidents.data?.incidentsResolvedToday ?? '--'} color={colors.success} />
-            </View>
-
-            {/* Quick Insights swipeable cards */}
             {insightItems.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>Quick Insights</Text>
@@ -257,7 +407,6 @@ export default function OverviewScreen() {
               </>
             )}
 
-            {/* CSAT Trendline */}
             <Text style={styles.sectionTitle}>CSAT Trendline</Text>
             <View style={styles.chartCard}>
               {trendline.data ? (
@@ -270,7 +419,6 @@ export default function OverviewScreen() {
               )}
             </View>
 
-            {/* Outlet Feedback */}
             <Text style={styles.sectionTitle}>Outlet Feedback</Text>
             <FeedbackCard
               title="Most Negative"
@@ -294,16 +442,11 @@ export default function OverviewScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.md, paddingBottom: 120 },
 
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: spacing.md,
   },
   heading: {
@@ -313,94 +456,144 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // Period selector
-  periodWrap: { position: 'relative', zIndex: 10 },
-  periodBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.full,
-  },
-  periodBtnText: { color: colors.textInverse, fontWeight: typography.semibold, fontSize: typography.sm },
-  periodChevron: { color: colors.textInverse, fontSize: 10 },
-  periodDropdown: {
-    position: 'absolute',
-    top: 40,
-    right: 0,
+  topPanel: {
+    marginBottom: spacing.lg,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    overflow: 'hidden',
-    ...shadow.md,
-    minWidth: 120,
-  },
-  periodOption: {
-    paddingVertical: 12,
-    paddingHorizontal: spacing.md,
-  },
-  periodOptionActive: { backgroundColor: colors.primaryTint },
-  periodOptionText: { fontSize: typography.sm, color: colors.text, fontWeight: typography.medium },
-  periodOptionTextActive: { color: colors.primary, fontWeight: typography.semibold },
-
-  // Hero CSAT card
-  heroCard: {
-    backgroundColor: colors.primaryTint,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    alignItems: 'center',
-    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC40',
+    padding: spacing.md,
+    gap: spacing.sm,
     ...shadow.sm,
   },
-  heroScore: {
-    fontSize: 80,
-    fontWeight: typography.bold,
-    color: colors.success,
-    lineHeight: 88,
-    letterSpacing: -2,
+  periodPillsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
-  heroSuffix: {
-    fontSize: 32,
-    fontWeight: typography.semibold,
-    color: colors.success,
+  periodPill: {
+    minWidth: 70,
+    height: 30,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
   },
-  heroLabel: {
-    fontSize: typography.md,
-    fontWeight: typography.semibold,
-    color: colors.text,
-    marginTop: spacing.sm,
+  periodPillActive: {
+    backgroundColor: colors.primaryTint,
+    borderColor: colors.primaryTintStrong,
   },
-  heroSub: {
-    fontSize: typography.sm,
+  periodPillText: {
+    fontSize: typography.xs,
     color: colors.textSecondary,
-    marginTop: 4,
+    fontWeight: typography.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  periodPillTextActive: {
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
   },
 
-  // Stat pills
-  statRow: {
+  topTabRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  topTabBtn: {
+    minWidth: 72,
+    height: 30,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F4F6',
+  },
+  topTabBtnActive: {
+    backgroundColor: colors.primaryTint,
+  },
+  topTabText: {
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+    color: colors.textSecondary,
+  },
+  topTabTextActive: {
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+
+  topContentRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.lg,
+    alignItems: 'stretch',
   },
-  statPill: {
+  mainStatCard: {
     flex: 1,
-    borderRadius: radius.xl,
-    paddingVertical: spacing.md,
+    minHeight: 152,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: '#D3C5AC5C',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  statPillValue: {
-    fontSize: typography.xl,
-    fontWeight: typography.bold,
-    lineHeight: 32,
-  },
-  statPillLabel: {
-    fontSize: typography.xs,
+  mainStatLabel: {
+    fontSize: typography.base,
+    color: colors.text,
     fontWeight: typography.medium,
-    marginTop: 2,
+    textAlign: 'center',
+  },
+  mainStatValue: {
+    marginTop: spacing.sm,
+    fontSize: 42,
+    lineHeight: 48,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -1,
+  },
+  mainStatSub: {
+    marginTop: 6,
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 
-  // Section title
+  metricStackCol: {
+    width: 110,
+    gap: spacing.xs,
+    justifyContent: 'flex-start',
+  },
+  metricStackCard: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC5C',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  metricStackLabel: {
+    fontSize: typography.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    fontWeight: typography.medium,
+    textAlign: 'center',
+  },
+  metricStackValue: {
+    marginTop: 2,
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+
   sectionTitle: {
     fontSize: typography.base,
     fontWeight: typography.semibold,
@@ -411,7 +604,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Insight swipeable
   insightScroll: { gap: spacing.sm, paddingRight: spacing.md, marginBottom: spacing.lg },
   insightCard: {
     borderRadius: radius.lg,
@@ -421,7 +613,6 @@ const styles = StyleSheet.create({
   insightTitle: { fontSize: typography.xs, color: colors.textSecondary, marginBottom: 6 },
   insightValue: { fontSize: typography.sm, fontWeight: typography.semibold },
 
-  // Chart
   chartCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -435,7 +626,6 @@ const styles = StyleSheet.create({
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: typography.xs, color: colors.textSecondary },
 
-  // Feedback
   feedbackCard: {
     borderRadius: radius.lg,
     padding: spacing.md,

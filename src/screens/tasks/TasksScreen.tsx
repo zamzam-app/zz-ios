@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTasks } from '../../hooks/useTasks';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
@@ -22,8 +22,10 @@ import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 import { CreateTaskContent } from './CreateTaskScreen';
+import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
+type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
 type PriorityFilter = TaskPriority | 'ALL';
 
 const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
@@ -61,6 +63,16 @@ function formatRelativeTime(iso?: string | null) {
 
   const days = Math.floor(hours / 24);
   return `Closed ${days}d ago`;
+}
+
+function isSameCalendarDay(iso: string, now = new Date()) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return false;
+  return (
+    date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate()
+  );
 }
 
 function OpenTaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
@@ -136,7 +148,9 @@ function CompletedTaskCard({ task, onPress }: { task: Task; onPress: () => void 
 
 export default function TasksScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<TasksRoute>();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
+  const [metricFilter, setMetricFilter] = useState<TaskMetricFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -145,7 +159,13 @@ export default function TasksScreen() {
   const allTasks = tasks ?? [];
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
-  const filteredTasks = useMemo(
+  useEffect(() => {
+    const incomingMetric = route.params?.initialTaskFilter?.metric;
+    if (!incomingMetric) return;
+    setMetricFilter(incomingMetric);
+  }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
+
+  const searchAndPriorityFilteredTasks = useMemo(
     () => allTasks.filter((task) => {
       const matchesPriority = priorityFilter === 'ALL' || task.priority === priorityFilter;
       if (!matchesPriority) return false;
@@ -169,6 +189,18 @@ export default function TasksScreen() {
     }),
     [allTasks, priorityFilter, normalizedSearchQuery],
   );
+
+  const filteredTasks = useMemo(() => {
+    if (metricFilter === 'all') return searchAndPriorityFilteredTasks;
+
+    return searchAndPriorityFilteredTasks.filter((task) => {
+      if (metricFilter === 'open') return task.status !== 'COMPLETED';
+      if (metricFilter === 'resolved') return task.status === 'COMPLETED';
+      if (metricFilter === 'critical') return task.status !== 'COMPLETED' && task.priority === 'HIGH';
+      if (metricFilter === 'due_today') return task.status !== 'COMPLETED' && isSameCalendarDay(task.dueDate);
+      return true;
+    });
+  }, [searchAndPriorityFilteredTasks, metricFilter]);
 
   const openTasks = filteredTasks.filter((task) => task.status !== 'COMPLETED');
   const completedTasks = filteredTasks.filter((task) => task.status === 'COMPLETED');
@@ -253,6 +285,19 @@ export default function TasksScreen() {
           )}
         </View>
       </View>
+
+      {metricFilter !== 'all' && (
+        <View style={styles.metricFilterChipRow}>
+          <View style={styles.metricFilterChip}>
+            <Text style={styles.metricFilterChipText}>
+              {`Filtered: ${TASK_METRIC_FILTER_LABELS[metricFilter]}`}
+            </Text>
+            <TouchableOpacity onPress={() => setMetricFilter('all')} style={styles.metricFilterChipClear}>
+              <Text style={styles.metricFilterChipClearText}>x</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {showPriorityMenu && (
         <TouchableOpacity
@@ -517,6 +562,41 @@ const styles = StyleSheet.create({
   priorityMenuBackdrop: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 20,
+  },
+  metricFilterChipRow: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  metricFilterChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintStrong,
+    paddingLeft: spacing.sm,
+    paddingRight: 6,
+    paddingVertical: 4,
+  },
+  metricFilterChipText: {
+    fontSize: typography.xs,
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+  metricFilterChipClear: {
+    width: 18,
+    height: 18,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E6E8EA',
+  },
+  metricFilterChipClearText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: typography.bold,
   },
 
   sectionsContainer: {

@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { NavigatorScreenParams } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, shadow } from '../theme/theme';
 import OverviewScreen from '../screens/overview/OverviewScreen';
-import TasksNavigator from './TasksNavigator';
+import TasksNavigator, { TasksStackParamList } from './TasksNavigator';
 import ReviewsNavigator from './ReviewsNavigator';
 import InfrastructureNavigator from './InfrastructureNavigator';
 import MoreNavigator from './MoreNavigator';
@@ -12,7 +13,7 @@ import { useReviews } from '../hooks/useReviews';
 
 export type AppTabParamList = {
   Overview: undefined;
-  Tasks: undefined;
+  Tasks: NavigatorScreenParams<TasksStackParamList> | undefined;
   Reviews: undefined;
   Infrastructure: undefined;
   More: undefined;
