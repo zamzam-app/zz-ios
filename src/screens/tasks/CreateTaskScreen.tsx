@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,19 @@ import {
   Modal,
   FlatList,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
@@ -40,6 +44,9 @@ import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
+const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
+const AUDIO_FILE_WAIT_RETRIES = 8;
+const AUDIO_FILE_WAIT_DELAY_MS = 120;
 
 type AttachmentType = 'image' | 'video' | 'audio' | 'file';
 
@@ -52,6 +59,7 @@ type AttachmentItem = {
   uploadJobId?: string;
   remoteUrl?: string;
   error?: string;
+  durationMillis?: number;
 };
 
 function Label({ text, required }: { text: string; required?: boolean }) {
@@ -167,6 +175,13 @@ function getAttachmentIcon(type: AttachmentType): keyof typeof MaterialCommunity
   return 'file-outline';
 }
 
+function isReleasedAudioPlayerError(error: unknown) {
+  return (
+    error instanceof Error
+    && /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
+  );
+}
+
 type CreateTaskContentProps = {
   onSuccess: () => void;
   submitLabel?: string;
@@ -194,6 +209,8 @@ export function CreateTaskContent({
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [recordingBusy, setRecordingBusy] = useState(false);
+  const [previewAttachmentId, setPreviewAttachmentId] = useState<string | null>(null);
+  const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
 
   const { data: outlets } = useOutlets();
   const { data: managers } = useManagers();
@@ -207,6 +224,8 @@ export function CreateTaskContent({
   const createTask = useCreateTask();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
+  const previewPlayer = useAudioPlayer(null, { updateInterval: 150 });
+  const previewPlayerStatus = useAudioPlayerStatus(previewPlayer);
   const isRecordingAudio = recorderState.isRecording;
   const recordingMillis = recorderState.durationMillis;
 
@@ -225,6 +244,29 @@ export function CreateTaskContent({
   const hasAssignees = assigneeIds.length > 0;
   const hasPendingAttachmentUploads = attachments.some((item) => item.status === 'uploading');
   const hasFailedAttachmentUploads = attachments.some((item) => item.status === 'failed');
+  const selectedPreviewAttachment = previewAttachmentId
+    ? attachments.find((item) => item.id === previewAttachmentId)
+    : undefined;
+
+  const runPreviewPlayerActionSafely = useCallback((action: () => unknown): boolean => {
+    try {
+      const result = action();
+      if (result && typeof (result as Promise<unknown>).catch === 'function') {
+        (result as Promise<unknown>).catch((error) => {
+          if (!isReleasedAudioPlayerError(error)) {
+            // Keep logging unexpected errors but avoid interrupting task creation flow.
+            console.warn('[CreateTask] Preview player action failed', error);
+          }
+        });
+      }
+      return true;
+    } catch (error) {
+      if (!isReleasedAudioPlayerError(error)) {
+        console.warn('[CreateTask] Preview player action failed', error);
+      }
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     setAssigneeIds((prev) => prev.filter((id) => filteredManagers.some((manager) => manager.id === id)));
@@ -232,15 +274,66 @@ export function CreateTaskContent({
 
   useEffect(() => {
     return () => {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
       void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
     };
-  }, []);
+  }, [previewPlayer, runPreviewPlayerActionSafely]);
+
+  useEffect(() => {
+    if (!previewAttachmentId) return;
+    if (!attachments.some((item) => item.id === previewAttachmentId)) {
+      setPreviewAttachmentId(null);
+    }
+  }, [attachments, previewAttachmentId]);
+
+  useEffect(() => {
+    if (!activeAudioAttachmentId) return;
+    const stillExists = attachments.some((item) => item.id === activeAudioAttachmentId && item.type === 'audio');
+    if (!stillExists) {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      setActiveAudioAttachmentId(null);
+    }
+  }, [attachments, activeAudioAttachmentId, previewPlayer, runPreviewPlayerActionSafely]);
+
+  useEffect(() => {
+    if (previewPlayerStatus.didJustFinish) {
+      setActiveAudioAttachmentId(null);
+    }
+  }, [previewPlayerStatus.didJustFinish]);
 
   const formatDuration = (ms: number) => {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  const waitForRecordedAudioFile = async (uri: string): Promise<number> => {
+    for (let attempt = 0; attempt < AUDIO_FILE_WAIT_RETRIES; attempt += 1) {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists && !info.isDirectory && info.size > 0) {
+        return info.size;
+      }
+      await new Promise((resolve) => setTimeout(resolve, AUDIO_FILE_WAIT_DELAY_MS));
+    }
+
+    const finalInfo = await FileSystem.getInfoAsync(uri);
+    if (finalInfo.exists && !finalInfo.isDirectory) {
+      return finalInfo.size;
+    }
+    return 0;
+  };
+
+  const saveRecordedAudioAttachment = async (uri: string, duration: number): Promise<boolean> => {
+    const normalizedDuration = Math.max(0, duration);
+    // Best effort: allow the recorder a brief window to flush file content,
+    // but do not block adding the attachment to UI if size probing fails.
+    await waitForRecordedAudioFile(uri).catch(() => 0);
+
+    addAttachment('audio', uri, `Voice note ${formatDuration(normalizedDuration)}`, {
+      durationMillis: normalizedDuration,
+    });
+    return true;
   };
 
   const startAttachmentUpload = async (attachmentId: string, uri: string) => {
@@ -273,7 +366,12 @@ export function CreateTaskContent({
     }
   };
 
-  const addAttachment = (type: AttachmentType, uri: string, name: string) => {
+  const addAttachment = (
+    type: AttachmentType,
+    uri: string,
+    name: string,
+    extra: Partial<Pick<AttachmentItem, 'durationMillis'>> = {},
+  ) => {
     const attachmentId = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setAttachments((prev) => [
       ...prev,
@@ -283,12 +381,20 @@ export function CreateTaskContent({
         uri,
         name,
         status: 'uploading',
+        ...extra,
       },
     ]);
     void startAttachmentUpload(attachmentId, uri);
   };
 
   const removeAttachment = (id: string) => {
+    if (activeAudioAttachmentId === id) {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      setActiveAudioAttachmentId(null);
+    }
+    if (previewAttachmentId === id) {
+      setPreviewAttachmentId(null);
+    }
     setAttachments((prev) => {
       const target = prev.find((item) => item.id === id);
       if (target?.uploadJobId) {
@@ -337,6 +443,8 @@ export function CreateTaskContent({
     if (recordingBusy || isRecordingAudio) return;
     setRecordingBusy(true);
     setShowAttachmentMenu(false);
+    runPreviewPlayerActionSafely(() => previewPlayer.pause());
+    setActiveAudioAttachmentId(null);
     try {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
@@ -366,18 +474,73 @@ export function CreateTaskContent({
       const status = recorder.getStatus();
       const uri = status.url;
       if (uri) {
-        const duration = status.durationMillis;
-        addAttachment('audio', uri, `Voice note ${formatDuration(duration)}`);
+        const duration = Math.max(0, status.durationMillis ?? recordingMillis ?? 0);
+        const saved = await saveRecordedAudioAttachment(uri, duration);
+        if (!saved) {
+          return;
+        }
       }
+    } catch {
+      const fallbackStatus = recorder.getStatus();
+      const fallbackUri = fallbackStatus.url;
+      const fallbackDuration = Math.max(0, fallbackStatus.durationMillis ?? recordingMillis ?? 0);
+      if (fallbackUri) {
+        const saved = await saveRecordedAudioAttachment(fallbackUri, fallbackDuration);
+        if (saved) {
+          return;
+        }
+      }
+      Alert.alert('Error', 'Could not stop recording. Please try again.');
+    } finally {
       await setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
-      });
-    } catch {
-      Alert.alert('Error', 'Could not stop recording. Please try again.');
-    } finally {
+      }).catch(() => undefined);
       setRecordingBusy(false);
     }
+  };
+
+  const handleAudioAttachmentPress = (item: AttachmentItem) => {
+    if (activeAudioAttachmentId !== item.id) {
+      const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(item.uri));
+      if (!replaced) return;
+      const played = runPreviewPlayerActionSafely(() => previewPlayer.play());
+      if (!played) return;
+      setActiveAudioAttachmentId(item.id);
+      setPreviewAttachmentId(item.id);
+      return;
+    }
+
+    if (previewPlayerStatus.playing) {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      return;
+    }
+
+    const shouldRestart =
+      previewPlayerStatus.didJustFinish
+      || (
+        previewPlayerStatus.duration > 0
+        && previewPlayerStatus.currentTime >= previewPlayerStatus.duration
+      );
+    if (shouldRestart) {
+      void previewPlayer.seekTo(0).catch(() => undefined);
+    }
+    runPreviewPlayerActionSafely(() => previewPlayer.play());
+    setPreviewAttachmentId(item.id);
+  };
+
+  const handleAttachmentPress = (item: AttachmentItem) => {
+    setShowAttachmentMenu(false);
+    if (item.type === 'audio') {
+      handleAudioAttachmentPress(item);
+      return;
+    }
+
+    if (previewPlayerStatus.playing) {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+    }
+    setActiveAudioAttachmentId(null);
+    setPreviewAttachmentId((prev) => (prev === item.id ? null : item.id));
   };
 
   const handleSubmit = () => {
@@ -447,19 +610,42 @@ export function CreateTaskContent({
           onChangeText={setDescription}
         />
 
-        <Label text="Attachments" />
         <View style={styles.attachmentSection}>
           <View style={styles.attachmentHeaderRow}>
-            <Text style={styles.attachmentHint}>
-              Add image, video, file or record live audio
-            </Text>
-            <TouchableOpacity
-              style={styles.addAttachmentBtn}
-              onPress={() => setShowAttachmentMenu((prev) => !prev)}
-              activeOpacity={0.85}
-            >
-              <MaterialCommunityIcons name="plus" size={22} color={colors.textInverse} />
-            </TouchableOpacity>
+            <Text style={styles.attachmentTitle}>ATTACHMENTS</Text>
+            <View style={styles.attachmentHeaderActions}>
+              <TouchableOpacity
+                style={styles.attachmentHeaderIconButton}
+                onPress={() => setShowAttachmentMenu((prev) => !prev)}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="paperclip" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.attachmentHeaderIconButton,
+                  isRecordingAudio && styles.attachmentHeaderIconButtonActive,
+                ]}
+                onPress={() => {
+                  if (isRecordingAudio) {
+                    void stopAudioRecording();
+                  } else {
+                    void startAudioRecording();
+                  }
+                }}
+                activeOpacity={0.85}
+                disabled={recordingBusy}
+              >
+                <MaterialCommunityIcons
+                  name={isRecordingAudio ? 'record-circle' : 'microphone-outline'}
+                  size={18}
+                  color={isRecordingAudio ? colors.error : colors.primary}
+                />
+              </TouchableOpacity>
+              {isRecordingAudio && (
+                <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
+              )}
+            </View>
           </View>
 
           {showAttachmentMenu && (
@@ -468,87 +654,169 @@ export function CreateTaskContent({
                 style={styles.attachmentMenuItem}
                 onPress={() => { void pickMedia('image'); }}
               >
-                <MaterialCommunityIcons name="image-outline" size={18} color={colors.text} />
+                <View style={styles.attachmentMenuIconBox}>
+                  <MaterialCommunityIcons name="image-outline" size={18} color={colors.primary} />
+                </View>
                 <Text style={styles.attachmentMenuText}>Image</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.attachmentMenuItem}
                 onPress={() => { void pickMedia('video'); }}
               >
-                <MaterialCommunityIcons name="video-outline" size={18} color={colors.text} />
+                <View style={styles.attachmentMenuIconBox}>
+                  <MaterialCommunityIcons name="video-outline" size={18} color={colors.primary} />
+                </View>
                 <Text style={styles.attachmentMenuText}>Video</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.attachmentMenuItem}
-                onPress={() => {
-                  if (isRecordingAudio) {
-                    void stopAudioRecording();
-                  } else {
-                    void startAudioRecording();
-                  }
-                }}
-              >
-                <MaterialCommunityIcons
-                  name={isRecordingAudio ? 'stop-circle-outline' : 'microphone-outline'}
-                  size={18}
-                  color={isRecordingAudio ? colors.error : colors.text}
-                />
-                <Text style={[styles.attachmentMenuText, isRecordingAudio && { color: colors.error }]}>
-                  {isRecordingAudio ? 'Stop Recording' : 'Record Audio'}
-                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.attachmentMenuItem}
                 onPress={() => { void pickFile(); }}
               >
-                <MaterialCommunityIcons name="file-outline" size={18} color={colors.text} />
+                <View style={styles.attachmentMenuIconBox}>
+                  <MaterialCommunityIcons name="file-document-outline" size={18} color={colors.primary} />
+                </View>
                 <Text style={styles.attachmentMenuText}>File</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {isRecordingAudio && (
-            <View style={styles.recordingBanner}>
-              <View style={styles.recordingDot} />
-              <Text style={styles.recordingText}>Recording {formatDuration(recordingMillis)}</Text>
-            </View>
-          )}
+          <View style={styles.attachmentListBox}>
+            {attachments.length === 0 ? (
+              <Text style={styles.noAttachmentsText}>No attachments</Text>
+            ) : (
+              <View style={styles.attachmentList}>
+                {attachments.map((item) => {
+                  const isAudio = item.type === 'audio';
+                  const isPreviewed = previewAttachmentId === item.id;
+                  const isActiveAudio = isAudio && activeAudioAttachmentId === item.id;
+                  const totalSeconds = isAudio
+                    ? Math.max(
+                      (item.durationMillis ?? 0) / 1000,
+                      isActiveAudio ? previewPlayerStatus.duration : 0,
+                    )
+                    : 0;
+                  const currentSeconds = isActiveAudio ? previewPlayerStatus.currentTime : 0;
+                  const currentMillis = Math.max(0, Math.floor(currentSeconds * 1000));
+                  const totalMillis = Math.max(0, Math.floor(totalSeconds * 1000));
+                  const progress = totalSeconds > 0 ? Math.min(currentSeconds / totalSeconds, 1) : 0;
+                  const activeBarCount = Math.round(progress * WAVEFORM_BARS.length);
+                  const statusLabel = item.status === 'uploaded'
+                    ? 'Uploaded'
+                    : item.status === 'failed'
+                      ? 'Failed'
+                      : 'Uploading';
 
-          {attachments.length === 0 ? (
-            <Text style={styles.noAttachmentsText}>No attachments selected</Text>
-          ) : (
-            <View style={styles.attachmentList}>
-              {attachments.map((item) => (
-                <View key={item.id} style={styles.attachmentChip}>
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.attachmentChip, isPreviewed && styles.attachmentChipActive]}
+                      onPress={() => handleAttachmentPress(item)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.attachmentChipHeader}>
+                        <View style={styles.attachmentChipMeta}>
+                          <MaterialCommunityIcons
+                            name={getAttachmentIcon(item.type)}
+                            size={16}
+                            color={colors.primary}
+                          />
+                          <Text style={styles.attachmentChipText} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                        </View>
+                        <View style={styles.attachmentChipRight}>
+                          <Text
+                            style={[
+                              styles.attachmentStatusText,
+                              item.status === 'failed'
+                                ? styles.attachmentStatusFailed
+                                : item.status === 'uploaded'
+                                  ? styles.attachmentStatusUploaded
+                                  : styles.attachmentStatusUploading,
+                            ]}
+                          >
+                            {statusLabel}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.removeAttachmentBtn}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              removeAttachment(item.id);
+                            }}
+                          >
+                            <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {item.status === 'failed' && item.error ? (
+                        <Text style={styles.attachmentErrorText} numberOfLines={2}>
+                          {item.error}
+                        </Text>
+                      ) : null}
+
+                      {isAudio && (
+                        <View style={styles.audioPreviewRow}>
+                          <TouchableOpacity
+                            style={styles.audioPlayBtn}
+                            onPress={() => handleAttachmentPress(item)}
+                          >
+                            <MaterialCommunityIcons
+                              name={isActiveAudio && previewPlayerStatus.playing ? 'pause' : 'play'}
+                              size={18}
+                              color={colors.primary}
+                            />
+                          </TouchableOpacity>
+                          <View style={styles.waveformRow}>
+                            {WAVEFORM_BARS.map((barHeight, index) => (
+                              <View
+                                key={`${item.id}-wave-${index}`}
+                                style={[
+                                  styles.waveformBar,
+                                  {
+                                    height: barHeight,
+                                    backgroundColor: index < activeBarCount ? colors.primary : colors.border,
+                                  },
+                                ]}
+                              />
+                            ))}
+                          </View>
+                          <Text style={styles.audioDurationText}>
+                            {`${formatDuration(currentMillis)} / ${formatDuration(totalMillis)}`}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          {selectedPreviewAttachment && selectedPreviewAttachment.type !== 'audio' && (
+            <View style={styles.attachmentPreviewCard}>
+              <Text style={styles.attachmentPreviewTitle}>Preview</Text>
+              {selectedPreviewAttachment.type === 'image' ? (
+                <Image
+                  source={{ uri: selectedPreviewAttachment.uri }}
+                  style={styles.attachmentPreviewImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.attachmentPreviewPlaceholder}>
                   <MaterialCommunityIcons
-                    name={getAttachmentIcon(item.type)}
-                    size={16}
+                    name={selectedPreviewAttachment.type === 'video' ? 'video-outline' : 'file-document-outline'}
+                    size={24}
                     color={colors.primary}
                   />
-                  <Text style={styles.attachmentChipText} numberOfLines={1}>
-                    {item.name}
+                  <Text style={styles.attachmentPreviewPlaceholderText}>
+                    {selectedPreviewAttachment.type === 'video' ? 'Video preview' : 'File preview'}
                   </Text>
-                  <Text
-                    style={[
-                      styles.attachmentStatusText,
-                      item.status === 'failed'
-                        ? styles.attachmentStatusFailed
-                        : item.status === 'uploaded'
-                          ? styles.attachmentStatusUploaded
-                          : styles.attachmentStatusUploading,
-                    ]}
-                  >
-                    {item.status === 'uploaded'
-                      ? 'Uploaded'
-                      : item.status === 'failed'
-                        ? 'Failed'
-                        : 'Uploading'}
-                  </Text>
-                  <TouchableOpacity onPress={() => removeAttachment(item.id)}>
-                    <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
-                  </TouchableOpacity>
                 </View>
-              ))}
+              )}
+              <Text style={styles.attachmentPreviewFileName} numberOfLines={1}>
+                {selectedPreviewAttachment.name}
+              </Text>
             </View>
           )}
         </View>
@@ -734,89 +1002,124 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  attachmentHint: {
-    color: colors.textSecondary,
+  attachmentTitle: {
+    color: colors.text,
     fontSize: typography.sm,
-    flexShrink: 1,
-    paddingRight: spacing.sm,
+    fontWeight: typography.semibold,
+    letterSpacing: 0.4,
   },
-  addAttachmentBtn: {
-    width: 36,
-    height: 36,
+  attachmentHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  attachmentHeaderIconButton: {
+    width: 34,
+    height: 34,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  attachmentHeaderIconButtonActive: {
+    borderColor: colors.error,
+    backgroundColor: colors.errorLight,
+  },
+  recordingTimerText: {
+    color: colors.error,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    minWidth: 48,
+    textAlign: 'right',
   },
   attachmentMenu: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    overflow: 'hidden',
     backgroundColor: colors.background,
+    flexDirection: 'row',
+    padding: spacing.sm,
+    gap: spacing.sm,
   },
   attachmentMenuItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: spacing.xs,
+    flex: 1,
+  },
+  attachmentMenuIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   attachmentMenuText: {
-    color: colors.text,
-    fontSize: typography.base,
+    color: colors.textSecondary,
+    fontSize: typography.xs,
     fontWeight: typography.medium,
   },
-  recordingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 8,
-    paddingHorizontal: spacing.sm,
+  attachmentListBox: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
     borderRadius: radius.md,
-    backgroundColor: '#FFECEA',
-  },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: radius.full,
-    backgroundColor: colors.error,
-  },
-  recordingText: {
-    color: colors.error,
-    fontSize: typography.sm,
-    fontWeight: typography.medium,
+    minHeight: 92,
+    justifyContent: 'center',
+    padding: spacing.sm,
+    backgroundColor: colors.background,
   },
   noAttachmentsText: {
     color: colors.textDisabled,
     fontSize: typography.sm,
+    textAlign: 'center',
   },
   attachmentList: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   attachmentChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  attachmentChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryTint,
+  },
+  attachmentChipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  attachmentChipMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
   },
   attachmentChipText: {
     flex: 1,
     color: colors.text,
     fontSize: typography.sm,
   },
+  attachmentChipRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   attachmentStatusText: {
     fontSize: typography.xs,
     fontWeight: typography.medium,
-    marginRight: spacing.xs,
   },
   attachmentStatusUploading: {
     color: colors.textSecondary,
@@ -826,6 +1129,87 @@ const styles = StyleSheet.create({
   },
   attachmentStatusFailed: {
     color: colors.error,
+  },
+  attachmentErrorText: {
+    marginTop: spacing.xs,
+    color: colors.error,
+    fontSize: typography.xs,
+  },
+  removeAttachmentBtn: {
+    padding: 2,
+  },
+  audioPreviewRow: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  audioPlayBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryTintStrong,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  waveformRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    height: 20,
+  },
+  waveformBar: {
+    width: 3,
+    borderRadius: radius.full,
+  },
+  audioDurationText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    minWidth: 76,
+    textAlign: 'right',
+  },
+  attachmentPreviewCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  attachmentPreviewTitle: {
+    color: colors.textSecondary,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  attachmentPreviewImage: {
+    width: '100%',
+    height: 160,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceElevated,
+  },
+  attachmentPreviewPlaceholder: {
+    height: 92,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+  },
+  attachmentPreviewPlaceholderText: {
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+  },
+  attachmentPreviewFileName: {
+    color: colors.text,
+    fontSize: typography.sm,
   },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
