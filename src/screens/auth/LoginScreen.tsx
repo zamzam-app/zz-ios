@@ -13,6 +13,7 @@ import {
   Switch,
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
+import { ADMIN_EMAIL } from '../../config/env';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 
 export default function LoginScreen() {
@@ -22,11 +23,13 @@ export default function LoginScreen() {
   const [submitting, setSubmitting] = useState(false);
   const login = useAuthStore((s) => s.login);
 
+  const resolvedIdentifier = isAdminLogin ? ADMIN_EMAIL : identifier.trim();
+
   const handleLogin = async () => {
-    if (!identifier.trim() || !password) return;
+    if (!resolvedIdentifier || !password) return;
     setSubmitting(true);
     try {
-      await login(identifier.trim(), password, isAdminLogin);
+      await login(resolvedIdentifier, password, isAdminLogin);
     } catch {
       Alert.alert('Login failed', 'Check your credentials and try again.');
     } finally {
@@ -59,15 +62,16 @@ export default function LoginScreen() {
 
           <Text style={styles.label}>{isAdminLogin ? 'Email' : 'Username'}</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isAdminLogin && styles.inputDisabled]}
             placeholder={isAdminLogin ? 'you@zamzam.com' : 'manager_username'}
             placeholderTextColor={colors.textDisabled}
             keyboardType={isAdminLogin ? 'email-address' : 'default'}
             autoCapitalize="none"
             autoCorrect={false}
-            value={identifier}
+            value={resolvedIdentifier}
             onChangeText={setIdentifier}
             returnKeyType="next"
+            editable={!isAdminLogin}
           />
 
           <Text style={styles.label}>Password</Text>
@@ -159,6 +163,10 @@ const styles = StyleSheet.create({
     color: colors.text,
     backgroundColor: colors.surface,
     marginBottom: spacing.sm,
+  },
+  inputDisabled: {
+    backgroundColor: '#F5F5F4',
+    color: colors.textSecondary,
   },
   button: {
     backgroundColor: colors.primary,
