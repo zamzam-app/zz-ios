@@ -12,6 +12,7 @@ import {
   FlatList,
   Platform,
   Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -574,10 +575,43 @@ export function CreateTaskContent({
     setPreviewAttachmentId(item.id);
   };
 
+  const openAttachmentExternally = async (item: AttachmentItem) => {
+    const label = item.type === 'video' ? 'video' : 'file';
+    try {
+      let previewUri = item.uri;
+      if (Platform.OS === 'android' && previewUri.startsWith('file://')) {
+        try {
+          previewUri = await FileSystem.getContentUriAsync(previewUri);
+        } catch {
+          // Fallback to file URI if content URI conversion is unavailable.
+        }
+      }
+
+      const supported = await Linking.canOpenURL(previewUri);
+      if (!supported) {
+        Alert.alert('Preview unavailable', `Unable to open this ${label} on your device.`);
+        return;
+      }
+      await Linking.openURL(previewUri);
+    } catch {
+      Alert.alert('Preview unavailable', `Unable to open this ${label} on your device.`);
+    }
+  };
+
   const handleAttachmentPress = (item: AttachmentItem) => {
     setShowAttachmentMenu(false);
     if (item.type === 'audio') {
       handleAudioAttachmentPress(item);
+      return;
+    }
+
+    if (item.type === 'video' || item.type === 'file') {
+      if (previewPlayerStatus.playing) {
+        runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      }
+      setActiveAudioAttachmentId(null);
+      setPreviewAttachmentId(null);
+      void openAttachmentExternally(item);
       return;
     }
 
@@ -725,6 +759,20 @@ export function CreateTaskContent({
             </View>
           )}
 
+          {selectedPreviewAttachment && selectedPreviewAttachment.type === 'image' && (
+            <View style={styles.attachmentPreviewCard}>
+              <Text style={styles.attachmentPreviewTitle}>Preview</Text>
+              <Image
+                source={{ uri: selectedPreviewAttachment.uri }}
+                style={styles.attachmentPreviewImage}
+                resizeMode="cover"
+              />
+              <Text style={styles.attachmentPreviewFileName} numberOfLines={1}>
+                {selectedPreviewAttachment.name}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.attachmentListBox}>
             {attachments.length === 0 ? (
               <Text style={styles.noAttachmentsText}>No attachments</Text>
@@ -837,33 +885,6 @@ export function CreateTaskContent({
               </View>
             )}
           </View>
-
-          {selectedPreviewAttachment && selectedPreviewAttachment.type !== 'audio' && (
-            <View style={styles.attachmentPreviewCard}>
-              <Text style={styles.attachmentPreviewTitle}>Preview</Text>
-              {selectedPreviewAttachment.type === 'image' ? (
-                <Image
-                  source={{ uri: selectedPreviewAttachment.uri }}
-                  style={styles.attachmentPreviewImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.attachmentPreviewPlaceholder}>
-                  <MaterialCommunityIcons
-                    name={selectedPreviewAttachment.type === 'video' ? 'video-outline' : 'file-document-outline'}
-                    size={24}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.attachmentPreviewPlaceholderText}>
-                    {selectedPreviewAttachment.type === 'video' ? 'Video preview' : 'File preview'}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.attachmentPreviewFileName} numberOfLines={1}>
-                {selectedPreviewAttachment.name}
-              </Text>
-            </View>
-          )}
         </View>
 
         <Label text="Category" required />
@@ -1247,21 +1268,6 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: radius.sm,
     backgroundColor: colors.surfaceElevated,
-  },
-  attachmentPreviewPlaceholder: {
-    height: 92,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.surface,
-  },
-  attachmentPreviewPlaceholderText: {
-    color: colors.textSecondary,
-    fontSize: typography.sm,
   },
   attachmentPreviewFileName: {
     color: colors.text,
