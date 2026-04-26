@@ -24,7 +24,7 @@ export default function TasksNavigator() {
       }}
     >
       <Stack.Screen name="TasksList" component={TasksScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Task Detail' }} />
+      <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="CreateTask" component={CreateTaskScreen} options={{ title: 'New Task', presentation: 'modal' }} />
     </Stack.Navigator>
   );

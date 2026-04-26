@@ -7,6 +7,13 @@ export type TaskStatus = 'OPEN' | 'COMPLETED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 export type TaskCategory = string;
 
+export interface TaskAttachments {
+  images: string[];
+  videos: string[];
+  audios: string[];
+  files: string[];
+}
+
 export interface TaskCategoryOption {
   id: string;
   name: string;
@@ -29,6 +36,7 @@ export interface Task {
   assigneeNames?: string[];
   assignees?: Array<{ _id: string; name?: string }>;
   imageUrls?: string[];
+  attachments?: TaskAttachments;
   createdAt: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -83,6 +91,23 @@ interface RawTask {
   assigneeNames?: string[];
   assignees?: Array<{ _id?: string; name?: string }>;
   imageUrls?: string[];
+  videoUrls?: string[];
+  audioUrls?: string[];
+  fileUrls?: string[];
+  attachments?: {
+    images?: string[];
+    videos?: string[];
+    audios?: string[];
+    files?: string[];
+  };
+  adminSubmission?: {
+    attachments?: {
+      images?: string[];
+      videos?: string[];
+      audios?: string[];
+      files?: string[];
+    };
+  };
   createdAt?: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -101,6 +126,17 @@ function mapTaskCategory(raw: RawTaskCategory): TaskCategoryOption {
     name: String(raw.name ?? ''),
     description: raw.description,
   };
+}
+
+function listFromRaw(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean);
+}
+
+function uniqueList(items: string[]): string[] {
+  return Array.from(new Set(items));
 }
 
 function mapTask(raw: RawTask): Task {
@@ -145,6 +181,28 @@ function mapTask(raw: RawTask): Task {
     assigneeNames = raw.assigneeNames ?? [];
   }
 
+  const images = uniqueList([
+    ...listFromRaw(raw.imageUrls),
+    ...listFromRaw(raw.attachments?.images),
+    ...listFromRaw(raw.adminSubmission?.attachments?.images),
+  ]);
+  const videos = uniqueList([
+    ...listFromRaw(raw.videoUrls),
+    ...listFromRaw(raw.attachments?.videos),
+    ...listFromRaw(raw.adminSubmission?.attachments?.videos),
+  ]);
+  const audios = uniqueList([
+    ...listFromRaw(raw.audioUrls),
+    ...listFromRaw(raw.attachments?.audios),
+    ...listFromRaw(raw.adminSubmission?.attachments?.audios),
+  ]);
+  const files = uniqueList([
+    ...listFromRaw(raw.fileUrls),
+    ...listFromRaw(raw.attachments?.files),
+    ...listFromRaw(raw.adminSubmission?.attachments?.files),
+  ]);
+  const hasAttachments = images.length > 0 || videos.length > 0 || audios.length > 0 || files.length > 0;
+
   return {
     id,
     description,
@@ -164,7 +222,8 @@ function mapTask(raw: RawTask): Task {
         .filter((a): a is { _id?: string; name?: string } => Boolean(a?._id))
         .map((a) => ({ _id: String(a._id), name: a.name }))
       : undefined,
-    imageUrls: raw.imageUrls,
+    imageUrls: images.length > 0 ? images : undefined,
+    attachments: hasAttachments ? { images, videos, audios, files } : undefined,
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt,
     completedAt: raw.completedAt ?? null,
