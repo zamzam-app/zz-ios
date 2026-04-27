@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,22 +12,91 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useReview, useResolveComplaint } from '../../hooks/useReviews';
+import { useForm } from '../../hooks/useForms';
+import { useUsers } from '../../hooks/useUsers';
 import { useAuthStore } from '../../store/authStore';
-import { UserResponse } from '../../api/endpoints/reviews';
+import { Review, UserResponse } from '../../api/endpoints/reviews';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import StarRating from '../../components/StarRating';
 
 type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewDetail'>;
+type ResolvableComplaintStatus = 'resolved' | 'dismissed';
 
-function ResponseItem({ response }: { response: UserResponse }) {
-  const questionTitle =
-    typeof response.questionId === 'object' && response.questionId?.title
-      ? response.questionId.title
-      : 'Question';
+type ComplaintTone = {
+  label: string;
+  text: string;
+  bg: string;
+  border: string;
+};
 
-  const questionType =
-    typeof response.questionId === 'object' ? response.questionId?.type : undefined;
+function formatDate(iso?: string | null, month: 'short' | 'long' = 'long') {
+  if (!iso) return 'Not available';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Not available';
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month, year: 'numeric' });
+}
+
+function toSentenceCase(status: string) {
+  return status
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getComplaintTone(review: Review): ComplaintTone | null {
+  if (!review.isComplaint) return null;
+
+  if (review.complaintStatus === 'resolved') {
+    return {
+      label: 'Resolved',
+      text: colors.success,
+      bg: '#ECFDF3',
+      border: '#D1FAE5',
+    };
+  }
+
+  if (review.complaintStatus === 'dismissed') {
+    return {
+      label: 'Dismissed',
+      text: '#B91C1C',
+      bg: '#FEE2E2',
+      border: '#FECACA',
+    };
+  }
+
+  return {
+    label: 'Pending',
+    text: '#B45309',
+    bg: '#FEF3C7',
+    border: '#FDE68A',
+  };
+}
+
+function Row({ label, value, isLast = false }: { label: string; value: string; isLast?: boolean }) {
+  return (
+    <View style={[styles.row, isLast && styles.rowLast]}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.rowValue}>{value}</Text>
+    </View>
+  );
+}
+
+function isLikelyObjectId(value: string) {
+  return /^[a-f0-9]{24}$/i.test(value);
+}
+
+function ResponseItem({
+  response,
+  isLast,
+  questionTitle,
+  questionType,
+}: {
+  response: UserResponse;
+  isLast: boolean;
+  questionTitle: string;
+  questionType?: string;
+}) {
 
   const renderAnswer = () => {
     const answer = response.answer;
@@ -36,9 +105,9 @@ function ResponseItem({ response }: { response: UserResponse }) {
     }
     if (Array.isArray(answer)) {
       return (
-        <View style={{ gap: 4 }}>
+        <View style={styles.answerList}>
           {answer.map((a, i) => (
-            <Text key={i} style={styles.answerText}>· {a}</Text>
+            <Text key={`${questionTitle}-${i}`} style={styles.answerText}>· {a}</Text>
           ))}
         </View>
       );
@@ -47,9 +116,21 @@ function ResponseItem({ response }: { response: UserResponse }) {
   };
 
   return (
-    <View style={styles.responseItem}>
+    <View style={[styles.responseItem, isLast && styles.responseItemLast]}>
       <Text style={styles.questionTitle}>{questionTitle}</Text>
       {renderAnswer()}
+    </View>
+  );
+}
+
+function SectionHeader({ title, count }: { title: string; count?: number | string }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionHeadingWrap}>
+        <View style={styles.sectionDot} />
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      {count !== undefined && count !== null ? <Text style={styles.sectionCount}>{count}</Text> : null}
     </View>
   );
 }
@@ -57,37 +138,79 @@ function ResponseItem({ response }: { response: UserResponse }) {
 export default function ReviewDetailScreen({ route }: Props) {
   const { reviewId } = route.params;
   const { data: review, isLoading } = useReview(reviewId);
+  const { data: form } = useForm(review?.formId ?? '');
+  const { data: users } = useUsers();
   const resolveComplaint = useResolveComplaint();
   const user = useAuthStore((s) => s.user);
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [pendingAction, setPendingAction] = useState<ResolvableComplaintStatus | null>(null);
 
   const canResolve =
-    review?.isComplaint &&
-    (review.complaintStatus === 'pending' || !review.complaintStatus);
+    review?.isComplaint
+    && (review.complaintStatus === 'pending' || !review.complaintStatus);
 
-  const handleResolve = (status: 'resolved' | 'dismissed') => {
+  const handleResolve = (status: ResolvableComplaintStatus) => {
     if (!review || !user) return;
+    const resolvedBy = user.id || (user as unknown as { _id?: string })._id;
+    if (!resolvedBy) {
+      Alert.alert('Unable to resolve complaint', 'Could not determine resolver identity. Please sign in again.');
+      return;
+    }
+
+    const confirmationTitle = status === 'resolved' ? 'Mark as Resolved' : 'Dismiss Complaint';
+
     Alert.alert(
-      status === 'resolved' ? 'Mark as Resolved' : 'Dismiss Complaint',
+      confirmationTitle,
       'Are you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Confirm',
           onPress: () => {
-            resolveComplaint.mutate({
-              reviewId: review.id,
-              payload: {
-                complaintStatus: status,
-                resolvedBy: user.id,
-                resolutionNotes: resolutionNotes.trim() || undefined,
+            setPendingAction(status);
+            resolveComplaint.mutate(
+              {
+                reviewId,
+                payload: {
+                  complaintStatus: status,
+                  resolvedBy,
+                  resolutionNotes: resolutionNotes.trim() || undefined,
+                },
               },
-            });
+              {
+                onError: () => {
+                  Alert.alert('Update failed', 'Could not update complaint status. Please try again.');
+                },
+                onSettled: () => {
+                  setPendingAction(null);
+                },
+              },
+            );
           },
         },
       ],
     );
   };
+
+  const questionById = useMemo(() => {
+    const map = new Map<string, { title: string; type?: string }>();
+    for (const question of form?.questions ?? []) {
+      map.set(question._id, {
+        title: question.title,
+        type: question.type,
+      });
+    }
+    return map;
+  }, [form?.questions]);
+  const userNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const current of users ?? []) {
+      if (!current.id) continue;
+      if (!current.name) continue;
+      map.set(current.id, current.name);
+    }
+    return map;
+  }, [users]);
 
   if (isLoading) {
     return (
@@ -105,115 +228,194 @@ export default function ReviewDetailScreen({ route }: Props) {
     );
   }
 
+  const complaintTone = getComplaintTone(review);
+  const hasResolution = Boolean(review.complaintStatus && review.complaintStatus !== 'pending');
+  const isMutationPending = resolveComplaint.isPending;
+
+  const detailRows: Array<{ label: string; value: string }> = [
+    { label: 'Customer', value: review.customerName },
+    { label: 'Outlet', value: review.outletName },
+    { label: 'Submitted', value: formatDate(review.createdAt) },
+    { label: 'Rating', value: `${review.overallRating.toFixed(1)} / 5.0` },
+    { label: 'Complaint', value: review.isComplaint ? 'Yes' : 'No' },
+  ];
+
+  if (review.complaintStatus) {
+    detailRows.push({ label: 'Complaint Status', value: toSentenceCase(review.complaintStatus) });
+  }
+
+  const resolutionRows: Array<{ label: string; value: string }> = [
+    { label: 'Status', value: toSentenceCase(review.complaintStatus ?? 'pending') },
+  ];
+
+  if (review.resolvedAt) {
+    resolutionRows.push({ label: 'Resolved At', value: formatDate(review.resolvedAt, 'short') });
+  }
+
+  if (review.resolvedBy) {
+    const resolvedByName =
+      review.resolvedByName
+      || (user && review.resolvedBy === user.id ? user.name : undefined)
+      || userNameById.get(review.resolvedBy)
+      || 'Unknown User';
+    resolutionRows.push({ label: 'Resolved By', value: resolvedByName });
+  }
+
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Header info */}
-        <View style={styles.headerCard}>
-          <View style={styles.headerRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{review.customerName.charAt(0).toUpperCase()}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.customerName}>{review.customerName}</Text>
-              <Text style={styles.outletName}>{review.outletName}</Text>
-              <Text style={styles.date}>
-                {new Date(review.createdAt).toLocaleDateString('en-GB', {
-                  day: 'numeric', month: 'long', year: 'numeric',
-                })}
-              </Text>
-            </View>
-            <StarRating rating={review.overallRating} size={18} />
+        <View style={styles.header}>
+          <View style={styles.headingWrap}>
+            <Text style={styles.heading}>Review Details</Text>
           </View>
         </View>
 
-        {/* Responses */}
+        <View style={styles.summaryCard}>
+          <View style={styles.topRow}>
+            {complaintTone ? (
+              <View style={[styles.statusBadge, { backgroundColor: complaintTone.bg, borderColor: complaintTone.border }]}>
+                <Text style={[styles.statusBadgeText, { color: complaintTone.text }]}>{complaintTone.label}</Text>
+              </View>
+            ) : (
+              <View style={styles.feedbackBadge}>
+                <Text style={styles.feedbackBadgeText}>Feedback</Text>
+              </View>
+            )}
+            <View style={styles.ratingWrap}>
+              <StarRating rating={review.overallRating} size={14} />
+              <Text style={styles.ratingText}>{review.overallRating.toFixed(1)} / 5.0</Text>
+            </View>
+          </View>
+
+          <Text style={styles.summaryTitle}>{review.customerName}</Text>
+          <Text style={styles.summaryOutlet}>{review.outletName}</Text>
+          <Text style={styles.summaryMeta}>Submitted on {formatDate(review.createdAt)}</Text>
+
+          {review.complaintReason ? (
+            <Text style={styles.complaintPreview} numberOfLines={3}>{review.complaintReason}</Text>
+          ) : null}
+        </View>
+
+        <SectionHeader title="Review Details" />
+        <View style={styles.card}>
+          {detailRows.map((item, index) => (
+            <Row
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              isLast={index === detailRows.length - 1}
+            />
+          ))}
+        </View>
+
         {review.userResponses.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Responses</Text>
+            <SectionHeader title="Responses" count={review.userResponses.length} />
             <View style={styles.card}>
-              {review.userResponses.map((r, i) => (
-                <ResponseItem key={i} response={r} />
-              ))}
+              {review.userResponses.map((response, index) => {
+                const questionRef = typeof response.questionId === 'object' && response.questionId
+                  ? response.questionId
+                  : null;
+                const questionId = typeof response.questionId === 'string'
+                  ? response.questionId
+                  : questionRef?._id;
+                const fallbackQuestion = questionId ? questionById.get(questionId) : undefined;
+                const mappedTitle = questionRef?.title?.trim() || fallbackQuestion?.title?.trim();
+                const inlineStringQuestion = typeof response.questionId === 'string'
+                  && !isLikelyObjectId(response.questionId)
+                  ? response.questionId.trim()
+                  : '';
+                const questionTitle = mappedTitle || inlineStringQuestion || `Question ${index + 1}`;
+                const questionType = questionRef?.type ?? fallbackQuestion?.type;
+
+                return (
+                  <ResponseItem
+                    key={`${index}-${String(response.questionId)}`}
+                    response={response}
+                    isLast={index === review.userResponses.length - 1}
+                    questionTitle={questionTitle}
+                    questionType={questionType}
+                  />
+                );
+              })}
             </View>
           </>
         )}
 
-        {/* Complaint section */}
         {review.isComplaint && review.complaintReason && (
           <>
-            <Text style={styles.sectionTitle}>Complaint</Text>
+            <SectionHeader title="Complaint" />
             <View style={[styles.card, styles.complaintCard]}>
               <Text style={styles.complaintReason}>{review.complaintReason}</Text>
             </View>
           </>
         )}
 
-        {/* Resolution info (if already resolved) */}
-        {review.complaintStatus && review.complaintStatus !== 'pending' && (
+        {hasResolution && (
           <>
-            <Text style={styles.sectionTitle}>Resolution</Text>
+            <SectionHeader title="Resolution" />
             <View style={styles.card}>
-              <View style={styles.resolutionRow}>
-                <Text style={styles.rowLabel}>Status</Text>
-                <Text style={[
-                  styles.rowValue,
-                  { color: review.complaintStatus === 'resolved' ? colors.success : colors.textSecondary },
-                ]}>
-                  {review.complaintStatus.toUpperCase()}
-                </Text>
-              </View>
-              {review.resolvedAt && (
-                <View style={styles.resolutionRow}>
-                  <Text style={styles.rowLabel}>Resolved At</Text>
-                  <Text style={styles.rowValue}>
-                    {new Date(review.resolvedAt).toLocaleDateString('en-GB', {
-                      day: 'numeric', month: 'short', year: 'numeric',
-                    })}
-                  </Text>
+              {resolutionRows.map((item, index) => (
+                <Row
+                  key={item.label}
+                  label={item.label}
+                  value={item.value}
+                  isLast={index === resolutionRows.length - 1 && !review.resolutionNotes}
+                />
+              ))}
+
+              {review.resolutionNotes ? (
+                <View style={styles.notesBlock}>
+                  <Text style={styles.notesLabel}>Notes</Text>
+                  <Text style={styles.notesValue}>{review.resolutionNotes}</Text>
                 </View>
-              )}
-              {review.resolutionNotes && (
-                <View style={[styles.resolutionRow, { flexDirection: 'column', gap: spacing.xs }]}>
-                  <Text style={styles.rowLabel}>Notes</Text>
-                  <Text style={styles.rowValue}>{review.resolutionNotes}</Text>
-                </View>
-              )}
+              ) : null}
             </View>
           </>
         )}
 
-        {/* Resolve actions */}
         {canResolve && (
           <>
-            <Text style={styles.sectionTitle}>Resolve Complaint</Text>
-            <TextInput
-              style={styles.notesInput}
-              placeholder="Resolution notes (optional)..."
-              placeholderTextColor={colors.textDisabled}
-              multiline
-              numberOfLines={3}
-              value={resolutionNotes}
-              onChangeText={setResolutionNotes}
-            />
-            <TouchableOpacity
-              style={[styles.resolveBtn, resolveComplaint.isPending && { opacity: 0.6 }]}
-              onPress={() => handleResolve('resolved')}
-              disabled={resolveComplaint.isPending}
-            >
-              {resolveComplaint.isPending ? (
-                <ActivityIndicator color={colors.textInverse} />
-              ) : (
-                <Text style={styles.resolveBtnText}>Mark as Resolved</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.dismissBtn, resolveComplaint.isPending && { opacity: 0.6 }]}
-              onPress={() => handleResolve('dismissed')}
-              disabled={resolveComplaint.isPending}
-            >
-              <Text style={styles.dismissBtnText}>Dismiss</Text>
-            </TouchableOpacity>
+            <SectionHeader title="Resolve Complaint" />
+            <View style={styles.card}>
+              <TextInput
+                style={styles.notesInput}
+                placeholder="Resolution notes (optional)..."
+                placeholderTextColor={colors.textDisabled}
+                multiline
+                numberOfLines={4}
+                value={resolutionNotes}
+                onChangeText={setResolutionNotes}
+              />
+
+              <View style={styles.resolveButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.resolveBtn, isMutationPending && styles.buttonDisabled]}
+                  onPress={() => handleResolve('resolved')}
+                  disabled={isMutationPending}
+                  activeOpacity={0.85}
+                >
+                  {isMutationPending && pendingAction === 'resolved' ? (
+                    <ActivityIndicator color={colors.textInverse} />
+                  ) : (
+                    <Text style={styles.resolveBtnText}>Mark as Resolved</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.dismissBtn, isMutationPending && styles.buttonDisabled]}
+                  onPress={() => handleResolve('dismissed')}
+                  disabled={isMutationPending}
+                  activeOpacity={0.85}
+                >
+                  {isMutationPending && pendingAction === 'dismissed' ? (
+                    <ActivityIndicator color={colors.textSecondary} />
+                  ) : (
+                    <Text style={styles.dismissBtnText}>Dismiss</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </>
         )}
       </ScrollView>
@@ -222,47 +424,168 @@ export default function ReviewDetailScreen({ route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1, backgroundColor: colors.screenBackground },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.md },
+  scroll: { paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: 120 },
 
-  headerCard: {
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  headingWrap: {
+    flex: 1,
+  },
+  heading: {
+    fontSize: 26,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+
+  summaryCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC40',
     ...shadow.sm,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary + '22',
-    justifyContent: 'center',
+  topRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
-  avatarText: { color: colors.primary, fontWeight: typography.bold, fontSize: typography.md },
-  customerName: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
-  outletName: { fontSize: typography.sm, color: colors.primary, marginTop: 2 },
-  date: { fontSize: typography.xs, color: colors.textSecondary, marginTop: 2 },
-
-  sectionTitle: {
-    fontSize: typography.base,
+  statusBadge: {
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  statusBadgeText: {
+    fontSize: typography.xs,
     fontWeight: typography.semibold,
-    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.2,
   },
+  feedbackBadge: {
+    borderRadius: radius.full,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  feedbackBadgeText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.2,
+  },
+  ratingWrap: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  ratingText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: typography.bold,
+  },
+  summaryTitle: {
+    fontSize: typography.base,
+    color: colors.text,
+    fontWeight: typography.bold,
+    marginBottom: 2,
+  },
+  summaryOutlet: {
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    color: colors.primary,
+    marginBottom: 2,
+  },
+  summaryMeta: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  complaintPreview: {
+    marginTop: spacing.sm,
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    lineHeight: 19,
+  },
+
+  sectionHeader: {
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionHeadingWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: '#EAB308',
+  },
+  sectionTitle: {
+    fontSize: typography.xs,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: '#4F4633',
+    fontWeight: typography.bold,
+  },
+  sectionCount: {
+    minWidth: 22,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    backgroundColor: '#E6E8EA',
+    color: colors.text,
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: typography.bold,
+  },
+
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
+    marginBottom: spacing.md,
     ...shadow.sm,
   },
-  complaintCard: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.error,
-    backgroundColor: colors.errorLight,
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.sm,
   },
-  complaintReason: { fontSize: typography.sm, color: colors.text, lineHeight: 20 },
+  rowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+  },
+  rowLabel: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  rowValue: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.medium,
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
 
   responseItem: {
     paddingVertical: spacing.sm,
@@ -270,18 +593,51 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     gap: spacing.xs,
   },
-  questionTitle: { fontSize: typography.sm, color: colors.textSecondary },
-  answerText: { fontSize: typography.sm, color: colors.text },
-
-  resolutionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  responseItemLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
   },
-  rowLabel: { fontSize: typography.sm, color: colors.textSecondary },
-  rowValue: { fontSize: typography.sm, color: colors.text, fontWeight: typography.medium },
+  questionTitle: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
+  answerList: {
+    gap: 4,
+  },
+  answerText: {
+    fontSize: typography.sm,
+    color: colors.text,
+    lineHeight: 19,
+  },
+
+  complaintCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.error,
+    backgroundColor: colors.errorLight,
+  },
+  complaintReason: {
+    fontSize: typography.sm,
+    color: colors.text,
+    lineHeight: 20,
+  },
+
+  notesBlock: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.xs,
+  },
+  notesLabel: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  notesValue: {
+    fontSize: typography.sm,
+    color: colors.text,
+    lineHeight: 20,
+  },
 
   notesInput: {
     borderWidth: 1,
@@ -291,22 +647,38 @@ const styles = StyleSheet.create({
     fontSize: typography.base,
     color: colors.text,
     backgroundColor: colors.surface,
-    height: 90,
+    minHeight: 94,
     textAlignVertical: 'top',
+  },
+  resolveButtonsRow: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
   resolveBtn: {
     backgroundColor: colors.success,
     borderRadius: radius.md,
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  resolveBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
+  resolveBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
   dismissBtn: {
     borderRadius: radius.md,
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.textSecondary,
+    backgroundColor: colors.surface,
   },
-  dismissBtnText: { color: colors.textSecondary, fontSize: typography.base, fontWeight: typography.medium },
+  dismissBtnText: {
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    fontWeight: typography.medium,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
 });

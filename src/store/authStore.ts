@@ -13,7 +13,7 @@ interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
 
-  login: (email: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string, isAdminLogin: boolean) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
 }
@@ -22,10 +22,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: true,
 
-  login: async (email, password) => {
+  login: async (identifier, password, isAdminLogin) => {
+    const payload = isAdminLogin
+      ? { email: identifier, password }
+      : { userName: identifier, password };
+
     const { data } = await client.post<{ access_token: string; refresh_token?: string }>(
       '/auth/login',
-      { email, password },
+      payload,
     );
 
     await tokenStorage.set(data.access_token);

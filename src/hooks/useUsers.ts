@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, CreateManagerPayload, UpdateManagerPayload, ChangePasswordPayload } from '../api/endpoints/users';
 
+export const useUsers = () =>
+  useQuery({
+    queryKey: ['users', 'all'],
+    queryFn: () => usersApi.list(),
+    staleTime: 5 * 60 * 1000,
+  });
+
 export const useManagers = () =>
   useQuery({
     queryKey: ['users', 'manager'],

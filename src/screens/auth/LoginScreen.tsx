@@ -10,23 +10,28 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
+import { ADMIN_EMAIL } from '../../config/env';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const login = useAuthStore((s) => s.login);
 
+  const resolvedIdentifier = isAdminLogin ? ADMIN_EMAIL : identifier.trim();
+
   const handleLogin = async () => {
-    if (!email.trim() || !password) return;
+    if (!resolvedIdentifier || !password) return;
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
+      await login(resolvedIdentifier, password, isAdminLogin);
     } catch {
-      Alert.alert('Login failed', 'Check your email and password and try again.');
+      Alert.alert('Login failed', 'Check your credentials and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -40,21 +45,22 @@ export default function LoginScreen() {
       <View style={styles.inner}>
         <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
-        <Text style={styles.heading}>Admin Portal</Text>
+        <Text style={styles.heading}>{isAdminLogin ? 'Admin Portal' : 'Manager Portal'}</Text>
         <Text style={styles.subheading}>Sign in to your account</Text>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{isAdminLogin ? 'Email' : 'Username'}</Text>
           <TextInput
-            style={styles.input}
-            placeholder="you@zamzam.com"
+            style={[styles.input, isAdminLogin && styles.inputDisabled]}
+            placeholder={isAdminLogin ? 'you@zamzam.com' : 'manager_username'}
             placeholderTextColor={colors.textDisabled}
-            keyboardType="email-address"
+            keyboardType={isAdminLogin ? 'email-address' : 'default'}
             autoCapitalize="none"
             autoCorrect={false}
-            value={email}
-            onChangeText={setEmail}
+            value={resolvedIdentifier}
+            onChangeText={setIdentifier}
             returnKeyType="next"
+            editable={!isAdminLogin}
           />
 
           <Text style={styles.label}>Password</Text>
@@ -68,6 +74,17 @@ export default function LoginScreen() {
             returnKeyType="done"
             onSubmitEditing={handleLogin}
           />
+
+          <View style={styles.modeRow}>
+            <Text style={styles.modeLabel}>Admin Login</Text>
+            <Switch
+              value={isAdminLogin}
+              onValueChange={setIsAdminLogin}
+              trackColor={{ false: '#D6D3D1', true: colors.primaryLight }}
+              thumbColor={colors.surface}
+              ios_backgroundColor="#D6D3D1"
+            />
+          </View>
 
           <TouchableOpacity
             style={[styles.button, submitting && styles.buttonDisabled]}
@@ -119,6 +136,18 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.sm,
   },
+  modeRow: {
+    marginBottom: 2,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  modeLabel: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
   label: {
     fontSize: typography.sm,
     fontWeight: typography.medium,
@@ -135,6 +164,10 @@ const styles = StyleSheet.create({
     color: colors.text,
     backgroundColor: colors.surface,
     marginBottom: spacing.sm,
+  },
+  inputDisabled: {
+    backgroundColor: '#F5F5F4',
+    color: colors.textSecondary,
   },
   button: {
     backgroundColor: colors.primary,

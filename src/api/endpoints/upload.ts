@@ -16,12 +16,45 @@ async function getUploadSignature(folder = 'zam-zam'): Promise<SignatureResponse
   return r.data;
 }
 
+function guessMimeType(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+
+  const mimeMap: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    heic: 'image/heic',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    webm: 'video/webm',
+    m4v: 'video/x-m4v',
+    mp3: 'audio/mpeg',
+    m4a: 'audio/mp4',
+    wav: 'audio/wav',
+    aac: 'audio/aac',
+    '3gp': 'audio/3gpp',
+    amr: 'audio/amr',
+    caf: 'audio/x-caf',
+    ogg: 'audio/ogg',
+    oga: 'audio/ogg',
+    opus: 'audio/opus',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    csv: 'text/csv',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+
+  return mimeMap[ext] ?? 'application/octet-stream';
+}
+
 export async function uploadToCloudinary(localUri: string, folder = 'zam-zam'): Promise<string> {
   const sig = await getUploadSignature(folder);
 
-  const filename = localUri.split('/').pop() ?? 'image.jpg';
-  const ext = filename.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+  const filename = localUri.split('/').pop() ?? 'upload.bin';
+  const mimeType = guessMimeType(filename);
 
   const formData = new FormData();
   formData.append('file', { uri: localUri, name: filename, type: mimeType } as any);
@@ -36,7 +69,7 @@ export async function uploadToCloudinary(localUri: string, folder = 'zam-zam'): 
   let response: Response;
   try {
     response = await fetch(
-      `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
+      `https://api.cloudinary.com/v1_1/${sig.cloudName}/auto/upload`,
       { method: 'POST', body: formData, signal: controller.signal },
     );
   } catch (error) {

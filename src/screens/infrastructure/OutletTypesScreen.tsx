@@ -9,10 +9,10 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  KeyboardAvoidingView,
-  Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import {
   useOutletTypes,
   useCreateOutletType,
@@ -37,53 +37,120 @@ function TypeFormModal({
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (visible) {
       setName(initial?.name ?? '');
       setDescription(initial?.description ?? '');
+      setNameError(null);
+      setDescriptionError(null);
     }
   }, [visible, initial]);
 
+  const handleSubmit = () => {
+    const trimmedName = name.trim();
+    const trimmedDescription = description.trim();
+
+    let hasError = false;
+    if (trimmedName.length < 2) {
+      setNameError('Name must be at least 2 characters.');
+      hasError = true;
+    } else {
+      setNameError(null);
+    }
+
+    if (trimmedDescription.length < 5) {
+      setDescriptionError('Description must be at least 5 characters.');
+      hasError = true;
+    } else {
+      setDescriptionError(null);
+    }
+
+    if (hasError) return;
+    onSubmit(trimmedName, trimmedDescription);
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={{ color: colors.textSecondary, fontSize: typography.base }}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>{initial ? 'Edit Type' : 'New Type'}</Text>
-            <TouchableOpacity onPress={() => onSubmit(name, description)} disabled={submitting}>
-              {submitting
-                ? <ActivityIndicator color={colors.primary} />
-                : <Text style={{ color: colors.primary, fontSize: typography.base, fontWeight: typography.semibold }}>Save</Text>}
-            </TouchableOpacity>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.createModalRoot}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.createModalScrim}
+          onPress={onClose}
+        />
+        <View style={styles.createSheet}>
+          <View style={styles.createSheetTop}>
+            <View style={styles.createSheetHandle} />
+            <View style={styles.createSheetHeader}>
+              <Text style={styles.createSheetTitle}>{initial ? 'Edit Outlet Type' : 'Create Outlet Type'}</Text>
+              <TouchableOpacity
+                style={styles.createSheetClose}
+                onPress={onClose}
+                disabled={submitting}
+              >
+                <Text style={styles.createSheetCloseText}>X</Text>
+              </TouchableOpacity>
+            </View>
           </View>
+
           <View style={styles.formInner}>
-            <Text style={styles.label}>Name *</Text>
+            <Text style={styles.label}>Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, nameError && styles.inputError]}
               placeholder="e.g. Cafe, Bakery"
               placeholderTextColor={colors.textDisabled}
               value={name}
-              onChangeText={setName}
+              onChangeText={(value) => {
+                setName(value);
+                if (nameError) setNameError(null);
+              }}
             />
-            <Text style={styles.label}>Description *</Text>
+            {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
+
+            <Text style={styles.label}>Description</Text>
             <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+              style={[styles.input, styles.descriptionInput, descriptionError && styles.inputError]}
               placeholder="Brief description..."
               placeholderTextColor={colors.textDisabled}
               value={description}
-              onChangeText={setDescription}
+              onChangeText={(value) => {
+                setDescription(value);
+                if (descriptionError) setDescriptionError(null);
+              }}
               multiline
             />
+            {descriptionError ? <Text style={styles.fieldError}>{descriptionError}</Text> : null}
+
+            <View style={styles.formActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={onClose}
+                disabled={submitting}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator color={colors.textInverse} />
+                ) : (
+                  <Text style={styles.submitBtnText}>{initial ? 'Save Changes' : 'Create Type'}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        </SafeAreaView>
-      </KeyboardAvoidingView>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -98,20 +165,34 @@ export default function OutletTypesScreen() {
   const [editing, setEditing] = useState<OutletType | undefined>();
 
   const handleSubmit = (name: string, description: string) => {
-    if (!name.trim()) return Alert.alert('Required', 'Name is required.');
-    if (!description.trim()) return Alert.alert('Required', 'Description is required.');
-
     if (editing) {
       updateType.mutate(
-        { id: editing.id, payload: { name: name.trim(), description: description.trim() } },
-        { onSuccess: () => setShowModal(false) },
+        { id: editing.id, payload: { name, description } },
+        {
+          onSuccess: () => {
+            setShowModal(false);
+            Alert.alert('Updated', 'Outlet type updated successfully.');
+          },
+          onError: () => {
+            Alert.alert('Update Failed', 'Unable to update outlet type. Please try again.');
+          },
+        },
       );
-    } else {
-      createType.mutate(
-        { name: name.trim(), description: description.trim() },
-        { onSuccess: () => setShowModal(false) },
-      );
+      return;
     }
+
+    createType.mutate(
+      { name, description },
+      {
+        onSuccess: () => {
+          setShowModal(false);
+          Alert.alert('Created', 'New outlet type created successfully.');
+        },
+        onError: () => {
+          Alert.alert('Create Failed', 'Unable to create outlet type. Please try again.');
+        },
+      },
+    );
   };
 
   const handleDelete = (type: OutletType) => {
@@ -120,54 +201,73 @@ export default function OutletTypesScreen() {
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => deleteType.mutate(type.id),
+        onPress: () =>
+          deleteType.mutate(type.id, {
+            onError: () => {
+              Alert.alert('Delete Failed', 'Unable to delete outlet type. Please try again.');
+            },
+          }),
       },
     ]);
   };
 
+  const renderItem = ({ item }: { item: OutletType }) => (
+    <View style={styles.card}>
+      <View style={styles.cardRow}>
+        <View style={styles.cardBody}>
+          <Text style={styles.typeName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.typeDesc} numberOfLines={1} ellipsizeMode="tail">{item.description}</Text>
+        </View>
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            onPress={() => {
+              setEditing(item);
+              setShowModal(true);
+            }}
+            style={[styles.actionBtn, styles.editBtn]}
+          >
+            <Ionicons name="create-outline" size={16} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.actionBtn, styles.deleteBtn]}>
+            <Ionicons name="trash-outline" size={16} color={colors.error} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.heading}>Outlet Types</Text>
+          <Text style={styles.subheading}>Manage foundational categories for your outlets</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.createBtn}
+          onPress={() => {
+            setEditing(undefined);
+            setShowModal(true);
+          }}
+        >
+          <Text style={styles.createBtnText}>+ New</Text>
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         data={types ?? []}
+        extraData={types}
         keyExtractor={(t) => t.id}
         contentContainerStyle={styles.list}
-        refreshing={isFetching && !isLoading}
-        onRefresh={refetch}
+        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
         ListHeaderComponent={
           isLoading ? <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} /> : null
         }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardBody}>
-              <Text style={styles.typeName}>{item.name}</Text>
-              <Text style={styles.typeDesc} numberOfLines={2}>{item.description}</Text>
-            </View>
-            <View style={styles.cardActions}>
-              <TouchableOpacity
-                onPress={() => { setEditing(item); setShowModal(true); }}
-                style={styles.actionBtn}
-              >
-                <Text style={styles.editText}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDelete(item)} style={styles.actionBtn}>
-                <Text style={styles.deleteText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        renderItem={renderItem}
         ListEmptyComponent={
           !isLoading ? <Text style={styles.empty}>No outlet types yet</Text> : null
         }
       />
-
-      <View style={styles.fab}>
-        <TouchableOpacity
-          style={styles.fabBtn}
-          onPress={() => { setEditing(undefined); setShowModal(true); }}
-        >
-          <Text style={styles.fabText}>+ Add Type</Text>
-        </TouchableOpacity>
-      </View>
 
       <TypeFormModal
         visible={showModal}
@@ -181,47 +281,170 @@ export default function OutletTypesScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: 100 },
+  root: { flex: 1, backgroundColor: colors.screenBackground },
 
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...shadow.sm,
-  },
-  cardBody: { flex: 1 },
-  typeName: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
-  typeDesc: { fontSize: typography.sm, color: colors.textSecondary, marginTop: 2 },
-  cardActions: { flexDirection: 'row', gap: spacing.sm },
-  actionBtn: { padding: spacing.xs },
-  editText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
-  deleteText: { color: colors.error, fontSize: typography.sm, fontWeight: typography.medium },
-
-  fab: { position: 'absolute', bottom: spacing.xl, left: spacing.md, right: spacing.md },
-  fabBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  fabText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
-
-  empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
-
-  modalHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    alignItems: 'flex-end',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
-  modalTitle: { fontSize: typography.md, fontWeight: typography.semibold, color: colors.text },
-  formInner: { padding: spacing.md, gap: spacing.sm },
-  label: { fontSize: typography.sm, fontWeight: typography.medium, color: colors.text },
+  heading: {
+    fontSize: typography.xl,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+  subheading: {
+    marginTop: 2,
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  createBtn: {
+    backgroundColor: colors.buttonPrimaryBg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+    borderRadius: radius.md,
+    ...shadow.sm,
+  },
+  createBtnText: {
+    color: colors.textInverse,
+    fontWeight: typography.semibold,
+    fontSize: typography.sm,
+  },
+
+  list: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: 120 },
+
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#D3C5AC26',
+    ...shadow.sm,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  cardBody: { flex: 1, minWidth: 0 },
+  typeName: {
+    fontSize: typography.base,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  typeDesc: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    marginTop: 1,
+    lineHeight: 16,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'center',
+    marginLeft: spacing.xs,
+  },
+  actionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  editBtn: {
+    borderColor: '#D3C5AC80',
+    backgroundColor: colors.buttonLightBg,
+  },
+  deleteBtn: {
+    borderColor: '#FBCACA',
+    backgroundColor: '#FFF1F1',
+  },
+  empty: {
+    textAlign: 'center',
+    color: colors.textSecondary,
+    marginTop: spacing.xxl,
+    fontSize: typography.sm,
+  },
+
+  createModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  createModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+  },
+  createSheet: {
+    maxHeight: '92%',
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#191c1e',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 24,
+  },
+  createSheetTop: {
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D3C5AC40',
+    backgroundColor: colors.surfaceOverlay,
+  },
+  createSheetHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: '#E6E8EA',
+    marginBottom: spacing.sm,
+  },
+  createSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  createSheetTitle: {
+    flex: 1,
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.3,
+  },
+  createSheetClose: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F4F6',
+  },
+  createSheetCloseText: {
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
+
+  formInner: {
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  label: {
+    marginTop: spacing.sm,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    color: colors.text,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -231,5 +454,51 @@ const styles = StyleSheet.create({
     fontSize: typography.base,
     color: colors.text,
     backgroundColor: colors.surface,
+  },
+  descriptionInput: {
+    height: 108,
+    textAlignVertical: 'top',
+  },
+  inputError: {
+    borderColor: colors.error,
+  },
+  fieldError: {
+    fontSize: typography.xs,
+    color: colors.error,
+    marginTop: 4,
+  },
+  formActions: {
+    marginTop: spacing.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC80',
+    backgroundColor: colors.buttonLightBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    color: colors.text,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+  },
+  submitBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.buttonPrimaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.sm,
+  },
+  submitBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
   },
 });

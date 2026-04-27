@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -38,6 +37,13 @@ const METRIC_LABELS: Record<MetricKey, string> = {
   clean: 'Clean',
   quality: 'Quality',
   overall: 'Overall',
+};
+const ZERO_METRICS: MetricsHeatmapItem['metrics'] = {
+  staff: 0,
+  speed: 0,
+  clean: 0,
+  quality: 0,
+  overall: 0,
 };
 
 function scoreToPercent(score: number | null | undefined) {
@@ -100,6 +106,15 @@ function getSeverity(status?: ComplaintStatus) {
     return { label: 'CRITICAL', bg: colors.error, text: colors.textInverse };
   }
   return { label: 'CONCERN', bg: colors.warning, text: colors.textInverse };
+}
+
+function getAllReviewCardBackground(review: Review) {
+  if (!review.isComplaint || !review.complaintStatus) return '#FFFFFF';
+
+  if (review.complaintStatus === 'resolved') return '#ecfdf5';
+  if (review.complaintStatus === 'pending') return '#fefce8';
+  if (review.complaintStatus === 'dismissed') return '#fef2f2';
+  return '#FFFFFF';
 }
 
 function getReviewTags(review: Review) {
@@ -175,7 +190,6 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
 export default function ReviewsScreen() {
   const navigation = useNavigation<Nav>();
   const [selectedOutletId, setSelectedOutletId] = useState('all');
-  const [showOutletPicker, setShowOutletPicker] = useState(false);
 
   const {
     data: reviews,
@@ -193,18 +207,26 @@ export default function ReviewsScreen() {
 
   const ranking = analytics?.franchiseRanking ?? [];
   const heatmap = analytics?.metricsHeatmap ?? [];
+  const topRanking = ranking.slice(0, 3);
 
   const outletOptions = useMemo<OutletOption[]>(() => {
-    if (!reviews || reviews.length === 0) {
-      return [{ id: 'all', label: 'All Outlets' }];
+    const byOutlet = new Map<string, string>();
+
+    for (const item of heatmap) {
+      if (!byOutlet.has(item.outletId)) {
+        byOutlet.set(item.outletId, item.outletName || 'Unknown Outlet');
+      }
     }
 
-    const byOutlet = new Map<string, string>();
-    for (const review of reviews) {
+    for (const review of reviews ?? []) {
       const key = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
       if (!byOutlet.has(key)) {
         byOutlet.set(key, review.outletName || 'Unknown Outlet');
       }
+    }
+
+    if (byOutlet.size === 0) {
+      return [{ id: 'all', label: 'All Outlets' }];
     }
 
     const options = Array.from(byOutlet.entries())
@@ -212,7 +234,7 @@ export default function ReviewsScreen() {
       .sort((a, b) => a.label.localeCompare(b.label));
 
     return [{ id: 'all', label: 'All Outlets' }, ...options];
-  }, [reviews]);
+  }, [reviews, heatmap]);
 
   useEffect(() => {
     if (selectedOutletId === 'all') return;
@@ -220,11 +242,6 @@ export default function ReviewsScreen() {
       setSelectedOutletId('all');
     }
   }, [outletOptions, selectedOutletId]);
-
-  const selectedOutletLabel = useMemo(
-    () => outletOptions.find((option) => option.id === selectedOutletId)?.label ?? 'All Outlets',
-    [outletOptions, selectedOutletId],
-  );
 
   const filteredReviews = useMemo(() => {
     if (!reviews) return [];
@@ -238,6 +255,10 @@ export default function ReviewsScreen() {
 
   const pendingCount = useMemo(
     () => filteredReviews.filter((review) => review.isComplaint && review.complaintStatus === 'pending').length,
+    [filteredReviews],
+  );
+  const hasUnresolvedComplaint = useMemo(
+    () => filteredReviews.some((review) => review.isComplaint && review.complaintStatus !== 'resolved'),
     [filteredReviews],
   );
 
@@ -266,17 +287,41 @@ export default function ReviewsScreen() {
   );
 
   const heatmapRows = useMemo(() => {
-    const heatmapByOutlet = new Map(heatmap.map((item) => [item.outletId, item]));
+    const scopedHeatmap = selectedOutletId === 'all'
+      ? heatmap
+      : heatmap.filter((item) => item.outletId === selectedOutletId);
+
+    const heatmapByOutlet = new Map(scopedHeatmap.map((item) => [item.outletId, item]));
 
     const ordered = ranking
       .map((rankItem) => heatmapByOutlet.get(rankItem.outletId))
       .filter((item): item is MetricsHeatmapItem => Boolean(item));
 
     const rankedIds = new Set(ranking.map((item) => item.outletId));
-    const extras = heatmap.filter((item) => !rankedIds.has(item.outletId));
+    const extras = scopedHeatmap.filter((item) => !rankedIds.has(item.outletId));
 
     return [...ordered, ...extras];
-  }, [heatmap, ranking]);
+  }, [heatmap, ranking, selectedOutletId]);
+
+  const heatmapRowsWithFallback = useMemo(() => {
+    if (heatmapRows.length > 0) return heatmapRows;
+
+    const buildZeroRow = (id: string, label: string): MetricsHeatmapItem => ({
+      outletId: id,
+      outletName: label,
+      metrics: { ...ZERO_METRICS },
+    });
+
+    if (selectedOutletId === 'all') {
+      return outletOptions
+        .filter((option) => option.id !== 'all')
+        .map((option) => buildZeroRow(option.id, option.label));
+    }
+
+    const selectedOutlet = outletOptions.find((option) => option.id === selectedOutletId);
+    if (!selectedOutlet) return [];
+    return [buildZeroRow(selectedOutlet.id, selectedOutlet.label)];
+  }, [heatmapRows, outletOptions, selectedOutletId]);
 
   const refreshing = isReviewsFetching || isAnalyticsFetching;
 
@@ -314,15 +359,42 @@ export default function ReviewsScreen() {
 
             {isAnalyticsLoading ? (
               <ActivityIndicator color={colors.primary} style={styles.loading} />
-            ) : ranking.length === 0 ? (
+            ) : topRanking.length === 0 ? (
               <Text style={styles.emptyText}>No franchise ranking available.</Text>
             ) : (
               <View style={styles.rankList}>
-                {ranking.map((item) => (
+                {topRanking.map((item) => (
                   <RankingItemRow key={item.outletId} item={item} />
                 ))}
               </View>
             )}
+          </View>
+
+          <View style={styles.sectionBlock}>
+            <View style={styles.filterRow}>
+              <Text style={styles.sectionEyebrow}>Outlet Filter</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterPillsRow}
+            >
+              {outletOptions.map((option) => {
+                const active = option.id === selectedOutletId;
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[styles.filterPill, active && styles.filterPillActive]}
+                    onPress={() => setSelectedOutletId(option.id)}
+                    activeOpacity={0.82}
+                  >
+                    <Text style={[styles.filterPillText, active && styles.filterPillTextActive]} numberOfLines={1}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
 
           <View style={styles.sectionBlock}>
@@ -346,11 +418,11 @@ export default function ReviewsScreen() {
 
             {isAnalyticsLoading ? (
               <ActivityIndicator color={colors.primary} style={styles.loading} />
-            ) : heatmapRows.length === 0 ? (
+            ) : heatmapRowsWithFallback.length === 0 ? (
               <Text style={styles.emptyText}>No heatmap metrics available.</Text>
             ) : (
               <View style={styles.heatmapList}>
-                {heatmapRows.map((row) => (
+                {heatmapRowsWithFallback.map((row) => (
                   <HeatmapRow key={row.outletId} row={row} />
                 ))}
               </View>
@@ -358,64 +430,64 @@ export default function ReviewsScreen() {
           </View>
         </View>
 
-        <View style={styles.filterRow}>
-          <Text style={styles.sectionEyebrow}>Outlet Filter</Text>
-          <TouchableOpacity style={styles.filterButton} activeOpacity={0.85} onPress={() => setShowOutletPicker(true)}>
-            <Text style={styles.filterButtonText} numberOfLines={1}>{selectedOutletLabel}</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        {hasUnresolvedComplaint && (
+          <>
+            <View style={styles.feedbackHeaderRow}>
+              <Text style={styles.sectionEyebrow}>Critical Feedback Feed</Text>
+              <View style={styles.urgentBadge}>
+                <Text style={styles.urgentBadgeText}>{pendingCount} URGENT</Text>
+              </View>
+            </View>
 
-        <View style={styles.feedbackHeaderRow}>
-          <Text style={styles.sectionEyebrow}>Critical Feedback Feed</Text>
-          <View style={styles.urgentBadge}>
-            <Text style={styles.urgentBadgeText}>{pendingCount} URGENT</Text>
-          </View>
-        </View>
+            <View style={styles.feedbackContainer}>
+              {isReviewsLoading ? (
+                <ActivityIndicator color={colors.primary} style={styles.loading} />
+              ) : criticalFeed.length === 0 ? (
+                <Text style={styles.emptyText}>No reviews available.</Text>
+              ) : (
+                criticalFeed.map((review, index) => {
+                  const severity = getSeverity(review.complaintStatus);
+                  const tags = getReviewTags(review);
 
-        <View style={styles.feedbackContainer}>
-          {isReviewsLoading ? (
-            <ActivityIndicator color={colors.primary} style={styles.loading} />
-          ) : criticalFeed.length === 0 ? (
-            <Text style={styles.emptyText}>No reviews available.</Text>
-          ) : (
-            criticalFeed.map((review, index) => {
-              const severity = getSeverity(review.complaintStatus);
-              const tags = getReviewTags(review);
-
-              return (
-                <TouchableOpacity
-                  key={review.id}
-                  style={[styles.feedbackItem, index < criticalFeed.length - 1 && styles.feedbackItemBorder]}
-                  activeOpacity={0.85}
-                  onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
-                >
-                  <View style={styles.feedbackTopRow}>
-                    <View style={styles.feedbackMetaLeft}>
-                      <View style={[styles.severityBadge, { backgroundColor: severity.bg }]}>
-                        <Text style={[styles.severityBadgeText, { color: severity.text }]}>{severity.label}</Text>
+                  return (
+                    <TouchableOpacity
+                      key={review.id}
+                      style={[styles.feedbackItem, index < criticalFeed.length - 1 && styles.feedbackItemBorder]}
+                      activeOpacity={0.85}
+                      onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
+                    >
+                      <View style={styles.feedbackTopRow}>
+                        <View style={styles.feedbackCriticalMeta}>
+                          <View style={styles.feedbackStatusRow}>
+                            <View style={[styles.severityBadge, { backgroundColor: severity.bg }]}>
+                              <Text style={[styles.severityBadgeText, { color: severity.text }]}>{severity.label}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.feedbackIdentityRow}>
+                            <Text style={styles.feedbackName}>{review.customerName}</Text>
+                            <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
                       </View>
-                      <Text style={styles.feedbackName}>{review.customerName}</Text>
-                      <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
-                    </View>
-                    <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
-                  </View>
 
-                  <Text style={styles.feedbackBody}>{getComment(review)}</Text>
+                      <Text style={styles.feedbackBody}>{getComment(review)}</Text>
 
-                  <View style={styles.feedbackFooterRow}>
-                    <StarRating rating={review.overallRating} size={12} />
-                    <View style={styles.feedbackTagRow}>
-                      {tags.map((tag) => (
-                        <Text key={`${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
-                      ))}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </View>
+                      <View style={styles.feedbackFooterRow}>
+                        <StarRating rating={review.overallRating} size={12} />
+                        <View style={styles.feedbackTagRow}>
+                          {tags.map((tag) => (
+                            <Text key={`${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
+                          ))}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
+          </>
+        )}
 
         <View style={styles.feedbackHeaderRow}>
           <Text style={styles.sectionEyebrow}>All Reviews</Text>
@@ -435,7 +507,11 @@ export default function ReviewsScreen() {
               return (
                 <TouchableOpacity
                   key={`all-${review.id}`}
-                  style={[styles.feedbackItem, index < allReviews.length - 1 && styles.feedbackItemBorder]}
+                  style={[
+                    styles.feedbackItem,
+                    { backgroundColor: getAllReviewCardBackground(review) },
+                    index < allReviews.length - 1 && styles.feedbackItemBorder,
+                  ]}
                   activeOpacity={0.85}
                   onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
                 >
@@ -464,45 +540,6 @@ export default function ReviewsScreen() {
         </View>
       </ScrollView>
 
-      <Modal
-        visible={showOutletPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowOutletPicker(false)}
-      >
-        <View style={styles.pickerRoot}>
-          <TouchableOpacity
-            activeOpacity={1}
-            style={styles.pickerScrim}
-            onPress={() => setShowOutletPicker(false)}
-          />
-          <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Select Outlet</Text>
-            <ScrollView
-              style={styles.pickerList}
-              contentContainerStyle={styles.pickerListContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {outletOptions.map((option) => {
-                const active = option.id === selectedOutletId;
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[styles.pickerItem, active && styles.pickerItemActive]}
-                    onPress={() => {
-                      setSelectedOutletId(option.id);
-                      setShowOutletPicker(false);
-                    }}
-                  >
-                    <Text style={[styles.pickerItemText, active && styles.pickerItemTextActive]}>{option.label}</Text>
-                    {active ? <Ionicons name="checkmark" size={16} color={colors.primary} /> : null}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -690,29 +727,35 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xs,
+  },
+  filterPillsRow: {
     gap: spacing.sm,
     paddingHorizontal: spacing.xs,
   },
-  filterButton: {
-    minWidth: 180,
-    maxWidth: '68%',
-    height: 36,
+  filterPill: {
+    height: 34,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
+    justifyContent: 'center',
   },
-  filterButtonText: {
-    flex: 1,
+  filterPillActive: {
+    backgroundColor: colors.primaryTint,
+    borderColor: colors.primaryTintStrong,
+  },
+  filterPillText: {
     fontSize: typography.sm,
     color: colors.text,
+    fontWeight: typography.medium,
+  },
+  filterPillTextActive: {
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
   },
   urgentBadge: {
     backgroundColor: colors.errorLight,
@@ -770,6 +813,22 @@ const styles = StyleSheet.create({
     gap: 6,
     flexShrink: 1,
   },
+  feedbackCriticalMeta: {
+    gap: 4,
+    flexShrink: 1,
+  },
+  feedbackStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  feedbackIdentityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+  },
   severityBadge: {
     borderRadius: 4,
     paddingHorizontal: 6,
@@ -822,60 +881,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-  },
-
-  pickerRoot: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-  },
-  pickerScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.45)',
-  },
-  pickerCard: {
-    maxHeight: '70%',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    ...shadow.md,
-  },
-  pickerTitle: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    fontSize: typography.md,
-    fontWeight: typography.bold,
-    color: colors.text,
-  },
-  pickerList: {
-    maxHeight: 360,
-  },
-  pickerListContent: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-  },
-  pickerItem: {
-    height: 42,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  pickerItemActive: {
-    backgroundColor: colors.primaryTint,
-  },
-  pickerItemText: {
-    flex: 1,
-    fontSize: typography.sm,
-    color: colors.text,
-  },
-  pickerItemTextActive: {
-    color: colors.primaryDark,
-    fontWeight: typography.semibold,
   },
 
   loading: {

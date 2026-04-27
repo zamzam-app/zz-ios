@@ -1,31 +1,35 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
+  ScrollView,
   FlatList,
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTasks } from '../../hooks/useTasks';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
-import { FilterDropdown, FilterOption } from '../../components/FilterDropdown';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 import { CreateTaskContent } from './CreateTaskScreen';
+import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
+type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
 type PriorityFilter = TaskPriority | 'ALL';
 
 const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
-  { label: 'All Tasks', value: 'ALL' },
+  { label: 'All priorities', value: 'ALL' },
   { label: 'High', value: 'HIGH' },
   { label: 'Medium', value: 'MEDIUM' },
   { label: 'Low', value: 'LOW' },
@@ -36,6 +40,76 @@ const PRIORITY_COLORS: Record<string, string> = {
   MEDIUM: colors.priorityMedium,
   LOW:    colors.priorityLow,
 };
+
+const PRIORITY_SORT_ORDER: Record<TaskPriority, number> = {
+  HIGH: 0,
+  MEDIUM: 1,
+  LOW: 2,
+};
+
+function toTimestamp(iso?: string | null) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getTime();
+}
+
+function dueDateSortValue(iso?: string | null) {
+  return toTimestamp(iso) ?? Number.MAX_SAFE_INTEGER;
+}
+
+function compareDueDateAsc(a: Task, b: Task) {
+  return dueDateSortValue(a.dueDate) - dueDateSortValue(b.dueDate);
+}
+
+function compareCreatedAtDesc(a: Task, b: Task) {
+  const createdA = toTimestamp(a.createdAt) ?? 0;
+  const createdB = toTimestamp(b.createdAt) ?? 0;
+  return createdB - createdA;
+}
+
+function getOpenTaskGroup(task: Task, now: Date) {
+  if (task.priority === 'HIGH') return 0;
+  if (isSameCalendarDay(task.dueDate, now)) return 1;
+  return 2;
+}
+
+function compareOpenTaskOrder(a: Task, b: Task, now: Date) {
+  const groupA = getOpenTaskGroup(a, now);
+  const groupB = getOpenTaskGroup(b, now);
+  const groupDiff = groupA - groupB;
+  if (groupDiff !== 0) return groupDiff;
+
+  if (groupA === 1) {
+    const priorityDiff = (PRIORITY_SORT_ORDER[a.priority] ?? 99) - (PRIORITY_SORT_ORDER[b.priority] ?? 99);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    const dueDiff = compareDueDateAsc(a, b);
+    if (dueDiff !== 0) return dueDiff;
+
+    return compareCreatedAtDesc(a, b);
+  }
+
+  const dueDiff = compareDueDateAsc(a, b);
+  if (dueDiff !== 0) return dueDiff;
+
+  return compareCreatedAtDesc(a, b);
+}
+
+function completedTaskSortValue(task: Task) {
+  return toTimestamp(task.completedAt ?? task.updatedAt ?? task.createdAt) ?? 0;
+}
+
+function compareCompletedTaskOrder(a: Task, b: Task) {
+  const completedDiff = completedTaskSortValue(b) - completedTaskSortValue(a);
+  if (completedDiff !== 0) return completedDiff;
+
+  return compareCreatedAtDesc(a, b);
+}
+
+function isTaskCompleted(task: Task) {
+  return task.status.trim().toUpperCase() === 'COMPLETED';
+}
 
 function formatDate(iso: string) {
   const date = new Date(iso);
@@ -61,8 +135,18 @@ function formatRelativeTime(iso?: string | null) {
   return `Closed ${days}d ago`;
 }
 
+function isSameCalendarDay(iso: string, now = new Date()) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return false;
+  return (
+    date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate()
+  );
+}
+
 function OpenTaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
-  const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
+  const isOverdue = !isTaskCompleted(task) && new Date(task.dueDate) < new Date();
   const outletName    = getTaskOutletName(task);
   const categoryName  = getTaskCategoryName(task);
   const assigneeNames = getTaskAssigneeNames(task);
@@ -134,21 +218,73 @@ function CompletedTaskCard({ task, onPress }: { task: Task; onPress: () => void 
 
 export default function TasksScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<TasksRoute>();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
+  const [metricFilter, setMetricFilter] = useState<TaskMetricFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { data: tasks, isLoading, isFetching, refetch } = useTasks({ limit: 50 });
   const allTasks = tasks ?? [];
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
-  const filteredTasks = useMemo(
-    () => (priorityFilter === 'ALL'
-      ? allTasks
-      : allTasks.filter((task) => task.priority === priorityFilter)),
-    [allTasks, priorityFilter],
+  useEffect(() => {
+    const incomingMetric = route.params?.initialTaskFilter?.metric;
+    if (!incomingMetric) return;
+    setMetricFilter(incomingMetric);
+  }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
+
+  const searchAndPriorityFilteredTasks = useMemo(
+    () => allTasks.filter((task) => {
+      const matchesPriority = priorityFilter === 'ALL' || task.priority === priorityFilter;
+      if (!matchesPriority) return false;
+      if (!normalizedSearchQuery) return true;
+
+      const searchTokens = [
+        task.id,
+        task.title,
+        task.description,
+        task.priority,
+        task.status,
+        getTaskOutletName(task),
+        getTaskCategoryName(task),
+        ...getTaskAssigneeNames(task),
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(' ')
+        .toLowerCase();
+
+      return searchTokens.includes(normalizedSearchQuery);
+    }),
+    [allTasks, priorityFilter, normalizedSearchQuery],
   );
 
-  const openTasks = filteredTasks.filter((task) => task.status !== 'COMPLETED');
-  const completedTasks = filteredTasks.filter((task) => task.status === 'COMPLETED');
+  const filteredTasks = useMemo(() => {
+    if (metricFilter === 'all') return searchAndPriorityFilteredTasks;
+
+    return searchAndPriorityFilteredTasks.filter((task) => {
+      if (metricFilter === 'open') return !isTaskCompleted(task);
+      if (metricFilter === 'resolved') return isTaskCompleted(task);
+      if (metricFilter === 'critical') return !isTaskCompleted(task) && task.priority === 'HIGH';
+      if (metricFilter === 'due_today') return !isTaskCompleted(task) && isSameCalendarDay(task.dueDate);
+      return true;
+    });
+  }, [searchAndPriorityFilteredTasks, metricFilter]);
+
+  const openTasks = useMemo(() => {
+    const now = new Date();
+    return filteredTasks
+      .filter((task) => !isTaskCompleted(task))
+      .sort((a, b) => compareOpenTaskOrder(a, b, now));
+  }, [filteredTasks]);
+
+  const completedTasks = useMemo(
+    () => filteredTasks
+      .filter(isTaskCompleted)
+      .sort(compareCompletedTaskOrder),
+    [filteredTasks],
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -162,28 +298,95 @@ export default function TasksScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.priorityRow}
-        style={styles.priorityRowScroll}
-      >
-        {PRIORITY_FILTERS.map((option) => {
-          const active = option.value === priorityFilter;
-          return (
+      <View style={styles.controlsRow}>
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+            placeholder="Search tasks..."
+            placeholderTextColor={colors.textSecondary}
+            onFocus={() => setShowPriorityMenu(false)}
+          />
+          {searchQuery.length > 0 && (
             <TouchableOpacity
-              key={option.value}
-              style={[styles.priorityPill, active && styles.priorityPillActive]}
-              onPress={() => setPriorityFilter(option.value)}
-              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              style={styles.searchClearBtn}
+              onPress={() => setSearchQuery('')}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.priorityPillText, active && styles.priorityPillTextActive]}>
-                {option.label}
-              </Text>
+              <Text style={styles.searchClearText}>x</Text>
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          )}
+        </View>
+
+        <View style={styles.filterMenuWrap}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Open priority filters"
+            style={[styles.filterIconBtn, priorityFilter !== 'ALL' && styles.filterIconBtnActive]}
+            onPress={() => setShowPriorityMenu((prev) => !prev)}
+            activeOpacity={0.82}
+          >
+            <Ionicons
+              name="options-outline"
+              size={18}
+              color={priorityFilter === 'ALL' ? colors.textSecondary : colors.primaryDark}
+            />
+          </TouchableOpacity>
+
+          {showPriorityMenu && (
+            <View style={styles.priorityDropdown}>
+              {PRIORITY_FILTERS.map((option, index) => {
+                const active = option.value === priorityFilter;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.priorityOption,
+                      index < PRIORITY_FILTERS.length - 1 && styles.priorityOptionDivider,
+                      active && styles.priorityOptionActive,
+                    ]}
+                    onPress={() => {
+                      setPriorityFilter(option.value);
+                      setShowPriorityMenu(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.priorityOptionText, active && styles.priorityOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                    {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </View>
+
+      {metricFilter !== 'all' && (
+        <View style={styles.metricFilterChipRow}>
+          <View style={styles.metricFilterChip}>
+            <Text style={styles.metricFilterChipText}>
+              {`Filtered: ${TASK_METRIC_FILTER_LABELS[metricFilter]}`}
+            </Text>
+            <TouchableOpacity onPress={() => setMetricFilter('all')} style={styles.metricFilterChipClear}>
+              <Text style={styles.metricFilterChipClearText}>x</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {showPriorityMenu && (
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowPriorityMenu(false)}
+          style={styles.priorityMenuBackdrop}
+        />
+      )}
 
       <View style={styles.sectionsContainer}>
         <View style={styles.sectionHeader}>
@@ -194,35 +397,38 @@ export default function TasksScreen() {
           <Text style={styles.sectionCount}>{openTasks.length} active</Text>
         </View>
 
-        <FlatList
-          style={styles.openList}
-          data={openTasks}
-          keyExtractor={(task) => task.id}
-          contentContainerStyle={
-            openTasks.length > 0 ? styles.openListContent : styles.openListEmptyContent
-          }
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
-          renderItem={({ item }) => (
-            <View style={styles.openCardWrap}>
-              <OpenTaskCard
-                task={item}
-                onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-              />
-            </View>
-          )}
-          ListEmptyComponent={(
-            isLoading ? (
-              <View style={styles.loadingWrap}>
-                <ActivityIndicator color={colors.primary} />
+        <View style={styles.openListShell}>
+          <FlatList
+            style={styles.openList}
+            data={openTasks}
+            keyExtractor={(task) => task.id}
+            contentContainerStyle={
+              openTasks.length > 0 ? styles.openListContent : styles.openListEmptyContent
+            }
+            showsVerticalScrollIndicator
+            persistentScrollbar
+            refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+            renderItem={({ item }) => (
+              <View style={styles.openCardWrap}>
+                <OpenTaskCard
+                  task={item}
+                  onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+                />
               </View>
-            ) : (
-              <View style={styles.emptyWrap}>
-                <Text style={styles.empty}>No open tasks found</Text>
-              </View>
-            )
-          )}
-        />
+            )}
+            ListEmptyComponent={(
+              isLoading ? (
+                <View style={styles.loadingWrap}>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : (
+                <View style={styles.emptyWrap}>
+                  <Text style={styles.empty}>No open tasks found</Text>
+                </View>
+              )
+            )}
+          />
+        </View>
 
         <View style={styles.completedSection}>
           <View style={styles.completedSectionHeader}>
@@ -286,8 +492,8 @@ export default function TasksScreen() {
                 setShowCreateModal(false);
                 void refetch();
               }}
-              bottomPadding={12}
-              fill={false}
+              bottomPadding={24}
+              fill
               backgroundColor={colors.surface}
             />
           </View>
@@ -332,39 +538,145 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
   },
 
-  priorityRowScroll: {
-    flexGrow: 0,
-    minHeight: 48,
-  },
-  priorityRow: {
+  controlsRow: {
+    zIndex: 40,
+    flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
     paddingTop: spacing.xs,
   },
-  priorityPill: {
-    paddingHorizontal: 14,
-    minHeight: 36,
+  searchWrap: {
+    flex: 1,
     justifyContent: 'center',
-    borderRadius: 10,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    zIndex: 2,
+  },
+  searchInput: {
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingLeft: 38,
+    paddingRight: 34,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  searchClearBtn: {
+    position: 'absolute',
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E6E8EA',
+  },
+  searchClearText: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.bold,
+    lineHeight: 16,
+    includeFontPadding: false,
+  },
+  filterMenuWrap: {
+    position: 'relative',
+    zIndex: 60,
+  },
+  filterIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.sm,
+  },
+  filterIconBtnActive: {
+    borderColor: colors.primaryTintStrong,
+    backgroundColor: colors.primaryTint,
+  },
+  priorityDropdown: {
+    position: 'absolute',
+    right: 0,
+    top: 46,
+    minWidth: 170,
+    borderRadius: radius.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadow.md,
+    zIndex: 999,
+    overflow: 'hidden',
   },
-  priorityPillActive: {
-    backgroundColor: '#FFDF9A',
-    borderColor: '#FFDF9A',
+  priorityOption: {
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  priorityPillText: {
-    fontSize: typography.xs,
-    lineHeight: 14,
-    color: '#4F4633',
+  priorityOptionDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  priorityOptionActive: {
+    backgroundColor: colors.primaryTint,
+  },
+  priorityOptionText: {
+    fontSize: typography.sm,
+    color: colors.text,
     fontWeight: typography.medium,
-    includeFontPadding: false,
   },
-  priorityPillTextActive: {
-    color: '#251A00',
+  priorityOptionTextActive: {
+    color: colors.primary,
+    fontWeight: typography.semibold,
+  },
+  priorityMenuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+  metricFilterChipRow: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  metricFilterChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintStrong,
+    paddingLeft: spacing.sm,
+    paddingRight: 6,
+    paddingVertical: 4,
+  },
+  metricFilterChipText: {
+    fontSize: typography.xs,
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+  metricFilterChipClear: {
+    width: 18,
+    height: 18,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E6E8EA',
+  },
+  metricFilterChipClearText: {
+    fontSize: 11,
+    color: colors.textSecondary,
     fontWeight: typography.bold,
   },
 
@@ -401,6 +713,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.bold,
   },
 
+  openListShell: { flex: 1, minHeight: 0, position: 'relative' },
   openList: { flex: 1, minHeight: 0 },
   openListContent: { paddingBottom: spacing.sm },
   openListEmptyContent: { flexGrow: 1, justifyContent: 'center' },
@@ -504,7 +817,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(25, 28, 30, 0.4)',
   },
   createSheet: {
-    maxHeight: '92%',
+    height: '92%',
+    minHeight: 420,
     backgroundColor: colors.surface,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,

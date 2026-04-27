@@ -13,6 +13,7 @@ export interface Review {
   customerName: string;
   outletId: string;
   outletName: string;
+  formId?: string;
   overallRating: number;
   userResponses: UserResponse[];
   isComplaint: boolean;
@@ -20,6 +21,7 @@ export interface Review {
   complaintReason?: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  resolvedByName?: string;
   resolutionNotes?: string;
   createdAt: string;
 }
@@ -39,6 +41,7 @@ export interface ResolveComplaintPayload {
 interface RawReview {
   _id?: string;
   id?: string;
+  formId?: string | { _id?: string; id?: string };
   userId?: string | { _id?: string; name?: string };
   outletId?: string | { _id?: string; name?: string };
   overallRating?: number;
@@ -47,13 +50,37 @@ interface RawReview {
   complaintStatus?: ComplaintStatus;
   complaintReason?: string;
   resolvedAt?: string;
-  resolvedBy?: string;
+  resolvedBy?: string | { _id?: string; id?: string; name?: string };
   resolutionNotes?: string;
   createdAt?: string;
 }
 
+type RawReviewEnvelope = { data?: RawReview };
+
+function isRawReviewEnvelope(value: unknown): value is RawReviewEnvelope {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && 'data' in (value as Record<string, unknown>),
+  );
+}
+
+function unwrapRawReview(value: RawReview | RawReviewEnvelope): RawReview {
+  if (isRawReviewEnvelope(value) && value.data && typeof value.data === 'object') {
+    return value.data;
+  }
+  return value as RawReview;
+}
+
 function mapReview(raw: RawReview): Review {
   const id = String(raw._id ?? raw.id ?? '');
+  const formId = typeof raw.formId === 'string'
+    ? raw.formId
+    : raw.formId?._id
+      ? String(raw.formId._id)
+      : raw.formId?.id
+        ? String(raw.formId.id)
+        : undefined;
 
   let customerName = 'Customer';
   if (typeof raw.userId === 'object' && raw.userId?.name) customerName = raw.userId.name;
@@ -67,18 +94,31 @@ function mapReview(raw: RawReview): Review {
     outletId = raw.outletId;
   }
 
+  const resolvedBy = typeof raw.resolvedBy === 'string'
+    ? raw.resolvedBy
+    : raw.resolvedBy?._id
+      ? String(raw.resolvedBy._id)
+      : raw.resolvedBy?.id
+        ? String(raw.resolvedBy.id)
+        : undefined;
+  const resolvedByName = typeof raw.resolvedBy === 'object' && raw.resolvedBy?.name
+    ? raw.resolvedBy.name
+    : undefined;
+
   return {
     id,
     customerName,
     outletId,
     outletName,
+    formId,
     overallRating: raw.overallRating ?? 0,
     userResponses: raw.userResponses ?? [],
     isComplaint: raw.isComplaint ?? false,
     complaintStatus: raw.complaintStatus,
     complaintReason: raw.complaintReason,
     resolvedAt: raw.resolvedAt,
-    resolvedBy: raw.resolvedBy,
+    resolvedBy,
+    resolvedByName,
     resolutionNotes: raw.resolutionNotes,
     createdAt: raw.createdAt ?? new Date().toISOString(),
   };
@@ -94,10 +134,12 @@ export const reviewsApi = {
       }),
 
   getById: (id: string) =>
-    client.get<RawReview>(`/review/${id}`).then((r) => mapReview(r.data)),
+    client
+      .get<RawReview | RawReviewEnvelope>(`/review/${id}`)
+      .then((r) => mapReview(unwrapRawReview(r.data))),
 
   resolveComplaint: (reviewId: string, payload: ResolveComplaintPayload) =>
     client
-      .post<RawReview>(`/review/resolve-complaint/${reviewId}`, payload)
-      .then((r) => mapReview(r.data)),
+      .post<RawReview | RawReviewEnvelope>(`/review/resolve-complaint/${reviewId}`, payload)
+      .then((r) => mapReview(unwrapRawReview(r.data))),
 };

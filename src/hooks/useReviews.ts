@@ -19,9 +19,13 @@ export const useResolveComplaint = () => {
   return useMutation({
     mutationFn: ({ reviewId, payload }: { reviewId: string; payload: ResolveComplaintPayload }) =>
       reviewsApi.resolveComplaint(reviewId, payload),
-    onSuccess: (updated) => {
+    onSuccess: (updated, variables) => {
       qc.invalidateQueries({ queryKey: ['reviews'] });
+      qc.invalidateQueries({ queryKey: ['review', variables.reviewId] });
       qc.setQueryData(['review', updated.id], updated);
+      if (updated.id !== variables.reviewId) {
+        qc.setQueryData(['review', variables.reviewId], updated);
+      }
     },
   });
 };

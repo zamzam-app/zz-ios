@@ -3,18 +3,52 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, typography, radius } from '../theme/theme';
 import { TaskStatus } from '../api/endpoints/tasks';
 
-const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string }> = {
-  OPEN: { label: 'Open', color: colors.statusOpen },
-  ASSIGNED: { label: 'Assigned', color: colors.statusAssigned },
-  IN_PROGRESS: { label: 'In Progress', color: colors.statusInProgress },
-  READY_FOR_REVIEW: { label: 'Review', color: colors.statusReadyForReview },
-  COMPLETED: { label: 'Completed', color: colors.statusCompleted },
+type StatusBadgeConfig = {
+  label: string;
+  color: string;
+  backgroundColor: string;
+  borderColor: string;
 };
 
-export default function StatusBadge({ status }: { status: TaskStatus }) {
-  const cfg = STATUS_CONFIG[status] ?? { label: status, color: colors.textSecondary };
+const STATUS_CONFIG: Record<string, StatusBadgeConfig> = {
+  OPEN: {
+    label: 'Open',
+    color: colors.statusOpen,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  COMPLETED: {
+    label: 'Completed',
+    color: colors.statusCompleted,
+    backgroundColor: '#ECFDF3',
+    borderColor: '#D1FAE5',
+  },
+  IN_PROGRESS: {
+    label: 'In Progress',
+    color: colors.info,
+    backgroundColor: '#E0F2FE',
+    borderColor: '#BAE6FD',
+  },
+};
+
+function toStatusLabel(status: string) {
+  return status
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export default function StatusBadge({ status }: { status: TaskStatus | string }) {
+  const normalizedStatus = status.trim().replace(/[\s-]/g, '_').toUpperCase();
+  const cfg = STATUS_CONFIG[normalizedStatus] ?? {
+    label: toStatusLabel(normalizedStatus),
+    color: colors.textSecondary,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  };
+
   return (
-    <View style={[styles.badge, { backgroundColor: cfg.color + '22', borderColor: cfg.color + '44' }]}>
+    <View style={[styles.badge, { backgroundColor: cfg.backgroundColor, borderColor: cfg.borderColor }]}>
       <Text style={[styles.text, { color: cfg.color }]}>{cfg.label}</Text>
     </View>
   );

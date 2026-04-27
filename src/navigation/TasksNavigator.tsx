@@ -4,9 +4,10 @@ import TasksScreen from '../screens/tasks/TasksScreen';
 import TaskDetailScreen from '../screens/tasks/TaskDetailScreen';
 import CreateTaskScreen from '../screens/tasks/CreateTaskScreen';
 import { colors, typography } from '../theme/theme';
+import { TaskFilterParams } from '../constants/taskFilters';
 
 export type TasksStackParamList = {
-  TasksList: undefined;
+  TasksList: { initialTaskFilter?: TaskFilterParams } | undefined;
   TaskDetail: { taskId: string };
   CreateTask: undefined;
 };
@@ -23,7 +24,7 @@ export default function TasksNavigator() {
       }}
     >
       <Stack.Screen name="TasksList" component={TasksScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Task Detail' }} />
+      <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="CreateTask" component={CreateTaskScreen} options={{ title: 'New Task', presentation: 'modal' }} />
     </Stack.Navigator>
   );

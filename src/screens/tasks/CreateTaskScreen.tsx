@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,31 @@ import {
   Modal,
   FlatList,
   Platform,
+  Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  cancelUploadJob,
+  enqueueCloudinaryUpload,
+  removeUploadJob,
+  waitForUploadJob,
+} from '../../api/endpoints/uploadQueue';
 import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useManagers } from '../../hooks/useUsers';
@@ -24,6 +45,23 @@ import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
+const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
+const AUDIO_FILE_WAIT_RETRIES = 25;
+const AUDIO_FILE_WAIT_DELAY_MS = 120;
+
+type AttachmentType = 'image' | 'video' | 'audio' | 'file';
+
+type AttachmentItem = {
+  id: string;
+  type: AttachmentType;
+  name: string;
+  uri: string;
+  status: 'uploading' | 'uploaded' | 'failed';
+  uploadJobId?: string;
+  remoteUrl?: string;
+  error?: string;
+  durationMillis?: number;
+};
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -131,6 +169,20 @@ function PickerModal({
   );
 }
 
+function getAttachmentIcon(type: AttachmentType): keyof typeof MaterialCommunityIcons.glyphMap {
+  if (type === 'image') return 'image-outline';
+  if (type === 'video') return 'video-outline';
+  if (type === 'audio') return 'microphone-outline';
+  return 'file-outline';
+}
+
+function isReleasedAudioPlayerError(error: unknown) {
+  return (
+    error instanceof Error
+    && /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
+  );
+}
+
 type CreateTaskContentProps = {
   onSuccess: () => void;
   submitLabel?: string;
@@ -155,6 +207,11 @@ export function CreateTaskContent({
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [showOutletPicker, setShowOutletPicker] = useState(false);
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const [recordingBusy, setRecordingBusy] = useState(false);
+  const [previewAttachmentId, setPreviewAttachmentId] = useState<string | null>(null);
+  const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
 
   const { data: outlets } = useOutlets();
   const { data: managers } = useManagers();
@@ -166,6 +223,12 @@ export function CreateTaskContent({
     refetch: refetchTaskCategories,
   } = useTaskCategories();
   const createTask = useCreateTask();
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 250);
+  const previewPlayer = useAudioPlayer(null, { updateInterval: 150 });
+  const previewPlayerStatus = useAudioPlayerStatus(previewPlayer);
+  const isRecordingAudio = recorderState.isRecording;
+  const recordingMillis = recorderState.durationMillis;
 
   const selectedOutlet = outlets?.find((o) => o.id === outletId);
   const filteredManagers = useMemo(() => {
@@ -180,15 +243,402 @@ export function CreateTaskContent({
   const selectedManagers = filteredManagers.filter((m) => assigneeIds.includes(m.id));
   const hasTaskCategories = (taskCategories?.length ?? 0) > 0;
   const hasAssignees = assigneeIds.length > 0;
+  const hasPendingAttachmentUploads = attachments.some((item) => item.status === 'uploading');
+  const hasFailedAttachmentUploads = attachments.some((item) => item.status === 'failed');
+  const selectedPreviewAttachment = previewAttachmentId
+    ? attachments.find((item) => item.id === previewAttachmentId)
+    : undefined;
+
+  const runPreviewPlayerActionSafely = useCallback((action: () => unknown): boolean => {
+    try {
+      const result = action();
+      if (result && typeof (result as Promise<unknown>).catch === 'function') {
+        (result as Promise<unknown>).catch((error) => {
+          if (!isReleasedAudioPlayerError(error)) {
+            // Keep logging unexpected errors but avoid interrupting task creation flow.
+            console.warn('[CreateTask] Preview player action failed', error);
+          }
+        });
+      }
+      return true;
+    } catch (error) {
+      if (!isReleasedAudioPlayerError(error)) {
+        console.warn('[CreateTask] Preview player action failed', error);
+      }
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     setAssigneeIds((prev) => prev.filter((id) => filteredManagers.some((manager) => manager.id === id)));
   }, [filteredManagers]);
 
+  useEffect(() => {
+    return () => {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+    };
+  }, [previewPlayer, runPreviewPlayerActionSafely]);
+
+  useEffect(() => {
+    if (!previewAttachmentId) return;
+    if (!attachments.some((item) => item.id === previewAttachmentId)) {
+      setPreviewAttachmentId(null);
+    }
+  }, [attachments, previewAttachmentId]);
+
+  useEffect(() => {
+    if (!activeAudioAttachmentId) return;
+    const stillExists = attachments.some((item) => item.id === activeAudioAttachmentId && item.type === 'audio');
+    if (!stillExists) {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      setActiveAudioAttachmentId(null);
+    }
+  }, [attachments, activeAudioAttachmentId, previewPlayer, runPreviewPlayerActionSafely]);
+
+  useEffect(() => {
+    if (previewPlayerStatus.didJustFinish) {
+      setActiveAudioAttachmentId(null);
+    }
+  }, [previewPlayerStatus.didJustFinish]);
+
+  const formatDuration = (ms: number) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  const normalizeLocalFileUri = (uri: string): string => {
+    const trimmed = uri.trim();
+    if (!trimmed) return trimmed;
+    if (trimmed.startsWith('file://') || trimmed.startsWith('content://')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('file:/')) {
+      const pathOnly = trimmed.replace(/^file:\/*/, '/');
+      return `file://${pathOnly}`;
+    }
+    if (trimmed.startsWith('/')) {
+      return `file://${trimmed}`;
+    }
+    return trimmed;
+  };
+
+  const waitForRecordedAudioFile = async (uri: string): Promise<number> => {
+    for (let attempt = 0; attempt < AUDIO_FILE_WAIT_RETRIES; attempt += 1) {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists && !info.isDirectory && info.size > 0) {
+        return info.size;
+      }
+      await new Promise((resolve) => setTimeout(resolve, AUDIO_FILE_WAIT_DELAY_MS));
+    }
+
+    const finalInfo = await FileSystem.getInfoAsync(uri);
+    if (finalInfo.exists && !finalInfo.isDirectory) {
+      return finalInfo.size;
+    }
+    return 0;
+  };
+
+  const stageRecordedAudioForUpload = async (uri: string): Promise<string> => {
+    const normalizedUri = normalizeLocalFileUri(uri);
+    const recordedSize = await waitForRecordedAudioFile(normalizedUri);
+    if (recordedSize <= 0) {
+      throw new Error('Recorded audio file is unavailable.');
+    }
+
+    const cacheDir = FileSystem.cacheDirectory;
+    if (!cacheDir) return normalizedUri;
+
+    const extFromUri = normalizedUri
+      .split(/[?#]/)[0]
+      .split('.')
+      .pop()
+      ?.toLowerCase();
+    const ext = extFromUri && /^[a-z0-9]+$/.test(extFromUri) ? extFromUri : 'm4a';
+    const stagedUri = `${cacheDir}task-audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    try {
+      await FileSystem.copyAsync({ from: normalizedUri, to: stagedUri });
+      return stagedUri;
+    } catch {
+      return normalizedUri;
+    }
+  };
+
+  const saveRecordedAudioAttachment = async (uri: string, duration: number): Promise<boolean> => {
+    const normalizedDuration = Math.max(0, duration);
+    try {
+      const uploadUri = await stageRecordedAudioForUpload(uri);
+      addAttachment('audio', uploadUri, `Voice note ${formatDuration(normalizedDuration)}`, {
+        durationMillis: normalizedDuration,
+      });
+      return true;
+    } catch {
+      Alert.alert('Error', 'Could not prepare the recorded audio for upload. Please try recording again.');
+      return false;
+    }
+  };
+
+  const startAttachmentUpload = async (attachmentId: string, uri: string) => {
+    try {
+      const job = await enqueueCloudinaryUpload(uri, 'tasks');
+      setAttachments((prev) => prev.map((item) => (
+        item.id === attachmentId
+          ? { ...item, uploadJobId: job.id, status: 'uploading', error: undefined }
+          : item
+      )));
+
+      const remoteUrl = await waitForUploadJob(job.id);
+      setAttachments((prev) => prev.map((item) => (
+        item.id === attachmentId
+          ? { ...item, status: 'uploaded', remoteUrl, error: undefined }
+          : item
+      )));
+
+      void removeUploadJob(job.id);
+    } catch (error) {
+      setAttachments((prev) => prev.map((item) => (
+        item.id === attachmentId
+          ? {
+            ...item,
+            status: 'failed',
+            error: error instanceof Error ? error.message : 'Upload failed',
+          }
+          : item
+      )));
+    }
+  };
+
+  const addAttachment = (
+    type: AttachmentType,
+    uri: string,
+    name: string,
+    extra: Partial<Pick<AttachmentItem, 'durationMillis'>> = {},
+  ) => {
+    const attachmentId = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setAttachments((prev) => [
+      ...prev,
+      {
+        id: attachmentId,
+        type,
+        uri,
+        name,
+        status: 'uploading',
+        ...extra,
+      },
+    ]);
+    void startAttachmentUpload(attachmentId, uri);
+  };
+
+  const removeAttachment = (id: string) => {
+    if (activeAudioAttachmentId === id) {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      setActiveAudioAttachmentId(null);
+    }
+    if (previewAttachmentId === id) {
+      setPreviewAttachmentId(null);
+    }
+    setAttachments((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (target?.uploadJobId) {
+        void cancelUploadJob(target.uploadJobId);
+        void removeUploadJob(target.uploadJobId);
+      }
+      return prev.filter((item) => item.id !== id);
+    });
+  };
+
+  const pickMedia = async (kind: 'image' | 'video') => {
+    setShowAttachmentMenu(false);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Media library access is required.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: kind === 'image' ? 'images' : 'videos',
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const picked = result.assets[0];
+    const fallbackName = `${kind}-${attachments.length + 1}`;
+    addAttachment(kind, picked.uri, picked.fileName ?? fallbackName);
+  };
+
+  const pickFile = async () => {
+    setShowAttachmentMenu(false);
+    const result = await DocumentPicker.getDocumentAsync({
+      multiple: true,
+      copyToCacheDirectory: true,
+      type: '*/*',
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    result.assets.forEach((asset) => {
+      addAttachment('file', asset.uri, asset.name);
+    });
+  };
+
+  const startAudioRecording = async () => {
+    if (recordingBusy || isRecordingAudio) return;
+    setRecordingBusy(true);
+    setShowAttachmentMenu(false);
+    runPreviewPlayerActionSafely(() => previewPlayer.pause());
+    setActiveAudioAttachmentId(null);
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission needed', 'Microphone access is required to record audio.');
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch {
+      Alert.alert('Error', 'Could not start recording. Please try again.');
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
+
+  const stopAudioRecording = async () => {
+    if (recordingBusy || !isRecordingAudio) return;
+    setRecordingBusy(true);
+    try {
+      const durationBeforeStop = Math.max(0, recordingMillis ?? 0);
+      await recorder.stop();
+      const status = recorder.getStatus();
+      const uri = status.url || recorder.uri || null;
+      if (uri) {
+        const duration = Math.max(0, durationBeforeStop, status.durationMillis ?? 0);
+        const saved = await saveRecordedAudioAttachment(uri, duration);
+        if (!saved) {
+          return;
+        }
+      }
+    } catch {
+      const fallbackStatus = recorder.getStatus();
+      const fallbackUri = fallbackStatus.url || recorder.uri || null;
+      const fallbackDuration = Math.max(0, recordingMillis ?? 0, fallbackStatus.durationMillis ?? 0);
+      if (fallbackUri) {
+        const saved = await saveRecordedAudioAttachment(fallbackUri, fallbackDuration);
+        if (saved) {
+          return;
+        }
+      }
+      Alert.alert('Error', 'Could not stop recording. Please try again.');
+    } finally {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+      setRecordingBusy(false);
+    }
+  };
+
+  const handleAudioAttachmentPress = (item: AttachmentItem) => {
+    if (activeAudioAttachmentId !== item.id) {
+      const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(item.uri));
+      if (!replaced) return;
+      const played = runPreviewPlayerActionSafely(() => previewPlayer.play());
+      if (!played) return;
+      setActiveAudioAttachmentId(item.id);
+      setPreviewAttachmentId(item.id);
+      return;
+    }
+
+    if (previewPlayerStatus.playing) {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      return;
+    }
+
+    const shouldRestart =
+      previewPlayerStatus.didJustFinish
+      || (
+        previewPlayerStatus.duration > 0
+        && previewPlayerStatus.currentTime >= previewPlayerStatus.duration
+      );
+    if (shouldRestart) {
+      void previewPlayer.seekTo(0).catch(() => undefined);
+    }
+    runPreviewPlayerActionSafely(() => previewPlayer.play());
+    setPreviewAttachmentId(item.id);
+  };
+
+  const openAttachmentExternally = async (item: AttachmentItem) => {
+    const label = item.type === 'video' ? 'video' : 'file';
+    try {
+      let previewUri = item.uri;
+      if (Platform.OS === 'android' && previewUri.startsWith('file://')) {
+        try {
+          previewUri = await FileSystem.getContentUriAsync(previewUri);
+        } catch {
+          // Fallback to file URI if content URI conversion is unavailable.
+        }
+      }
+
+      const supported = await Linking.canOpenURL(previewUri);
+      if (!supported) {
+        Alert.alert('Preview unavailable', `Unable to open this ${label} on your device.`);
+        return;
+      }
+      await Linking.openURL(previewUri);
+    } catch {
+      Alert.alert('Preview unavailable', `Unable to open this ${label} on your device.`);
+    }
+  };
+
+  const handleAttachmentPress = (item: AttachmentItem) => {
+    setShowAttachmentMenu(false);
+    if (item.type === 'audio') {
+      handleAudioAttachmentPress(item);
+      return;
+    }
+
+    if (item.type === 'video' || item.type === 'file') {
+      if (previewPlayerStatus.playing) {
+        runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      }
+      setActiveAudioAttachmentId(null);
+      setPreviewAttachmentId(null);
+      void openAttachmentExternally(item);
+      return;
+    }
+
+    if (previewPlayerStatus.playing) {
+      runPreviewPlayerActionSafely(() => previewPlayer.pause());
+    }
+    setActiveAudioAttachmentId(null);
+    setPreviewAttachmentId((prev) => (prev === item.id ? null : item.id));
+  };
+
   const handleSubmit = () => {
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
     if (!taskCategoryId) return Alert.alert('Required', 'Please select a category.');
     if (!hasAssignees) return Alert.alert('Required', 'Please assign at least one manager.');
+    if (hasPendingAttachmentUploads) {
+      return Alert.alert('Uploading', 'Please wait for attachments to finish uploading.');
+    }
+    if (hasFailedAttachmentUploads) {
+      return Alert.alert('Upload failed', 'Please remove failed attachments or try selecting them again.');
+    }
+
+    const uploaded = attachments.filter((item) => item.status === 'uploaded' && item.remoteUrl);
+    const images = uploaded.filter((item) => item.type === 'image').map((item) => item.remoteUrl as string);
+    const videos = uploaded.filter((item) => item.type === 'video').map((item) => item.remoteUrl as string);
+    const audios = uploaded.filter((item) => item.type === 'audio').map((item) => item.remoteUrl as string);
+    const files = uploaded.filter((item) => item.type === 'file').map((item) => item.remoteUrl as string);
+    const hasUploadedAttachments = images.length > 0 || videos.length > 0 || audios.length > 0 || files.length > 0;
 
     createTask.mutate(
       {
@@ -198,6 +648,18 @@ export function CreateTaskContent({
         dueDate: dueDate.toISOString(),
         ...(outletId ? { outletId } : {}),
         assigneeIds,
+        ...(hasUploadedAttachments
+          ? {
+            adminSubmission: {
+              attachments: {
+                images,
+                videos,
+                audios,
+                files,
+              },
+            },
+          }
+          : {}),
       },
       {
         onSuccess,
@@ -210,8 +672,11 @@ export function CreateTaskContent({
   return (
     <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]}
+        style={styles.formScroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(bottomPadding, spacing.xl) }]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
+        nestedScrollEnabled
       >
         <Label text="Description" required />
         <TextInput
@@ -223,6 +688,204 @@ export function CreateTaskContent({
           value={description}
           onChangeText={setDescription}
         />
+
+        <View style={styles.attachmentSection}>
+          <View style={styles.attachmentHeaderRow}>
+            <Text style={styles.attachmentTitle}>ATTACHMENTS</Text>
+            <View style={styles.attachmentHeaderActions}>
+              <TouchableOpacity
+                style={styles.attachmentHeaderIconButton}
+                onPress={() => setShowAttachmentMenu((prev) => !prev)}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="paperclip" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.attachmentHeaderIconButton,
+                  isRecordingAudio && styles.attachmentHeaderIconButtonActive,
+                ]}
+                onPress={() => {
+                  if (isRecordingAudio) {
+                    void stopAudioRecording();
+                  } else {
+                    void startAudioRecording();
+                  }
+                }}
+                activeOpacity={0.85}
+                disabled={recordingBusy}
+              >
+                <MaterialCommunityIcons
+                  name={isRecordingAudio ? 'record-circle' : 'microphone-outline'}
+                  size={18}
+                  color={isRecordingAudio ? colors.error : colors.primary}
+                />
+              </TouchableOpacity>
+              {isRecordingAudio && (
+                <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
+              )}
+            </View>
+          </View>
+
+          {showAttachmentMenu && (
+            <View style={styles.attachmentInlineDropdown}>
+              <TouchableOpacity
+                style={styles.attachmentInlineDropdownItem}
+                onPress={() => { void pickMedia('image'); }}
+              >
+                <View style={styles.attachmentInlineDropdownIconBox}>
+                  <MaterialCommunityIcons name="image-outline" size={18} color={colors.primary} />
+                </View>
+                <Text style={styles.attachmentInlineDropdownText}>Image</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.attachmentInlineDropdownItem}
+                onPress={() => { void pickMedia('video'); }}
+              >
+                <View style={styles.attachmentInlineDropdownIconBox}>
+                  <MaterialCommunityIcons name="video-outline" size={18} color={colors.primary} />
+                </View>
+                <Text style={styles.attachmentInlineDropdownText}>Video</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.attachmentInlineDropdownItem}
+                onPress={() => { void pickFile(); }}
+              >
+                <View style={styles.attachmentInlineDropdownIconBox}>
+                  <MaterialCommunityIcons name="file-document-outline" size={18} color={colors.primary} />
+                </View>
+                <Text style={styles.attachmentInlineDropdownText}>File</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {selectedPreviewAttachment && selectedPreviewAttachment.type === 'image' && (
+            <View style={styles.attachmentPreviewCard}>
+              <Text style={styles.attachmentPreviewTitle}>Preview</Text>
+              <Image
+                source={{ uri: selectedPreviewAttachment.uri }}
+                style={styles.attachmentPreviewImage}
+                resizeMode="cover"
+              />
+              <Text style={styles.attachmentPreviewFileName} numberOfLines={1}>
+                {selectedPreviewAttachment.name}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.attachmentListBox}>
+            {attachments.length === 0 ? (
+              <Text style={styles.noAttachmentsText}>No attachments</Text>
+            ) : (
+              <View style={styles.attachmentList}>
+                {attachments.map((item) => {
+                  const isAudio = item.type === 'audio';
+                  const isPreviewed = previewAttachmentId === item.id;
+                  const isActiveAudio = isAudio && activeAudioAttachmentId === item.id;
+                  const totalSeconds = isAudio
+                    ? Math.max(
+                      (item.durationMillis ?? 0) / 1000,
+                      isActiveAudio ? previewPlayerStatus.duration : 0,
+                    )
+                    : 0;
+                  const currentSeconds = isActiveAudio ? previewPlayerStatus.currentTime : 0;
+                  const currentMillis = Math.max(0, Math.floor(currentSeconds * 1000));
+                  const totalMillis = Math.max(0, Math.floor(totalSeconds * 1000));
+                  const progress = totalSeconds > 0 ? Math.min(currentSeconds / totalSeconds, 1) : 0;
+                  const activeBarCount = Math.round(progress * WAVEFORM_BARS.length);
+                  const statusLabel = item.status === 'uploaded'
+                    ? 'Uploaded'
+                    : item.status === 'failed'
+                      ? 'Failed'
+                      : 'Uploading';
+
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.attachmentChip, isPreviewed && styles.attachmentChipActive]}
+                      onPress={() => handleAttachmentPress(item)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.attachmentChipHeader}>
+                        <View style={styles.attachmentChipMeta}>
+                          <MaterialCommunityIcons
+                            name={getAttachmentIcon(item.type)}
+                            size={16}
+                            color={colors.primary}
+                          />
+                          <Text style={styles.attachmentChipText} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                        </View>
+                        <View style={styles.attachmentChipRight}>
+                          <Text
+                            style={[
+                              styles.attachmentStatusText,
+                              item.status === 'failed'
+                                ? styles.attachmentStatusFailed
+                                : item.status === 'uploaded'
+                                  ? styles.attachmentStatusUploaded
+                                  : styles.attachmentStatusUploading,
+                            ]}
+                          >
+                            {statusLabel}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.removeAttachmentBtn}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              removeAttachment(item.id);
+                            }}
+                          >
+                            <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {item.status === 'failed' && item.error ? (
+                        <Text style={styles.attachmentErrorText} numberOfLines={2}>
+                          {item.error}
+                        </Text>
+                      ) : null}
+
+                      {isAudio && (
+                        <View style={styles.audioPreviewRow}>
+                          <TouchableOpacity
+                            style={styles.audioPlayBtn}
+                            onPress={() => handleAttachmentPress(item)}
+                          >
+                            <MaterialCommunityIcons
+                              name={isActiveAudio && previewPlayerStatus.playing ? 'pause' : 'play'}
+                              size={18}
+                              color={colors.primary}
+                            />
+                          </TouchableOpacity>
+                          <View style={styles.waveformRow}>
+                            {WAVEFORM_BARS.map((barHeight, index) => (
+                              <View
+                                key={`${item.id}-wave-${index}`}
+                                style={[
+                                  styles.waveformBar,
+                                  {
+                                    height: barHeight,
+                                    backgroundColor: index < activeBarCount ? colors.primary : colors.border,
+                                  },
+                                ]}
+                              />
+                            ))}
+                          </View>
+                          <Text style={styles.audioDurationText}>
+                            {`${formatDuration(currentMillis)} / ${formatDuration(totalMillis)}`}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </View>
 
         <Label text="Category" required />
         {isLoadingTaskCategories ? (
@@ -295,13 +958,29 @@ export function CreateTaskContent({
           </Text>
         </TouchableOpacity>
 
+        {hasPendingAttachmentUploads && (
+          <Text style={styles.pendingUploadHint}>Uploading attachments in background...</Text>
+        )}
+
         <TouchableOpacity
           style={[
             styles.submitBtn,
-            (createTask.isPending || isLoadingTaskCategories || !hasTaskCategories || !hasAssignees) && styles.submitBtnDisabled,
+            (
+              createTask.isPending
+              || isLoadingTaskCategories
+              || !hasTaskCategories
+              || !hasAssignees
+              || hasPendingAttachmentUploads
+            ) && styles.submitBtnDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={createTask.isPending || isLoadingTaskCategories || !hasTaskCategories || !hasAssignees}
+          disabled={
+            createTask.isPending
+            || isLoadingTaskCategories
+            || !hasTaskCategories
+            || !hasAssignees
+            || hasPendingAttachmentUploads
+          }
         >
           {createTask.isPending ? (
             <ActivityIndicator color={colors.textInverse} />
@@ -333,6 +1012,7 @@ export function CreateTaskContent({
         }}
         onClose={() => setShowAssigneePicker(false)}
       />
+
     </View>
   );
 }
@@ -350,6 +1030,7 @@ export default function CreateTaskScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   rootFill: { flex: 1 },
   rootAuto: {},
+  formScroll: { flex: 1 },
   scroll: { paddingHorizontal: spacing.md, gap: spacing.sm },
 
   label: {
@@ -375,6 +1056,222 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
     paddingTop: 13,
+  },
+  attachmentSection: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    backgroundColor: colors.surface,
+    gap: spacing.sm,
+    position: 'relative',
+    overflow: 'visible',
+  },
+  attachmentHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  attachmentTitle: {
+    color: colors.text,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    letterSpacing: 0.4,
+  },
+  attachmentHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  attachmentHeaderIconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  attachmentHeaderIconButtonActive: {
+    borderColor: colors.error,
+    backgroundColor: colors.errorLight,
+  },
+  recordingTimerText: {
+    color: colors.error,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    minWidth: 48,
+    textAlign: 'right',
+  },
+  attachmentInlineDropdown: {
+    position: 'absolute',
+    right: spacing.sm,
+    top: 46,
+    width: 170,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    gap: spacing.xs,
+    zIndex: 20,
+    elevation: 6,
+  },
+  attachmentInlineDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+  },
+  attachmentInlineDropdownIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  attachmentInlineDropdownText: {
+    color: colors.text,
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+  },
+  attachmentListBox: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    minHeight: 92,
+    justifyContent: 'center',
+    padding: spacing.sm,
+    backgroundColor: colors.background,
+  },
+  noAttachmentsText: {
+    color: colors.textDisabled,
+    fontSize: typography.sm,
+    textAlign: 'center',
+  },
+  attachmentList: {
+    gap: spacing.sm,
+  },
+  attachmentChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  attachmentChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryTint,
+  },
+  attachmentChipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  attachmentChipMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
+  },
+  attachmentChipText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: typography.sm,
+  },
+  attachmentChipRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  attachmentStatusText: {
+    fontSize: typography.xs,
+    fontWeight: typography.medium,
+  },
+  attachmentStatusUploading: {
+    color: colors.textSecondary,
+  },
+  attachmentStatusUploaded: {
+    color: colors.success,
+  },
+  attachmentStatusFailed: {
+    color: colors.error,
+  },
+  attachmentErrorText: {
+    marginTop: spacing.xs,
+    color: colors.error,
+    fontSize: typography.xs,
+  },
+  removeAttachmentBtn: {
+    padding: 2,
+  },
+  audioPreviewRow: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  audioPlayBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryTintStrong,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  waveformRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    height: 20,
+  },
+  waveformBar: {
+    width: 3,
+    borderRadius: radius.full,
+  },
+  audioDurationText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    minWidth: 76,
+    textAlign: 'right',
+  },
+  attachmentPreviewCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  attachmentPreviewTitle: {
+    color: colors.textSecondary,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  attachmentPreviewImage: {
+    width: '100%',
+    height: 160,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceElevated,
+  },
+  attachmentPreviewFileName: {
+    color: colors.text,
+    fontSize: typography.sm,
   },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
@@ -412,6 +1309,11 @@ const styles = StyleSheet.create({
   },
   retryBtnDisabled: { opacity: 0.7 },
   retryBtnText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
+  pendingUploadHint: {
+    marginTop: spacing.sm,
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+  },
 
   submitBtn: {
     backgroundColor: colors.primary,

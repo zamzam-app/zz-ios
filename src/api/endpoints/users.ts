@@ -4,7 +4,7 @@ import { mapListSafely } from './mapListSafely';
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   userName?: string;
   phoneNumber?: string;
   role: string;
@@ -15,7 +15,6 @@ export interface User {
 export interface CreateManagerPayload {
   name: string;
   userName: string;
-  email: string;
   role: 'manager';
   phoneNumber?: string;
   password: string;
@@ -24,7 +23,6 @@ export interface CreateManagerPayload {
 export interface UpdateManagerPayload {
   name?: string;
   userName?: string;
-  email?: string;
   phoneNumber?: string;
   isActive?: boolean;
 }
@@ -50,7 +48,7 @@ function mapUser(raw: RawUser): User {
   return {
     id: String(raw._id ?? raw.id ?? ''),
     name: raw.name ?? '',
-    email: raw.email ?? '',
+    email: raw.email || undefined,
     userName: raw.userName,
     phoneNumber: raw.phoneNumber,
     role: raw.role ?? '',

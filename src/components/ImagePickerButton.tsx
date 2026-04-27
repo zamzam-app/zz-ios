@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,20 @@ import {
   StyleSheet,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadToCloudinary } from '../api/endpoints/upload';
-import { colors, spacing, radius, typography } from '../theme/theme';
+import {
+  cancelUploadJob,
+  enqueueCloudinaryUpload,
+  removeUploadJob,
+  waitForUploadJob,
+} from '../api/endpoints/uploadQueue';
+import { colors, radius, typography } from '../theme/theme';
 
 interface Props {
   imageUrl?: string;
   folder?: string;
   onUpload: (url: string) => void;
   onRemove: () => void;
+  onUploadStateChange?: (uploading: boolean) => void;
   size?: number;
 }
 
@@ -25,9 +31,47 @@ export default function ImagePickerButton({
   folder = 'zam-zam',
   onUpload,
   onRemove,
+  onUploadStateChange,
   size = 100,
 }: Props) {
   const [uploading, setUploading] = useState(false);
+  const [localPreviewUri, setLocalPreviewUri] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+
+  const displayUri = imageUrl ?? localPreviewUri ?? undefined;
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const setUploadingState = (value: boolean) => {
+    if (!isMountedRef.current) return;
+    setUploading(value);
+    onUploadStateChange?.(value);
+  };
+
+  const startBackgroundUpload = async (uri: string) => {
+    setUploadingState(true);
+    setLocalPreviewUri(uri);
+    try {
+      const job = await enqueueCloudinaryUpload(uri, folder);
+      if (isMountedRef.current) setActiveJobId(job.id);
+      const url = await waitForUploadJob(job.id);
+      if (!isMountedRef.current) return;
+      onUpload(url);
+      setLocalPreviewUri(null);
+      void removeUploadJob(job.id);
+    } catch {
+      if (!isMountedRef.current) return;
+      Alert.alert('Upload failed', 'Could not upload image. Please try again.');
+    } finally {
+      if (isMountedRef.current) setActiveJobId(null);
+      setUploadingState(false);
+    }
+  };
 
   const pick = async (source: 'library' | 'camera') => {
     let result: ImagePicker.ImagePickerResult;
@@ -39,7 +83,7 @@ export default function ImagePickerButton({
         return;
       }
       result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         quality: 0.8,
       });
     } else {
@@ -49,23 +93,24 @@ export default function ImagePickerButton({
         return;
       }
       result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         quality: 0.8,
       });
     }
 
     if (result.canceled || !result.assets?.[0]?.uri) return;
+    void startBackgroundUpload(result.assets[0].uri);
+  };
 
-    const uri = result.assets[0].uri;
-    setUploading(true);
-    try {
-      const url = await uploadToCloudinary(uri, folder);
-      onUpload(url);
-    } catch {
-      Alert.alert('Upload failed', 'Could not upload image. Please try again.');
-    } finally {
-      setUploading(false);
+  const handleRemove = () => {
+    if (activeJobId) {
+      void cancelUploadJob(activeJobId);
+      void removeUploadJob(activeJobId);
+      setActiveJobId(null);
     }
+    setLocalPreviewUri(null);
+    setUploadingState(false);
+    onRemove();
   };
 
   const handlePress = () => {
@@ -73,8 +118,8 @@ export default function ImagePickerButton({
       { text: 'Take Photo', onPress: () => pick('camera') },
       { text: 'Choose from Library', onPress: () => pick('library') },
     ];
-    if (imageUrl) {
-      options.push({ text: 'Remove', style: 'destructive', onPress: onRemove });
+    if (displayUri) {
+      options.push({ text: 'Remove', style: 'destructive', onPress: handleRemove });
     }
     options.push({ text: 'Cancel', style: 'cancel' });
     Alert.alert('Image', 'Choose an option', options);
@@ -87,17 +132,22 @@ export default function ImagePickerButton({
       disabled={uploading}
       activeOpacity={0.8}
     >
-      {uploading ? (
-        <ActivityIndicator color={colors.primary} />
-      ) : imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={[StyleSheet.absoluteFill, { borderRadius: size / 8 }]} resizeMode="cover" />
+      {displayUri ? (
+        <>
+          <Image source={{ uri: displayUri }} style={[StyleSheet.absoluteFill, { borderRadius: size / 8 }]} resizeMode="cover" />
+          {uploading && (
+            <View style={styles.uploadOverlay}>
+              <ActivityIndicator color="#fff" />
+            </View>
+          )}
+        </>
       ) : (
         <View style={styles.placeholder}>
           <Text style={styles.icon}>📷</Text>
           <Text style={styles.label}>Add Photo</Text>
         </View>
       )}
-      {imageUrl && !uploading && (
+      {displayUri && !uploading && (
         <View style={styles.editBadge}>
           <Text style={styles.editBadgeText}>Edit</Text>
         </View>
@@ -129,4 +179,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   editBadgeText: { color: '#fff', fontSize: typography.xs, fontWeight: typography.medium },
+  uploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
