@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useReview, useResolveComplaint } from '../../hooks/useReviews';
 import { useForm } from '../../hooks/useForms';
+import { useUsers } from '../../hooks/useUsers';
 import { useAuthStore } from '../../store/authStore';
 import { Review, UserResponse } from '../../api/endpoints/reviews';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
@@ -138,6 +139,7 @@ export default function ReviewDetailScreen({ route }: Props) {
   const { reviewId } = route.params;
   const { data: review, isLoading } = useReview(reviewId);
   const { data: form } = useForm(review?.formId ?? '');
+  const { data: users } = useUsers();
   const resolveComplaint = useResolveComplaint();
   const user = useAuthStore((s) => s.user);
   const [resolutionNotes, setResolutionNotes] = useState('');
@@ -149,6 +151,11 @@ export default function ReviewDetailScreen({ route }: Props) {
 
   const handleResolve = (status: ResolvableComplaintStatus) => {
     if (!review || !user) return;
+    const resolvedBy = user.id || (user as unknown as { _id?: string })._id;
+    if (!resolvedBy) {
+      Alert.alert('Unable to resolve complaint', 'Could not determine resolver identity. Please sign in again.');
+      return;
+    }
 
     const confirmationTitle = status === 'resolved' ? 'Mark as Resolved' : 'Dismiss Complaint';
 
@@ -163,14 +170,17 @@ export default function ReviewDetailScreen({ route }: Props) {
             setPendingAction(status);
             resolveComplaint.mutate(
               {
-                reviewId: review.id,
+                reviewId,
                 payload: {
                   complaintStatus: status,
-                  resolvedBy: user.id,
+                  resolvedBy,
                   resolutionNotes: resolutionNotes.trim() || undefined,
                 },
               },
               {
+                onError: () => {
+                  Alert.alert('Update failed', 'Could not update complaint status. Please try again.');
+                },
                 onSettled: () => {
                   setPendingAction(null);
                 },
@@ -211,6 +221,15 @@ export default function ReviewDetailScreen({ route }: Props) {
     }
     return map;
   }, [form?.questions]);
+  const userNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const current of users ?? []) {
+      if (!current.id) continue;
+      if (!current.name) continue;
+      map.set(current.id, current.name);
+    }
+    return map;
+  }, [users]);
 
   const detailRows: Array<{ label: string; value: string }> = [
     { label: 'Customer', value: review.customerName },
@@ -233,7 +252,12 @@ export default function ReviewDetailScreen({ route }: Props) {
   }
 
   if (review.resolvedBy) {
-    resolutionRows.push({ label: 'Resolved By', value: review.resolvedBy });
+    const resolvedByName =
+      review.resolvedByName
+      || (user && review.resolvedBy === user.id ? user.name : undefined)
+      || userNameById.get(review.resolvedBy)
+      || 'Unknown User';
+    resolutionRows.push({ label: 'Resolved By', value: resolvedByName });
   }
 
   return (
