@@ -41,6 +41,76 @@ const PRIORITY_COLORS: Record<string, string> = {
   LOW:    colors.priorityLow,
 };
 
+const PRIORITY_SORT_ORDER: Record<TaskPriority, number> = {
+  HIGH: 0,
+  MEDIUM: 1,
+  LOW: 2,
+};
+
+function toTimestamp(iso?: string | null) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getTime();
+}
+
+function dueDateSortValue(iso?: string | null) {
+  return toTimestamp(iso) ?? Number.MAX_SAFE_INTEGER;
+}
+
+function compareDueDateAsc(a: Task, b: Task) {
+  return dueDateSortValue(a.dueDate) - dueDateSortValue(b.dueDate);
+}
+
+function compareCreatedAtDesc(a: Task, b: Task) {
+  const createdA = toTimestamp(a.createdAt) ?? 0;
+  const createdB = toTimestamp(b.createdAt) ?? 0;
+  return createdB - createdA;
+}
+
+function getOpenTaskGroup(task: Task, now: Date) {
+  if (task.priority === 'HIGH') return 0;
+  if (isSameCalendarDay(task.dueDate, now)) return 1;
+  return 2;
+}
+
+function compareOpenTaskOrder(a: Task, b: Task, now: Date) {
+  const groupA = getOpenTaskGroup(a, now);
+  const groupB = getOpenTaskGroup(b, now);
+  const groupDiff = groupA - groupB;
+  if (groupDiff !== 0) return groupDiff;
+
+  if (groupA === 1) {
+    const priorityDiff = (PRIORITY_SORT_ORDER[a.priority] ?? 99) - (PRIORITY_SORT_ORDER[b.priority] ?? 99);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    const dueDiff = compareDueDateAsc(a, b);
+    if (dueDiff !== 0) return dueDiff;
+
+    return compareCreatedAtDesc(a, b);
+  }
+
+  const dueDiff = compareDueDateAsc(a, b);
+  if (dueDiff !== 0) return dueDiff;
+
+  return compareCreatedAtDesc(a, b);
+}
+
+function completedTaskSortValue(task: Task) {
+  return toTimestamp(task.completedAt ?? task.updatedAt ?? task.createdAt) ?? 0;
+}
+
+function compareCompletedTaskOrder(a: Task, b: Task) {
+  const completedDiff = completedTaskSortValue(b) - completedTaskSortValue(a);
+  if (completedDiff !== 0) return completedDiff;
+
+  return compareCreatedAtDesc(a, b);
+}
+
+function isTaskCompleted(task: Task) {
+  return task.status.trim().toUpperCase() === 'COMPLETED';
+}
+
 function formatDate(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'No due date';
@@ -76,7 +146,7 @@ function isSameCalendarDay(iso: string, now = new Date()) {
 }
 
 function OpenTaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
-  const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
+  const isOverdue = !isTaskCompleted(task) && new Date(task.dueDate) < new Date();
   const outletName    = getTaskOutletName(task);
   const categoryName  = getTaskCategoryName(task);
   const assigneeNames = getTaskAssigneeNames(task);
@@ -194,16 +264,27 @@ export default function TasksScreen() {
     if (metricFilter === 'all') return searchAndPriorityFilteredTasks;
 
     return searchAndPriorityFilteredTasks.filter((task) => {
-      if (metricFilter === 'open') return task.status !== 'COMPLETED';
-      if (metricFilter === 'resolved') return task.status === 'COMPLETED';
-      if (metricFilter === 'critical') return task.status !== 'COMPLETED' && task.priority === 'HIGH';
-      if (metricFilter === 'due_today') return task.status !== 'COMPLETED' && isSameCalendarDay(task.dueDate);
+      if (metricFilter === 'open') return !isTaskCompleted(task);
+      if (metricFilter === 'resolved') return isTaskCompleted(task);
+      if (metricFilter === 'critical') return !isTaskCompleted(task) && task.priority === 'HIGH';
+      if (metricFilter === 'due_today') return !isTaskCompleted(task) && isSameCalendarDay(task.dueDate);
       return true;
     });
   }, [searchAndPriorityFilteredTasks, metricFilter]);
 
-  const openTasks = filteredTasks.filter((task) => task.status !== 'COMPLETED');
-  const completedTasks = filteredTasks.filter((task) => task.status === 'COMPLETED');
+  const openTasks = useMemo(() => {
+    const now = new Date();
+    return filteredTasks
+      .filter((task) => !isTaskCompleted(task))
+      .sort((a, b) => compareOpenTaskOrder(a, b, now));
+  }, [filteredTasks]);
+
+  const completedTasks = useMemo(
+    () => filteredTasks
+      .filter(isTaskCompleted)
+      .sort(compareCompletedTaskOrder),
+    [filteredTasks],
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
