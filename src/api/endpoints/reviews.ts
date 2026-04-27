@@ -13,6 +13,7 @@ export interface Review {
   customerName: string;
   outletId: string;
   outletName: string;
+  formId?: string;
   overallRating: number;
   userResponses: UserResponse[];
   isComplaint: boolean;
@@ -39,6 +40,7 @@ export interface ResolveComplaintPayload {
 interface RawReview {
   _id?: string;
   id?: string;
+  formId?: string | { _id?: string; id?: string };
   userId?: string | { _id?: string; name?: string };
   outletId?: string | { _id?: string; name?: string };
   overallRating?: number;
@@ -54,6 +56,13 @@ interface RawReview {
 
 function mapReview(raw: RawReview): Review {
   const id = String(raw._id ?? raw.id ?? '');
+  const formId = typeof raw.formId === 'string'
+    ? raw.formId
+    : raw.formId?._id
+      ? String(raw.formId._id)
+      : raw.formId?.id
+        ? String(raw.formId.id)
+        : undefined;
 
   let customerName = 'Customer';
   if (typeof raw.userId === 'object' && raw.userId?.name) customerName = raw.userId.name;
@@ -72,6 +81,7 @@ function mapReview(raw: RawReview): Review {
     customerName,
     outletId,
     outletName,
+    formId,
     overallRating: raw.overallRating ?? 0,
     userResponses: raw.userResponses ?? [],
     isComplaint: raw.isComplaint ?? false,
