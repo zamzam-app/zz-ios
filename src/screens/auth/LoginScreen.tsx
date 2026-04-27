@@ -49,17 +49,6 @@ export default function LoginScreen() {
         <Text style={styles.subheading}>Sign in to your account</Text>
 
         <View style={styles.form}>
-          <View style={styles.modeRow}>
-            <Text style={styles.modeLabel}>Admin Login</Text>
-            <Switch
-              value={isAdminLogin}
-              onValueChange={setIsAdminLogin}
-              trackColor={{ false: '#D6D3D1', true: colors.primaryLight }}
-              thumbColor={colors.surface}
-              ios_backgroundColor="#D6D3D1"
-            />
-          </View>
-
           <Text style={styles.label}>{isAdminLogin ? 'Email' : 'Username'}</Text>
           <TextInput
             style={[styles.input, isAdminLogin && styles.inputDisabled]}
@@ -85,6 +74,17 @@ export default function LoginScreen() {
             returnKeyType="done"
             onSubmitEditing={handleLogin}
           />
+
+          <View style={styles.modeRow}>
+            <Text style={styles.modeLabel}>Admin Login</Text>
+            <Switch
+              value={isAdminLogin}
+              onValueChange={setIsAdminLogin}
+              trackColor={{ false: '#D6D3D1', true: colors.primaryLight }}
+              thumbColor={colors.surface}
+              ios_backgroundColor="#D6D3D1"
+            />
+          </View>
 
           <TouchableOpacity
             style={[styles.button, submitting && styles.buttonDisabled]}
@@ -139,8 +139,9 @@ const styles = StyleSheet.create({
   modeRow: {
     marginBottom: 2,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   modeLabel: {
     fontSize: typography.sm,
