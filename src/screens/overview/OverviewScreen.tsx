@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,8 @@ import {
   useCsatTrendline,
   useIncidentsOverview,
   useOutletFeedbackSummary,
+  useTasksOverview,
 } from '../../hooks/useAnalytics';
-import { useTasks } from '../../hooks/useTasks';
 import { Period } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { AppTabParamList } from '../../navigation/AppNavigator';
@@ -41,16 +41,6 @@ type SummaryMetricItem = {
   color: string;
   onPress?: () => void;
 };
-
-function isSameCalendarDay(iso: string, now = new Date()) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return false;
-  return (
-    date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate()
-  );
-}
 
 function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Period) => void }) {
   return (
@@ -254,7 +244,7 @@ export default function OverviewScreen() {
   const trendline = useCsatTrendline(period);
   const incidents = useIncidentsOverview(period);
   const feedback = useOutletFeedbackSummary(period);
-  const tasks = useTasks({ limit: 100 });
+  const tasksOverview = useTasksOverview();
 
   const isLoading = insights.isLoading || csat.isLoading;
   const isRefreshing = insights.isFetching
@@ -262,7 +252,7 @@ export default function OverviewScreen() {
     || trendline.isFetching
     || incidents.isFetching
     || feedback.isFetching
-    || tasks.isFetching;
+    || tasksOverview.isFetching;
 
   const refetchAll = () => {
     void insights.refetch();
@@ -270,7 +260,7 @@ export default function OverviewScreen() {
     void trendline.refetch();
     void incidents.refetch();
     void feedback.refetch();
-    void tasks.refetch();
+    void tasksOverview.refetch();
   };
 
   const csatScore = csat.data?.globalCsatScore;
@@ -298,23 +288,10 @@ export default function OverviewScreen() {
   const totalSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.totalFeedbacks - a.totalFeedbacks);
   const resolvedSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.resolvedFeedbacks - a.resolvedFeedbacks);
 
-  const allTasks = tasks.data ?? [];
-  const taskOpenCount = useMemo(
-    () => allTasks.filter((task) => task.status !== 'COMPLETED').length,
-    [allTasks],
-  );
-  const taskCriticalCount = useMemo(
-    () => allTasks.filter((task) => task.status !== 'COMPLETED' && task.priority === 'HIGH').length,
-    [allTasks],
-  );
-  const taskCompletedCount = useMemo(
-    () => allTasks.filter((task) => task.status === 'COMPLETED').length,
-    [allTasks],
-  );
-  const dueTodayCount = useMemo(
-    () => allTasks.filter((task) => task.status !== 'COMPLETED' && isSameCalendarDay(task.dueDate)).length,
-    [allTasks],
-  );
+  const taskOpenCount = tasksOverview.data?.totalOpenTasks;
+  const taskCriticalCount = tasksOverview.data?.criticalOpenTasks;
+  const taskCompletedCount = tasksOverview.data?.completedTasks;
+  const dueTodayCount = tasksOverview.data?.dueTodayTasks;
 
   const navigateToTasksWithFilter = (metric: TaskMetricFilter, source: TaskFilterSource) => {
     navigation.navigate('Tasks', {
@@ -354,14 +331,14 @@ export default function OverviewScreen() {
     {
       key: 'open',
       label: 'Open',
-      value: taskOpenCount,
+      value: taskOpenCount ?? '--',
       color: colors.warning,
       onPress: () => navigateToTasksWithFilter('open', 'overview_tasks_metric'),
     },
     {
       key: 'resolved',
       label: 'Completed',
-      value: taskCompletedCount,
+      value: taskCompletedCount ?? '--',
       color: colors.success,
       onPress: () => navigateToTasksWithFilter('resolved', 'overview_tasks_metric'),
     },
@@ -370,10 +347,10 @@ export default function OverviewScreen() {
   const mainTitle = topTab === 'reviews' ? 'Overall CSAT Score' : 'Due today';
   const mainValue = topTab === 'reviews'
     ? (typeof csatScore === 'number' ? `${csatScore.toFixed(1)}/5` : '--')
-    : String(dueTodayCount);
+    : (typeof dueTodayCount === 'number' ? String(dueTodayCount) : '--');
   const mainSub = topTab === 'reviews'
     ? `${totalRatings} ratings this period`
-    : `${taskCriticalCount} critical tasks`; // critical hidden in metric stack for Tasks tab
+    : `${taskCriticalCount ?? '--'} critical tasks`; // critical hidden in metric stack for Tasks tab
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>

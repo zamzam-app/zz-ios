@@ -25,7 +25,10 @@ export const useCreateTask = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateTaskPayload) => tasksApi.create(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-overview'] });
+    },
   });
 };
 
@@ -36,6 +39,7 @@ export const useUpdateTaskStatus = () => {
       tasksApi.updateStatus(id, status),
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-overview'] });
       qc.invalidateQueries({ queryKey: ['task', updated.id] });
     },
   });
@@ -45,6 +49,9 @@ export const useDeleteTask = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => tasksApi.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-overview'] });
+    },
   });
 };

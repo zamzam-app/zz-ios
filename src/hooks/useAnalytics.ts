@@ -44,3 +44,10 @@ export const useFranchiseAnalytics = (period?: Period) =>
     queryFn: () => analyticsApi.getFranchiseAnalytics(period).then((r) => r.data),
     staleTime: ANALYTICS_STALE_TIME_MS,
   });
+
+export const useTasksOverview = () =>
+  useQuery({
+    queryKey: ['tasks-overview'],
+    queryFn: analyticsApi.getTasksOverview,
+    staleTime: ANALYTICS_STALE_TIME_MS,
+  });

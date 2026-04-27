@@ -65,6 +65,14 @@ export interface IncidentsOverviewResponse {
   endDate?: string;
 }
 
+export interface TasksOverviewResponse {
+  totalOpenTasks: number;
+  completedTasks: number;
+  dueTodayTasks: number;
+  criticalOpenTasks: number;
+  snapshotDate: string;
+}
+
 export interface OutletFeedbackItem {
   outletId: string;
   outletName: string;
@@ -126,4 +134,9 @@ export const analyticsApi = {
       '/analytics/franchise',
       period ? { params: { period } } : undefined,
     ),
+
+  getTasksOverview: () =>
+    client
+      .get<TasksOverviewResponse>('/tasks/overview')
+      .then((response) => response.data),
 };
