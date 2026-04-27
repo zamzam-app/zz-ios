@@ -192,25 +192,6 @@ export default function ReviewDetailScreen({ route }: Props) {
     );
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (!review) {
-    return (
-      <View style={styles.center}>
-        <Text style={{ color: colors.textSecondary }}>Review not found</Text>
-      </View>
-    );
-  }
-
-  const complaintTone = getComplaintTone(review);
-  const hasResolution = Boolean(review.complaintStatus && review.complaintStatus !== 'pending');
-  const isMutationPending = resolveComplaint.isPending;
   const questionById = useMemo(() => {
     const map = new Map<string, { title: string; type?: string }>();
     for (const question of form?.questions ?? []) {
@@ -230,6 +211,26 @@ export default function ReviewDetailScreen({ route }: Props) {
     }
     return map;
   }, [users]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!review) {
+    return (
+      <View style={styles.center}>
+        <Text style={{ color: colors.textSecondary }}>Review not found</Text>
+      </View>
+    );
+  }
+
+  const complaintTone = getComplaintTone(review);
+  const hasResolution = Boolean(review.complaintStatus && review.complaintStatus !== 'pending');
+  const isMutationPending = resolveComplaint.isPending;
 
   const detailRows: Array<{ label: string; value: string }> = [
     { label: 'Customer', value: review.customerName },

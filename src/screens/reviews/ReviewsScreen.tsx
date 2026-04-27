@@ -257,6 +257,10 @@ export default function ReviewsScreen() {
     () => filteredReviews.filter((review) => review.isComplaint && review.complaintStatus === 'pending').length,
     [filteredReviews],
   );
+  const hasUnresolvedComplaint = useMemo(
+    () => filteredReviews.some((review) => review.isComplaint && review.complaintStatus !== 'resolved'),
+    [filteredReviews],
+  );
 
   const criticalFeed = useMemo(() => {
     if (!filteredReviews || filteredReviews.length === 0) return [];
@@ -426,60 +430,64 @@ export default function ReviewsScreen() {
           </View>
         </View>
 
-        <View style={styles.feedbackHeaderRow}>
-          <Text style={styles.sectionEyebrow}>Critical Feedback Feed</Text>
-          <View style={styles.urgentBadge}>
-            <Text style={styles.urgentBadgeText}>{pendingCount} URGENT</Text>
-          </View>
-        </View>
+        {hasUnresolvedComplaint && (
+          <>
+            <View style={styles.feedbackHeaderRow}>
+              <Text style={styles.sectionEyebrow}>Critical Feedback Feed</Text>
+              <View style={styles.urgentBadge}>
+                <Text style={styles.urgentBadgeText}>{pendingCount} URGENT</Text>
+              </View>
+            </View>
 
-        <View style={styles.feedbackContainer}>
-          {isReviewsLoading ? (
-            <ActivityIndicator color={colors.primary} style={styles.loading} />
-          ) : criticalFeed.length === 0 ? (
-            <Text style={styles.emptyText}>No reviews available.</Text>
-          ) : (
-            criticalFeed.map((review, index) => {
-              const severity = getSeverity(review.complaintStatus);
-              const tags = getReviewTags(review);
+            <View style={styles.feedbackContainer}>
+              {isReviewsLoading ? (
+                <ActivityIndicator color={colors.primary} style={styles.loading} />
+              ) : criticalFeed.length === 0 ? (
+                <Text style={styles.emptyText}>No reviews available.</Text>
+              ) : (
+                criticalFeed.map((review, index) => {
+                  const severity = getSeverity(review.complaintStatus);
+                  const tags = getReviewTags(review);
 
-              return (
-                <TouchableOpacity
-                  key={review.id}
-                  style={[styles.feedbackItem, index < criticalFeed.length - 1 && styles.feedbackItemBorder]}
-                  activeOpacity={0.85}
-                  onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
-                >
-                  <View style={styles.feedbackTopRow}>
-                    <View style={styles.feedbackCriticalMeta}>
-                      <View style={styles.feedbackStatusRow}>
-                        <View style={[styles.severityBadge, { backgroundColor: severity.bg }]}>
-                          <Text style={[styles.severityBadgeText, { color: severity.text }]}>{severity.label}</Text>
+                  return (
+                    <TouchableOpacity
+                      key={review.id}
+                      style={[styles.feedbackItem, index < criticalFeed.length - 1 && styles.feedbackItemBorder]}
+                      activeOpacity={0.85}
+                      onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
+                    >
+                      <View style={styles.feedbackTopRow}>
+                        <View style={styles.feedbackCriticalMeta}>
+                          <View style={styles.feedbackStatusRow}>
+                            <View style={[styles.severityBadge, { backgroundColor: severity.bg }]}>
+                              <Text style={[styles.severityBadgeText, { color: severity.text }]}>{severity.label}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.feedbackIdentityRow}>
+                            <Text style={styles.feedbackName}>{review.customerName}</Text>
+                            <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
+                      </View>
+
+                      <Text style={styles.feedbackBody}>{getComment(review)}</Text>
+
+                      <View style={styles.feedbackFooterRow}>
+                        <StarRating rating={review.overallRating} size={12} />
+                        <View style={styles.feedbackTagRow}>
+                          {tags.map((tag) => (
+                            <Text key={`${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
+                          ))}
                         </View>
                       </View>
-                      <View style={styles.feedbackIdentityRow}>
-                        <Text style={styles.feedbackName}>{review.customerName}</Text>
-                        <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
-                  </View>
-
-                  <Text style={styles.feedbackBody}>{getComment(review)}</Text>
-
-                  <View style={styles.feedbackFooterRow}>
-                    <StarRating rating={review.overallRating} size={12} />
-                    <View style={styles.feedbackTagRow}>
-                      {tags.map((tag) => (
-                        <Text key={`${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
-                      ))}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
+          </>
+        )}
 
         <View style={styles.feedbackHeaderRow}>
           <Text style={styles.sectionEyebrow}>All Reviews</Text>
