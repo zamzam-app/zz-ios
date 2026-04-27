@@ -108,6 +108,15 @@ function getSeverity(status?: ComplaintStatus) {
   return { label: 'CONCERN', bg: colors.warning, text: colors.textInverse };
 }
 
+function getAllReviewCardBackground(review: Review) {
+  if (!review.isComplaint || !review.complaintStatus) return '#FFFFFF';
+
+  if (review.complaintStatus === 'resolved') return '#ecfdf5';
+  if (review.complaintStatus === 'pending') return '#fefce8';
+  if (review.complaintStatus === 'dismissed') return '#fef2f2';
+  return '#FFFFFF';
+}
+
 function getReviewTags(review: Review) {
   const tags: string[] = [];
 
@@ -490,7 +499,11 @@ export default function ReviewsScreen() {
               return (
                 <TouchableOpacity
                   key={`all-${review.id}`}
-                  style={[styles.feedbackItem, index < allReviews.length - 1 && styles.feedbackItemBorder]}
+                  style={[
+                    styles.feedbackItem,
+                    { backgroundColor: getAllReviewCardBackground(review) },
+                    index < allReviews.length - 1 && styles.feedbackItemBorder,
+                  ]}
                   activeOpacity={0.85}
                   onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
                 >
