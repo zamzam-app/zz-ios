@@ -67,6 +67,24 @@ async function ensureLoaded() {
 
       const parsed = JSON.parse(raw) as UploadQueueJob[];
       jobs = Array.isArray(parsed) ? parsed : [];
+
+      // If the app crashed or was killed mid-upload, recover orphaned in-flight jobs.
+      const recoveredAt = nowIso();
+      let didRecoverInFlightJobs = false;
+      jobs = jobs.map((job) => {
+        if (job.status !== 'uploading') return job;
+        didRecoverInFlightJobs = true;
+        return {
+          ...job,
+          status: 'queued',
+          nextAttemptAt: recoveredAt,
+          updatedAt: recoveredAt,
+        };
+      });
+
+      if (didRecoverInFlightJobs) {
+        await persistQueue();
+      }
     } catch {
       jobs = [];
     } finally {
