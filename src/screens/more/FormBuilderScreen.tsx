@@ -14,8 +14,8 @@ import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 
 // ─── Form Editor Modal ────────────────────────────────────────────────────────
 
-function FormEditorModal({ visible, formId, onClose }: {
-  visible: boolean; formId: string | null; onClose: () => void;
+function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = false }: {
+  visible: boolean; formId: string | null; onClose: () => void; hideDefaultQuestions?: boolean;
 }) {
   const { data: form, isLoading } = useForm(formId ?? '');
   const updateForm = useUpdateForm();
@@ -24,12 +24,37 @@ function FormEditorModal({ visible, formId, onClose }: {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
 
+  const isDefaultPlaceholderQuestion = (question: Question) => {
+    const title = question.title.trim().toLowerCase();
+    const isPlaceholderTitle = title.length === 0
+      || /^question\s*\d+$/i.test(title)
+      || title === 'untitled question';
+    const hasHint = typeof question.hint === 'string' && question.hint.trim().length > 0;
+    const hasFilledOptions = Array.isArray(question.options)
+      && question.options.some((option) => option.text.trim().length > 0);
+    const hasNonDefaultRating = question.type === 'rating' && typeof question.maxRatings === 'number'
+      ? question.maxRatings !== 5
+      : false;
+
+    return isPlaceholderTitle
+      && !question.isRequired
+      && !hasHint
+      && !hasFilledOptions
+      && !hasNonDefaultRating;
+  };
+
   useEffect(() => {
     if (form) {
       setTitle(form.title);
-      setQuestions(form.questions);
+      if (hideDefaultQuestions) {
+        // For brand-new forms, backend may seed default questions.
+        // Start editor with an empty list so user adds their own questions.
+        setQuestions([]);
+      } else {
+        setQuestions(form.questions.filter((question) => !isDefaultPlaceholderQuestion(question)));
+      }
     }
-  }, [form]);
+  }, [form, hideDefaultQuestions]);
 
   const handleSave = () => {
     if (!formId || !title.trim()) return Alert.alert('Required', 'Form title is required.');
@@ -209,11 +234,15 @@ export default function FormBuilderScreen() {
   const createForm = useCreateForm();
   const deleteForm = useDeleteForm();
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
+  const [freshFormId, setFreshFormId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
   const handleCreate = () => {
     createForm.mutate(undefined, {
-      onSuccess: (form) => setEditingFormId(form.id),
+      onSuccess: (form) => {
+        setFreshFormId(form.id);
+        setEditingFormId(form.id);
+      },
       onError: () => Alert.alert('Error', 'Failed to create form.'),
     });
   };
@@ -288,7 +317,13 @@ export default function FormBuilderScreen() {
                     </Text>
                   </View>
                   <View style={styles.cardActions}>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => setEditingFormId(item.id)}>
+                    <TouchableOpacity
+                      style={styles.iconBtn}
+                      onPress={() => {
+                        setFreshFormId(null);
+                        setEditingFormId(item.id);
+                      }}
+                    >
                       <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -313,7 +348,11 @@ export default function FormBuilderScreen() {
       <FormEditorModal
         visible={editingFormId !== null}
         formId={editingFormId}
-        onClose={() => setEditingFormId(null)}
+        hideDefaultQuestions={Boolean(freshFormId && freshFormId === editingFormId)}
+        onClose={() => {
+          setEditingFormId(null);
+          setFreshFormId(null);
+        }}
       />
     </SafeAreaView>
   );
