@@ -93,11 +93,33 @@ export interface CustomCake {
   createdAt: string;
 }
 
+export interface UploadedCakeImage {
+  id: string;
+  name: string;
+  phone: string;
+  description: string;
+  dob?: string;
+  referenceImageUrl: string;
+  createdAt: string;
+}
+
 interface RawCustomCake {
   _id?: string;
   id?: string;
   prompt?: string;
   imageUrl?: string;
+  createdAt?: string;
+}
+
+interface RawUploadedCakeImage {
+  _id?: string;
+  id?: string;
+  name?: string;
+  phone?: string;
+  description?: string;
+  dob?: string | Date;
+  userId?: string | { dob?: string | Date };
+  referenceImageUrl?: string;
   createdAt?: string;
 }
 
@@ -110,6 +132,20 @@ function mapCustomCake(raw: RawCustomCake): CustomCake {
   };
 }
 
+function mapUploadedCakeImage(raw: RawUploadedCakeImage): UploadedCakeImage {
+  const userDob = typeof raw.userId === 'object' && raw.userId ? raw.userId.dob : undefined;
+  const dobValue = raw.dob ?? userDob;
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    name: raw.name ?? '',
+    phone: raw.phone ?? '',
+    description: raw.description ?? '',
+    dob: dobValue ? new Date(dobValue).toISOString() : undefined,
+    referenceImageUrl: raw.referenceImageUrl ?? '',
+    createdAt: raw.createdAt ?? '',
+  };
+}
+
 export const cakeApi = {
   listCustomCakes: () =>
     client
@@ -117,5 +153,13 @@ export const cakeApi = {
       .then((r) => {
         const raw = Array.isArray(r.data) ? r.data : (((r.data as any).data ?? []) as RawCustomCake[]);
         return mapListSafely(raw, 'custom-cakes', mapCustomCake);
+      }),
+
+  listUploadedCakes: () =>
+    client
+      .get<{ data: RawUploadedCakeImage[] } | RawUploadedCakeImage[]>('/uploaded-cakes', { params: { limit: 100 } })
+      .then((r) => {
+        const raw = Array.isArray(r.data) ? r.data : (((r.data as any).data ?? []) as RawUploadedCakeImage[]);
+        return mapListSafely(raw, 'uploaded-cakes', mapUploadedCakeImage);
       }),
 };

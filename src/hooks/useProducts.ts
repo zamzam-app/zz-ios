@@ -9,6 +9,13 @@ export const useCustomCakes = () =>
     staleTime: 5 * 60 * 1000,
   });
 
+export const useUploadedCakes = () =>
+  useQuery({
+    queryKey: ['uploaded-cakes'],
+    queryFn: cakeApi.listUploadedCakes,
+    staleTime: 5 * 60 * 1000,
+  });
+
 export const useProducts = (categoryId?: string) =>
   useQuery({
     queryKey: ['products', categoryId],

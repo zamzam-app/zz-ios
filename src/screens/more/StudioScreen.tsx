@@ -29,6 +29,7 @@ import {
   useUpdateCategory,
   useDeleteCategory,
   useCustomCakes,
+  useUploadedCakes,
 } from '../../hooks/useProducts';
 import { Product, Category } from '../../api/endpoints/products';
 import ImagePickerButton from '../../components/ImagePickerButton';
@@ -36,7 +37,7 @@ import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 
 type StudioNav = NativeStackNavigationProp<MoreStackParamList, 'Studio'>;
-type StudioTab = 'catalogue' | 'ai';
+type StudioTab = 'catalogue' | 'ai' | 'uploads';
 
 function CategoryModal({ visible, initial, onClose, onSubmit, submitting }: {
   visible: boolean;
@@ -239,6 +240,60 @@ function AIStudioTab() {
   );
 }
 
+function UploadedImagesTab({ onOpenPreview }: { onOpenPreview: (url: string) => void }) {
+  const { data: uploadedImages, isLoading } = useUploadedCakes();
+
+  return (
+    <View style={styles.uploadsTabRoot}>
+      <ScrollView contentContainerStyle={aiStyles.container} keyboardShouldPersistTaps="handled">
+        <Text style={aiStyles.sectionTitle}>User Uploaded Images</Text>
+        {isLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
+        ) : !uploadedImages?.length ? (
+          <Text style={aiStyles.empty}>No uploaded images yet</Text>
+        ) : (
+          <View style={styles.uploadGrid}>
+            {uploadedImages.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.uploadCard}
+                activeOpacity={0.85}
+                onPress={() => onOpenPreview(item.referenceImageUrl)}
+              >
+                <Image source={{ uri: item.referenceImageUrl }} style={styles.uploadImage} resizeMode="cover" />
+                <View style={styles.uploadMeta}>
+                  <Text style={styles.uploadName} numberOfLines={1}>{item.name || 'Unknown User'}</Text>
+                  <Text style={styles.uploadDate} numberOfLines={1}>
+                    {item.createdAt
+                      ? new Date(item.createdAt).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                      : 'Unknown date'}
+                  </Text>
+                  {item.description ? (
+                    <Text style={styles.uploadDescription} numberOfLines={2}>{item.description}</Text>
+                  ) : null}
+                  {item.dob ? (
+                    <Text style={styles.uploadDob} numberOfLines={1}>
+                      DOB: {new Date(item.dob).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </Text>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
 function CakeRow({
   item,
   categoryNames,
@@ -311,6 +366,7 @@ function CakeRow({
 export default function StudioScreen() {
   const navigation = useNavigation<StudioNav>();
   const [activeTab, setActiveTab] = useState<StudioTab>('catalogue');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const { data: products, isLoading: productsLoading, isFetching: productsFetching, refetch: refetchProducts } = useProducts();
   const { data: categories, isLoading: categoriesLoading, isFetching: categoriesFetching, refetch: refetchCategories } = useCategories();
@@ -479,10 +535,19 @@ export default function StudioScreen() {
             <Ionicons name="sparkles-outline" size={16} color={activeTab === 'ai' ? colors.primary : colors.textSecondary} />
             <Text style={[styles.tabText, activeTab === 'ai' && styles.tabTextActive]}>AI Studio</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'uploads' && styles.tabActive]}
+            onPress={() => setActiveTab('uploads')}
+          >
+            <Ionicons name="images-outline" size={16} color={activeTab === 'uploads' ? colors.primary : colors.textSecondary} />
+            <Text style={[styles.tabText, activeTab === 'uploads' && styles.tabTextActive]}>Uploads</Text>
+          </TouchableOpacity>
         </View>
 
         {activeTab === 'ai' ? (
           <AIStudioTab />
+        ) : activeTab === 'uploads' ? (
+          <UploadedImagesTab onOpenPreview={setPreviewUrl} />
         ) : (
           productsLoading ? (
             <ActivityIndicator color={colors.primary} style={styles.loader} />
@@ -600,6 +665,19 @@ export default function StudioScreen() {
           )}
         </SafeAreaView>
       </Modal>
+
+      {previewUrl ? (
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.uploadPreviewOverlay}
+          onPress={() => setPreviewUrl(null)}
+        >
+          <Image source={{ uri: previewUrl }} style={styles.uploadPreviewImageFull} resizeMode="contain" />
+          <TouchableOpacity style={styles.uploadPreviewCloseBtn} onPress={() => setPreviewUrl(null)}>
+            <Ionicons name="close" size={20} color={colors.textInverse} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -608,6 +686,74 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.screenBackground,
+  },
+  uploadsTabRoot: {
+    flex: 1,
+  },
+  uploadGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  uploadPreviewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    backgroundColor: '#000000E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadPreviewImageFull: {
+    width: '100%',
+    height: '100%',
+  },
+  uploadPreviewCloseBtn: {
+    position: 'absolute',
+    top: spacing.lg,
+    right: spacing.md,
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00000080',
+  },
+  uploadCard: {
+    width: '48.5%',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  uploadImage: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: colors.surfaceElevated,
+  },
+  uploadMeta: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  uploadName: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
+  uploadDate: {
+    marginTop: 2,
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  uploadDescription: {
+    marginTop: 4,
+    fontSize: typography.xs,
+    color: colors.text,
+  },
+  uploadDob: {
+    marginTop: 3,
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
   },
   page: {
     flex: 1,
