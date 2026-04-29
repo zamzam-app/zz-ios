@@ -52,6 +52,21 @@ export interface TasksQuery {
   priority?: TaskPriority;
   assigneeId?: string;
   search?: string;
+  dueFrom?: string;
+  dueTo?: string;
+}
+
+export interface TasksListMeta {
+  total: number;
+  currentPage: number;
+  hasPrevPage: boolean;
+  hasNextPage: boolean;
+  limit: number;
+}
+
+export interface TasksListResponse {
+  data: Task[];
+  meta: TasksListMeta;
 }
 
 export interface CreateTaskPayload {
@@ -233,13 +248,30 @@ function mapTask(raw: RawTask): Task {
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 export const tasksApi = {
-  list: (query?: TasksQuery) =>
+  listPaginated: (query?: TasksQuery) =>
     client
-      .get<{ data: RawTask[]; total?: number } | RawTask[]>('/tasks', { params: query })
-      .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawTask[] }).data ?? [];
-        return mapListSafely(raw, 'tasks', mapTask);
+      .get<{ data: RawTask[]; meta?: Partial<TasksListMeta> } | RawTask[]>('/tasks', { params: query })
+      .then((r): TasksListResponse => {
+        const dataRoot = Array.isArray(r.data) ? { data: r.data } : r.data;
+        const raw = dataRoot.data ?? [];
+        const mapped = mapListSafely(raw, 'tasks', mapTask);
+        const fallbackLimit = query?.limit ?? raw.length ?? 0;
+        const currentPage = dataRoot.meta?.currentPage ?? query?.page ?? 1;
+        const total = dataRoot.meta?.total ?? mapped.length;
+        return {
+          data: mapped,
+          meta: {
+            total,
+            currentPage,
+            hasPrevPage: dataRoot.meta?.hasPrevPage ?? currentPage > 1,
+            hasNextPage: dataRoot.meta?.hasNextPage ?? currentPage * fallbackLimit < total,
+            limit: dataRoot.meta?.limit ?? fallbackLimit,
+          },
+        };
       }),
+
+  list: (query?: TasksQuery) =>
+    tasksApi.listPaginated(query).then((r) => r.data),
 
   getById: (id: string) =>
     client.get<RawTask>(`/tasks/${id}`).then((r) => mapTask(r.data)),

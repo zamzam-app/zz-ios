@@ -20,7 +20,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { useTasks } from '../../hooks/useTasks';
+import { useInfiniteTasks } from '../../hooks/useTasks';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
@@ -309,9 +309,29 @@ export default function TasksScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [attachmentModal, setAttachmentModal] = useState<{ task: Task; type: AttachmentType } | null>(null);
 
-  const { data: tasks, isLoading, isFetching, refetch } = useTasks({ limit: 50 });
-  const allTasks = tasks ?? [];
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const normalizedSearchQuery = searchQuery.trim();
+  const dueDateStart = dueDateFilter
+    ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
+    : null;
+  const dueDateEnd = dueDateStart ? new Date(dueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1) : null;
+
+  const openTasksQuery = useInfiniteTasks({
+    status: 'OPEN',
+    limit: 20,
+    priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
+    search: normalizedSearchQuery || undefined,
+    dueFrom: dueDateStart ? dueDateStart.toISOString() : undefined,
+    dueTo: dueDateEnd ? dueDateEnd.toISOString() : undefined,
+  });
+
+  const completedTasksQuery = useInfiniteTasks({
+    status: 'COMPLETED',
+    limit: 20,
+    priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
+    search: normalizedSearchQuery || undefined,
+    dueFrom: dueDateStart ? dueDateStart.toISOString() : undefined,
+    dueTo: dueDateEnd ? dueDateEnd.toISOString() : undefined,
+  });
 
   useEffect(() => {
     const incomingMetric = route.params?.initialTaskFilter?.metric;
@@ -319,60 +339,33 @@ export default function TasksScreen() {
     setMetricFilter(incomingMetric);
   }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
 
-  const searchAndPriorityFilteredTasks = useMemo(
-    () => allTasks.filter((task) => {
-      const matchesPriority = priorityFilter === 'ALL' || task.priority === priorityFilter;
-      if (!matchesPriority) return false;
-      if (!normalizedSearchQuery) return true;
-
-      const searchTokens = [
-        task.id,
-        task.title,
-        task.description,
-        task.priority,
-        task.status,
-        getTaskOutletName(task),
-        getTaskCategoryName(task),
-        ...getTaskAssigneeNames(task),
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join(' ')
-        .toLowerCase();
-
-      return searchTokens.includes(normalizedSearchQuery);
-    }),
-    [allTasks, priorityFilter, normalizedSearchQuery],
+  const openTasksFromApi = useMemo(
+    () => (openTasksQuery.data?.pages ?? []).flatMap((page) => page.data),
+    [openTasksQuery.data?.pages],
+  );
+  const completedTasksFromApi = useMemo(
+    () => (completedTasksQuery.data?.pages ?? []).flatMap((page) => page.data),
+    [completedTasksQuery.data?.pages],
   );
 
-  const filteredTasks = useMemo(() => {
-    if (metricFilter === 'all') return searchAndPriorityFilteredTasks;
-
-    return searchAndPriorityFilteredTasks.filter((task) => {
-      if (metricFilter === 'open') return !isTaskCompleted(task);
-      if (metricFilter === 'resolved') return isTaskCompleted(task);
-      if (metricFilter === 'critical') return !isTaskCompleted(task) && task.priority === 'HIGH';
-      if (metricFilter === 'due_today') return !isTaskCompleted(task) && isSameCalendarDay(task.dueDate);
-      return true;
-    });
-  }, [searchAndPriorityFilteredTasks, metricFilter]);
-
-  const dueDateFilteredTasks = useMemo(() => {
-    if (!dueDateFilter) return filteredTasks;
-    return filteredTasks.filter((task) => isSameCalendarDay(task.dueDate, dueDateFilter));
-  }, [filteredTasks, dueDateFilter]);
-
   const openTasks = useMemo(() => {
+    if (metricFilter === 'resolved') return [];
     const now = new Date();
-    return dueDateFilteredTasks
-      .filter((task) => !isTaskCompleted(task))
+    return openTasksFromApi
+      .filter((task) => {
+        if (metricFilter === 'critical') return task.priority === 'HIGH';
+        if (metricFilter === 'due_today') return isSameCalendarDay(task.dueDate);
+        return true;
+      })
       .sort((a, b) => compareOpenTaskOrder(a, b, now));
-  }, [dueDateFilteredTasks]);
+  }, [openTasksFromApi, metricFilter]);
 
   const completedTasks = useMemo(
-    () => dueDateFilteredTasks
-      .filter(isTaskCompleted)
-      .sort(compareCompletedTaskOrder),
-    [dueDateFilteredTasks],
+    () => {
+      if (metricFilter === 'open' || metricFilter === 'critical' || metricFilter === 'due_today') return [];
+      return completedTasksFromApi.sort(compareCompletedTaskOrder);
+    },
+    [completedTasksFromApi, metricFilter],
   );
 
   const formatFilterDate = (date: Date) => date.toLocaleDateString('en-GB', {
@@ -385,6 +378,12 @@ export default function TasksScreen() {
     if (Platform.OS === 'android') setShowDueDatePicker(false);
     if (selectedDate) setDueDateFilter(selectedDate);
   };
+
+  const refetch = async () => {
+    await Promise.all([openTasksQuery.refetch(), completedTasksQuery.refetch()]);
+  };
+  const isLoading = openTasksQuery.isLoading || completedTasksQuery.isLoading;
+  const isFetching = openTasksQuery.isFetching || completedTasksQuery.isFetching;
 
   const openAttachmentModal = (task: Task, type: AttachmentType) => {
     const urls = getTaskAttachmentUrls(task, type);
@@ -522,6 +521,12 @@ export default function TasksScreen() {
             showsVerticalScrollIndicator
             persistentScrollbar
             refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+            onEndReached={() => {
+              if (openTasksQuery.hasNextPage && !openTasksQuery.isFetchingNextPage) {
+                void openTasksQuery.fetchNextPage();
+              }
+            }}
+            onEndReachedThreshold={0.3}
             renderItem={({ item }) => (
               <View style={styles.openCardWrap}>
                 <OpenTaskCard
@@ -531,6 +536,13 @@ export default function TasksScreen() {
                 />
               </View>
             )}
+            ListFooterComponent={
+              openTasksQuery.isFetchingNextPage ? (
+                <View style={styles.loadingMoreWrap}>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : null
+            }
             ListEmptyComponent={(
               isLoading ? (
                 <View style={styles.loadingWrap}>
@@ -564,16 +576,33 @@ export default function TasksScreen() {
           )}
 
           {!isLoading && completedTasks.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.completedRow}>
-              {completedTasks.map((task) => (
+            <FlatList
+              horizontal
+              data={completedTasks}
+              keyExtractor={(task) => task.id}
+              contentContainerStyle={styles.completedRow}
+              showsHorizontalScrollIndicator={false}
+              onEndReached={() => {
+                if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
+                  void completedTasksQuery.fetchNextPage();
+                }
+              }}
+              onEndReachedThreshold={0.4}
+              renderItem={({ item }) => (
                 <CompletedTaskCard
-                  key={task.id}
-                  task={task}
-                  onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
+                  task={item}
+                  onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
                   onOpenAttachment={openAttachmentModal}
                 />
-              ))}
-            </ScrollView>
+              )}
+              ListFooterComponent={
+                completedTasksQuery.isFetchingNextPage ? (
+                  <View style={styles.completedLoadingMoreWrap}>
+                    <ActivityIndicator color={colors.primary} />
+                  </View>
+                ) : null
+              }
+            />
           )}
         </View>
       </View>
@@ -1073,7 +1102,9 @@ const styles = StyleSheet.create({
   completedWhen: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
 
   loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
+  loadingMoreWrap: { paddingVertical: spacing.sm, alignItems: 'center' },
   completedLoadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  completedLoadingMoreWrap: { justifyContent: 'center', alignItems: 'center', paddingRight: spacing.sm },
   emptyWrap: { paddingVertical: spacing.xl },
   empty: { textAlign: 'center', color: colors.textSecondary, fontSize: typography.sm },
   completedEmpty: { color: colors.textSecondary, fontSize: typography.sm, marginBottom: spacing.md },

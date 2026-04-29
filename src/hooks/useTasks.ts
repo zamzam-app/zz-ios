@@ -1,10 +1,19 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { tasksApi, TasksQuery, CreateTaskPayload, TaskStatus } from '../api/endpoints/tasks';
 
 export const useTasks = (query?: TasksQuery) =>
   useQuery({
     queryKey: ['tasks', query],
     queryFn: () => tasksApi.list(query),
+  });
+
+export const useInfiniteTasks = (query?: Omit<TasksQuery, 'page'>) =>
+  useInfiniteQuery({
+    queryKey: ['tasks-infinite', query],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => tasksApi.listPaginated({ ...query, page: pageParam }),
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.hasNextPage ? lastPage.meta.currentPage + 1 : undefined,
   });
 
 export const useTask = (id: string) =>
