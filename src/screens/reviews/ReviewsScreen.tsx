@@ -112,11 +112,9 @@ function getSeverity(status?: ComplaintStatus) {
 }
 
 function getAllReviewCardBackground(review: Review) {
-  if (!review.isComplaint || !review.complaintStatus) return '#FFFFFF';
-
   if (review.complaintStatus === 'resolved') return '#ecfdf5';
-  if (review.complaintStatus === 'pending') return '#fefce8';
-  if (review.complaintStatus === 'dismissed') return '#fef2f2';
+  if (review.isComplaint) return '#fef2f2';
+  if (review.overallRating < 2.5) return '#fefce8';
   return '#FFFFFF';
 }
 
@@ -127,7 +125,7 @@ function getReviewTags(review: Review) {
     tags.push(review.complaintReason);
   }
 
-  if (review.overallRating <= 2.5) {
+  if (review.overallRating < 2.5) {
     tags.push('Low Rating');
   }
 
@@ -279,27 +277,22 @@ export default function ReviewsScreen({ route }: Props) {
     [filteredReviews],
   );
   const hasUnresolvedComplaint = useMemo(
-    () => filteredReviews.some((review) => review.isComplaint && review.complaintStatus !== 'resolved'),
+    () => filteredReviews.some((review) => review.isComplaint && review.complaintStatus === 'pending'),
     [filteredReviews],
   );
 
   const criticalFeed = useMemo(() => {
     if (!filteredReviews || filteredReviews.length === 0) return [];
 
-    const filtered = filteredReviews.filter((review) => review.isComplaint || review.overallRating <= 2);
+    const filtered = filteredReviews.filter(
+      (review) => review.isComplaint && review.complaintStatus === 'pending',
+    );
 
     const sorted = [...filtered].sort((a, b) => {
-      const aScore = a.isComplaint && a.complaintStatus === 'pending' ? 2 : a.isComplaint ? 1 : 0;
-      const bScore = b.isComplaint && b.complaintStatus === 'pending' ? 2 : b.isComplaint ? 1 : 0;
-      if (aScore !== bScore) return bScore - aScore;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-    if (sorted.length > 0) return sorted;
-
-    return [...filteredReviews]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 10);
+    return sorted;
   }, [filteredReviews]);
 
   const allReviews = useMemo(
