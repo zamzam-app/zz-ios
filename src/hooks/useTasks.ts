@@ -7,13 +7,17 @@ export const useTasks = (query?: TasksQuery) =>
     queryFn: () => tasksApi.list(query),
   });
 
-export const useInfiniteTasks = (query?: Omit<TasksQuery, 'page'>) =>
+export const useInfiniteTasks = (
+  query?: Omit<TasksQuery, 'page'>,
+  options?: { enabled?: boolean },
+) =>
   useInfiniteQuery({
     queryKey: ['tasks-infinite', query],
     initialPageParam: 1,
     queryFn: ({ pageParam }) => tasksApi.listPaginated({ ...query, page: pageParam }),
     getNextPageParam: (lastPage) =>
       lastPage.meta.hasNextPage ? lastPage.meta.currentPage + 1 : undefined,
+    enabled: options?.enabled ?? true,
   });
 
 export const useTask = (id: string) =>
