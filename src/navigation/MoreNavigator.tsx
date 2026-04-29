@@ -30,7 +30,7 @@ export default function MoreNavigator() {
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Managers" component={ManagersScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Studio" component={StudioScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="FormBuilder" component={FormBuilderScreen} options={{ title: 'Form Builder' }} />
+      <Stack.Screen name="FormBuilder" component={FormBuilderScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

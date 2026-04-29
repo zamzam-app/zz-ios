@@ -4,9 +4,13 @@ import {
   Alert, ActivityIndicator, Modal, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useForms, useCreateForm, useUpdateForm, useDeleteForm, useForm } from '../../hooks/useForms';
 import { Question, QuestionType, QUESTION_TYPE_OPTIONS, SupportedQuestion } from '../../api/endpoints/forms';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 
 // ─── Form Editor Modal ────────────────────────────────────────────────────────
 
@@ -200,10 +204,12 @@ function FormEditorModal({ visible, formId, onClose }: {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function FormBuilderScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();
   const { data: forms, isLoading, isFetching, refetch } = useForms();
   const createForm = useCreateForm();
   const deleteForm = useDeleteForm();
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const handleCreate = () => {
     createForm.mutate(undefined, {
@@ -212,41 +218,96 @@ export default function FormBuilderScreen() {
     });
   };
 
+  const filteredForms = (forms ?? []).filter((form) => {
+    const term = query.trim().toLowerCase();
+    if (!term) return true;
+    return form.title.toLowerCase().includes(term);
+  });
+
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
-      <FlatList
-        data={forms ?? []}
-        keyExtractor={(f) => f.id}
-        contentContainerStyle={styles.list}
-        refreshing={isFetching && !isLoading}
-        onRefresh={refetch}
-        ListHeaderComponent={isLoading ? <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} /> : null}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.itemName}>{item.title}</Text>
-              <Text style={styles.itemDesc}>{item.questions.length} question{item.questions.length !== 1 ? 's' : ''}</Text>
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <View style={styles.page}>
+        <View style={styles.header}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleRowLeft}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                onPress={() => navigation.navigate('MoreMenu')}
+                style={styles.backButton}
+              >
+                <Ionicons name="arrow-back" size={24} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.heading}>Form Builder</Text>
             </View>
-            <View style={styles.cardActions}>
-              <TouchableOpacity onPress={() => setEditingFormId(item.id)}>
-                <Text style={styles.editText}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => Alert.alert('Delete', `Delete "${item.title}"?`, [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => deleteForm.mutate(item.id) },
-              ])}>
-                <Text style={styles.deleteText}>Del</Text>
-              </TouchableOpacity>
+            <TouchableOpacity style={styles.createBtn} onPress={handleCreate} disabled={createForm.isPending}>
+              {createForm.isPending ? (
+                <ActivityIndicator color={colors.textInverse} />
+              ) : (
+                <Text style={styles.createBtnText}>+ New</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.subheading}>Manage review forms and questions for outlets</Text>
+        </View>
+
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            style={styles.searchInput}
+            placeholder="Search forms..."
+            placeholderTextColor={colors.textSecondary}
+          />
+        </View>
+
+        <View style={styles.listShell}>
+          <View style={styles.listHeader}>
+            <Text style={styles.listTitle}>Available Forms</Text>
+            <View style={styles.totalChip}>
+              <Text style={styles.totalChipText}>{(forms ?? []).length} TOTAL</Text>
             </View>
           </View>
-        )}
-        ListEmptyComponent={!isLoading ? <Text style={styles.empty}>No forms yet</Text> : null}
-      />
 
-      <View style={styles.fab}>
-        <TouchableOpacity style={styles.fabBtn} onPress={handleCreate} disabled={createForm.isPending}>
-          {createForm.isPending ? <ActivityIndicator color={colors.textInverse} /> : <Text style={styles.fabText}>+ New Form</Text>}
-        </TouchableOpacity>
+          {isLoading ? (
+            <ActivityIndicator color={colors.primary} style={styles.loader} />
+          ) : (
+            <FlatList
+              data={filteredForms}
+              keyExtractor={(f) => f.id}
+              contentContainerStyle={styles.listContent}
+              refreshing={isFetching && !isLoading}
+              onRefresh={refetch}
+              renderItem={({ item }) => (
+                <View style={styles.card}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>{item.title}</Text>
+                    <Text style={styles.itemDesc}>
+                      {item.questions.length} question{item.questions.length !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.cardActions}>
+                    <TouchableOpacity style={styles.iconBtn} onPress={() => setEditingFormId(item.id)}>
+                      <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.iconBtn}
+                      onPress={() => Alert.alert('Delete', `Delete "${item.title}"?`, [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Delete', style: 'destructive', onPress: () => deleteForm.mutate(item.id) },
+                      ])}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              ListEmptyComponent={<Text style={styles.empty}>No forms found</Text>}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </View>
       </View>
 
       <FormEditorModal
@@ -259,18 +320,132 @@ export default function FormBuilderScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: 100 },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, flexDirection: 'row', alignItems: 'center', ...shadow.sm },
+  root: { flex: 1, backgroundColor: colors.screenBackground },
+  page: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: 110 },
+  header: { marginBottom: spacing.md, gap: spacing.xs },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  titleRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
+  },
+  backButton: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heading: {
+    fontSize: 26,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+  subheading: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  createBtn: {
+    minWidth: 90,
+    backgroundColor: colors.buttonPrimaryBg,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    ...shadow.sm,
+  },
+  createBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
+  searchWrap: {
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    zIndex: 2,
+  },
+  searchInput: {
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingLeft: 38,
+    paddingRight: spacing.md,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  listShell: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: '#D3C5AC30',
+    padding: spacing.sm,
+    ...shadow.sm,
+  },
+  listHeader: {
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  listTitle: {
+    fontSize: typography.xs,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: '#4F4633',
+    fontWeight: typography.bold,
+  },
+  totalChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    backgroundColor: '#E6E8EA',
+  },
+  totalChipText: {
+    color: colors.text,
+    fontSize: 10,
+    fontWeight: typography.bold,
+    textTransform: 'uppercase',
+  },
+  listContent: { gap: spacing.sm, paddingBottom: 120 },
+  loader: { marginTop: spacing.lg },
+  card: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D3C5AC30',
+  },
   itemName: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
   itemDesc: { fontSize: typography.sm, color: colors.textSecondary, marginTop: 2 },
-  cardActions: { flexDirection: 'row', gap: spacing.md },
-  editText: { color: colors.primary, fontSize: typography.sm, fontWeight: typography.medium },
+  cardActions: { flexDirection: 'row', gap: spacing.xs },
+  iconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   deleteText: { color: colors.error, fontSize: typography.sm, fontWeight: typography.medium },
-  fab: { position: 'absolute', bottom: 108, left: spacing.md, right: spacing.md },
-  fabBtn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 15, alignItems: 'center' },
-  fabText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
-  empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
+  empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.lg },
 
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   modalTitle: { fontSize: typography.md, fontWeight: typography.semibold, color: colors.text },
