@@ -31,6 +31,9 @@ const PERIODS: { label: string; value: Period }[] = [
   { label: 'Weekly', value: 'weekly' },
   { label: 'Monthly', value: 'monthly' },
 ];
+const FEEDBACK_VISIBLE_ROWS = 4;
+const FEEDBACK_ROW_HEIGHT = 46;
+const FEEDBACK_HEADER_HEIGHT = 40;
 
 type OverviewTopTab = 'reviews' | 'tasks';
 type OverviewNav = BottomTabNavigationProp<AppTabParamList, 'Overview'>;
@@ -247,17 +250,32 @@ function TrendlineChart({
 }
 
 function FeedbackCard({ title, accent, items }: { title: string; accent: string; items: { name: string; value: number }[] }) {
+  const headerBg = accent === colors.warning
+    ? '#E6D7BC'
+    : accent === colors.success
+      ? '#C9DCCB'
+      : '#F3DFDC';
+
   return (
-    <View style={[styles.feedbackCard, { backgroundColor: accent + '18' }]}> 
-      <Text style={[styles.feedbackTitle, { color: accent }]}>{title}</Text>
-      {items.slice(0, 4).map((item, i) => (
-        <View key={i} style={styles.feedbackRow}>
-          <Text style={styles.feedbackName} numberOfLines={1}>{item.name}</Text>
-          <View style={[styles.feedbackBadge, { backgroundColor: accent + '18' }]}>
-            <Text style={[styles.feedbackBadgeText, { color: accent }]}>{item.value}</Text>
-          </View>
+    <View style={[styles.feedbackCard, { backgroundColor: accent + '18' }]}>
+      <ScrollView
+        style={[styles.feedbackList, { maxHeight: FEEDBACK_HEADER_HEIGHT + (FEEDBACK_ROW_HEIGHT * FEEDBACK_VISIBLE_ROWS) }]}
+        nestedScrollEnabled
+        stickyHeaderIndices={[0]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.feedbackStickyHeader, { backgroundColor: headerBg }]}>
+          <Text style={[styles.feedbackTitle, { color: accent }]}>{title}</Text>
         </View>
-      ))}
+        {items.map((item, i) => (
+          <View key={i} style={styles.feedbackRow}>
+            <Text style={styles.feedbackName} numberOfLines={1}>{item.name}</Text>
+            <View style={[styles.feedbackBadge, { backgroundColor: accent + '18' }]}>
+              <Text style={[styles.feedbackBadgeText, { color: accent }]}>{item.value}</Text>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -444,17 +462,17 @@ export default function OverviewScreen() {
 
             <Text style={styles.sectionTitle}>Outlet Feedback</Text>
             <FeedbackCard
-              title="Most Negative"
+              title="Total Negative"
               accent={colors.error}
               items={negativeSorted.map((i) => ({ name: i.outletName, value: i.negativeFeedbacks }))}
             />
             <FeedbackCard
-              title="Most Active"
+              title="Total Active"
               accent={colors.warning}
               items={totalSorted.map((i) => ({ name: i.outletName, value: i.totalFeedbacks }))}
             />
             <FeedbackCard
-              title="Most Resolved"
+              title="Total Positive"
               accent={colors.success}
               items={resolvedSorted.map((i) => ({ name: i.outletName, value: i.resolvedFeedbacks }))}
             />
@@ -652,11 +670,32 @@ const styles = StyleSheet.create({
 
   feedbackCard: {
     borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     marginBottom: spacing.sm,
+    overflow: 'hidden',
   },
-  feedbackTitle: { fontSize: typography.sm, fontWeight: typography.semibold, marginBottom: spacing.sm },
-  feedbackRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
+  feedbackList: {
+    width: '100%',
+  },
+  feedbackStickyHeader: {
+    minHeight: FEEDBACK_HEADER_HEIGHT,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+    zIndex: 3,
+    elevation: 3,
+  },
+  feedbackTitle: { fontSize: typography.sm, fontWeight: typography.semibold },
+  feedbackRow: {
+    minHeight: FEEDBACK_ROW_HEIGHT,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: spacing.md,
+  },
   feedbackName: { fontSize: typography.sm, color: colors.text, flex: 1, marginRight: spacing.sm },
   feedbackBadge: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 3 },
   feedbackBadgeText: { fontSize: typography.xs, fontWeight: typography.semibold },
