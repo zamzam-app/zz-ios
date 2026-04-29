@@ -314,12 +314,6 @@ export default function OverviewScreen() {
       color: colors.warning,
     },
     {
-      key: 'critical',
-      label: 'Critical',
-      value: incidents.data?.criticalIssues ?? '--',
-      color: colors.error,
-    },
-    {
       key: 'resolved',
       label: 'Resolved',
       value: incidents.data?.incidentsResolvedToday ?? '--',
