@@ -22,6 +22,7 @@ import StarRating from '../../components/StarRating';
 
 type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewDetail'>;
 type ResolvableComplaintStatus = 'resolved' | 'dismissed';
+const COMPLAINT_LABEL_WIDTH = 86;
 
 type ComplaintTone = {
   label: string;
@@ -42,6 +43,15 @@ function toSentenceCase(status: string) {
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function Row({ label, value, isLast = false }: { label: string; value: string; isLast?: boolean }) {
+  return (
+    <View style={[styles.row, isLast && styles.rowLast]}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.rowValue}>{value}</Text>
+    </View>
+  );
 }
 
 function getComplaintTone(review: Review): ComplaintTone | null {
@@ -71,15 +81,6 @@ function getComplaintTone(review: Review): ComplaintTone | null {
     bg: '#FEF3C7',
     border: '#FDE68A',
   };
-}
-
-function Row({ label, value, isLast = false }: { label: string; value: string; isLast?: boolean }) {
-  return (
-    <View style={[styles.row, isLast && styles.rowLast]}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-    </View>
-  );
 }
 
 function isLikelyObjectId(value: string) {
@@ -232,18 +233,6 @@ export default function ReviewDetailScreen({ route }: Props) {
   const hasResolution = Boolean(review.complaintStatus && review.complaintStatus !== 'pending');
   const isMutationPending = resolveComplaint.isPending;
 
-  const detailRows: Array<{ label: string; value: string }> = [
-    { label: 'Customer', value: review.customerName },
-    { label: 'Outlet', value: review.outletName },
-    { label: 'Submitted', value: formatDate(review.createdAt) },
-    { label: 'Rating', value: `${review.overallRating.toFixed(1)} / 5.0` },
-    { label: 'Complaint', value: review.isComplaint ? 'Yes' : 'No' },
-  ];
-
-  if (review.complaintStatus) {
-    detailRows.push({ label: 'Complaint Status', value: toSentenceCase(review.complaintStatus) });
-  }
-
   const resolutionRows: Array<{ label: string; value: string }> = [
     { label: 'Status', value: toSentenceCase(review.complaintStatus ?? 'pending') },
   ];
@@ -272,6 +261,17 @@ export default function ReviewDetailScreen({ route }: Props) {
 
         <View style={styles.summaryCard}>
           <View style={styles.topRow}>
+            <Text style={styles.summaryTitle} numberOfLines={1}>{review.customerName}</Text>
+            <View style={styles.ratingWrap}>
+              <StarRating rating={review.overallRating} size={14} />
+              <Text style={styles.ratingText}>{review.overallRating.toFixed(1)} / 5.0</Text>
+            </View>
+          </View>
+
+          <Text style={styles.summaryOutlet}>{review.outletName}</Text>
+          <Text style={styles.summaryMeta}>Submitted on {formatDate(review.createdAt)}</Text>
+          <View style={styles.summaryStatusRow}>
+            <Text style={styles.summaryStatusLabel}>Status:</Text>
             {complaintTone ? (
               <View style={[styles.statusBadge, { backgroundColor: complaintTone.bg, borderColor: complaintTone.border }]}>
                 <Text style={[styles.statusBadgeText, { color: complaintTone.text }]}>{complaintTone.label}</Text>
@@ -281,37 +281,14 @@ export default function ReviewDetailScreen({ route }: Props) {
                 <Text style={styles.feedbackBadgeText}>Feedback</Text>
               </View>
             )}
-            <View style={styles.ratingWrap}>
-              <StarRating rating={review.overallRating} size={14} />
-              <Text style={styles.ratingText}>{review.overallRating.toFixed(1)} / 5.0</Text>
-            </View>
           </View>
 
-          <Text style={styles.summaryTitle}>{review.customerName}</Text>
-          <Text style={styles.summaryOutlet}>{review.outletName}</Text>
-          <Text style={styles.summaryMeta}>Submitted on {formatDate(review.createdAt)}</Text>
-
-          {review.complaintReason ? (
-            <Text style={styles.complaintPreview} numberOfLines={3}>{review.complaintReason}</Text>
-          ) : null}
-        </View>
-
-        <SectionHeader title="Review Details" />
-        <View style={styles.card}>
-          {detailRows.map((item, index) => (
-            <Row
-              key={item.label}
-              label={item.label}
-              value={item.value}
-              isLast={index === detailRows.length - 1}
-            />
-          ))}
         </View>
 
         {review.userResponses.length > 0 && (
           <>
-            <SectionHeader title="Responses" count={review.userResponses.length} />
-            <View style={styles.card}>
+            <SectionHeader title="Responses" />
+            <View style={styles.responsesCard}>
               {review.userResponses.map((response, index) => {
                 const questionRef = typeof response.questionId === 'object' && response.questionId
                   ? response.questionId
@@ -344,9 +321,53 @@ export default function ReviewDetailScreen({ route }: Props) {
 
         {review.isComplaint && review.complaintReason && (
           <>
-            <SectionHeader title="Complaint" />
+            <SectionHeader title="Complaint Box" />
             <View style={[styles.card, styles.complaintCard]}>
-              <Text style={styles.complaintReason}>{review.complaintReason}</Text>
+              <View style={styles.inlineComplaintRow}>
+                <Text style={[styles.complaintLabel, styles.complaintLabelCol]}>Complaint:</Text>
+                <Text style={styles.complaintReasonInline}>{review.complaintReason}</Text>
+              </View>
+              {canResolve && (
+                <View style={styles.inlineResolveWrap}>
+                  <Text style={[styles.inlineResolveLabel, styles.complaintLabelCol]}>Resolve:</Text>
+                  <TextInput
+                    style={styles.inlineResolveInput}
+                    placeholder="Add notes"
+                    placeholderTextColor={colors.textDisabled}
+                    value={resolutionNotes}
+                    onChangeText={setResolutionNotes}
+                  />
+                </View>
+              )}
+              {canResolve && (
+                <View style={styles.resolveButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.resolveBtn, styles.resolveBtnPrimary, isMutationPending && styles.buttonDisabled]}
+                    onPress={() => handleResolve('resolved')}
+                    disabled={isMutationPending}
+                    activeOpacity={0.85}
+                  >
+                    {isMutationPending && pendingAction === 'resolved' ? (
+                      <ActivityIndicator color={colors.textInverse} />
+                    ) : (
+                      <Text style={styles.resolveBtnText}>Mark as Resolved</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.dismissBtn, styles.resolveBtnSecondary, isMutationPending && styles.buttonDisabled]}
+                    onPress={() => handleResolve('dismissed')}
+                    disabled={isMutationPending}
+                    activeOpacity={0.85}
+                  >
+                    {isMutationPending && pendingAction === 'dismissed' ? (
+                      <ActivityIndicator color={colors.textSecondary} />
+                    ) : (
+                      <Text style={styles.dismissBtnText}>Dismiss</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </>
         )}
@@ -374,50 +395,6 @@ export default function ReviewDetailScreen({ route }: Props) {
           </>
         )}
 
-        {canResolve && (
-          <>
-            <SectionHeader title="Resolve Complaint" />
-            <View style={styles.card}>
-              <TextInput
-                style={styles.notesInput}
-                placeholder="Resolution notes (optional)..."
-                placeholderTextColor={colors.textDisabled}
-                multiline
-                numberOfLines={4}
-                value={resolutionNotes}
-                onChangeText={setResolutionNotes}
-              />
-
-              <View style={styles.resolveButtonsRow}>
-                <TouchableOpacity
-                  style={[styles.resolveBtn, isMutationPending && styles.buttonDisabled]}
-                  onPress={() => handleResolve('resolved')}
-                  disabled={isMutationPending}
-                  activeOpacity={0.85}
-                >
-                  {isMutationPending && pendingAction === 'resolved' ? (
-                    <ActivityIndicator color={colors.textInverse} />
-                  ) : (
-                    <Text style={styles.resolveBtnText}>Mark as Resolved</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.dismissBtn, isMutationPending && styles.buttonDisabled]}
-                  onPress={() => handleResolve('dismissed')}
-                  disabled={isMutationPending}
-                  activeOpacity={0.85}
-                >
-                  {isMutationPending && pendingAction === 'dismissed' ? (
-                    <ActivityIndicator color={colors.textSecondary} />
-                  ) : (
-                    <Text style={styles.dismissBtnText}>Dismiss</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -498,12 +475,14 @@ const styles = StyleSheet.create({
     fontWeight: typography.bold,
   },
   summaryTitle: {
-    fontSize: typography.base,
+    fontSize: typography.lg,
     color: colors.text,
     fontWeight: typography.bold,
-    marginBottom: 2,
+    flex: 1,
+    marginRight: spacing.sm,
   },
   summaryOutlet: {
+    marginTop: spacing.xs,
     fontSize: typography.sm,
     fontWeight: typography.semibold,
     color: colors.primary,
@@ -513,13 +492,17 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
     color: colors.textSecondary,
   },
-  complaintPreview: {
+  summaryStatusRow: {
     marginTop: spacing.sm,
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    lineHeight: 19,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
-
+  summaryStatusLabel: {
+    fontSize: typography.base,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
   sectionHeader: {
     marginBottom: spacing.sm,
     flexDirection: 'row',
@@ -563,6 +546,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...shadow.sm,
   },
+  responsesCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 36,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC70',
+    ...shadow.sm,
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -598,9 +590,9 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   questionTitle: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.medium,
+    fontSize: typography.lg,
+    color: colors.text,
+    fontWeight: typography.bold,
   },
   answerList: {
     gap: 4,
@@ -612,14 +604,54 @@ const styles = StyleSheet.create({
   },
 
   complaintCard: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.error,
-    backgroundColor: colors.errorLight,
+    borderWidth: 1,
+    borderColor: '#D3C5AC70',
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...shadow.sm,
   },
-  complaintReason: {
+  complaintLabel: {
+    fontSize: typography.base,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
+  complaintLabelCol: {
+    width: COMPLAINT_LABEL_WIDTH,
+  },
+  inlineComplaintRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  complaintReasonInline: {
+    flex: 1,
     fontSize: typography.sm,
     color: colors.text,
     lineHeight: 20,
+  },
+  inlineResolveWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  inlineResolveLabel: {
+    fontSize: typography.base,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
+  inlineResolveInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: colors.text,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
   },
 
   notesBlock: {
@@ -639,19 +671,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  notesInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontSize: typography.base,
-    color: colors.text,
-    backgroundColor: colors.surface,
-    minHeight: 94,
-    textAlignVertical: 'top',
-  },
   resolveButtonsRow: {
-    marginTop: spacing.md,
+    flexDirection: 'row',
     gap: spacing.sm,
   },
   resolveBtn: {
@@ -659,6 +680,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: 14,
     alignItems: 'center',
+  },
+  resolveBtnPrimary: {
+    flex: 3,
   },
   resolveBtnText: {
     color: colors.textInverse,
@@ -672,6 +696,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.textSecondary,
     backgroundColor: colors.surface,
+  },
+  resolveBtnSecondary: {
+    flex: 1,
   },
   dismissBtnText: {
     color: colors.textSecondary,
