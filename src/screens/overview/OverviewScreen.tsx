@@ -268,20 +268,20 @@ export default function OverviewScreen() {
   const totalRatings = csat.data?.totalRatings ?? 0;
 
   const insightItems = [
-    insights.data?.peakIncidentTime && {
-      title: 'Peak Incident Time',
-      value: insights.data.peakIncidentTime.label,
-      accent: colors.warning,
+    insights.data?.criticalFocusArea && {
+      title: 'Critical Focus',
+      value: `${insights.data.criticalFocusArea.outletName} · ${insights.data.criticalFocusArea.criticalIssues} issue${insights.data.criticalFocusArea.criticalIssues !== 1 ? 's' : ''}`,
+      accent: colors.error,
     },
     insights.data?.mostImprovedOutlet && {
       title: 'Most Improved',
       value: `${insights.data.mostImprovedOutlet.outletName} (${insights.data.mostImprovedOutlet.improvement >= 0 ? '+' : ''}${insights.data.mostImprovedOutlet.improvement.toFixed(1)})`,
       accent: colors.success,
     },
-    insights.data?.criticalFocusArea && {
-      title: 'Critical Focus',
-      value: `${insights.data.criticalFocusArea.outletName} · ${insights.data.criticalFocusArea.criticalIssues} issue${insights.data.criticalFocusArea.criticalIssues !== 1 ? 's' : ''}`,
-      accent: colors.error,
+    insights.data?.peakIncidentTime && {
+      title: 'Peak Incident Time',
+      value: insights.data.peakIncidentTime.label,
+      accent: colors.warning,
     },
   ].filter(Boolean) as { title: string; value: string; accent: string }[];
 
