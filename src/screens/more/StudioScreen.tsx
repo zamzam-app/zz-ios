@@ -209,16 +209,94 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
 
 function AIStudioTab() {
   const { data: savedCakes, isLoading: cakesLoading } = useCustomCakes();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [minAgeText, setMinAgeText] = useState('');
+  const [maxAgeText, setMaxAgeText] = useState('');
+  const [showAgeFilterModal, setShowAgeFilterModal] = useState(false);
+
+  const minAge = minAgeText.trim().length > 0 ? Number(minAgeText) : undefined;
+  const maxAge = maxAgeText.trim().length > 0 ? Number(maxAgeText) : undefined;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredCakes = useMemo(() => {
+    const base = savedCakes ?? [];
+    return base.filter((cake) => {
+      const matchesSearch = !normalizedSearch
+        || cake.prompt.toLowerCase().includes(normalizedSearch)
+        || (cake.customerName ?? '').toLowerCase().includes(normalizedSearch);
+      if (!matchesSearch) return false;
+
+      if (minAge === undefined && maxAge === undefined) return true;
+      if (!cake.customerDob) return false;
+
+      const dob = new Date(cake.customerDob);
+      if (Number.isNaN(dob.getTime())) return false;
+      const now = new Date();
+      let age = now.getFullYear() - dob.getFullYear();
+      const monthDiff = now.getMonth() - dob.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) age -= 1;
+
+      if (minAge !== undefined && age < minAge) return false;
+      if (maxAge !== undefined && age > maxAge) return false;
+      return true;
+    });
+  }, [savedCakes, normalizedSearch, minAge, maxAge]);
 
   return (
     <ScrollView contentContainerStyle={aiStyles.container} keyboardShouldPersistTaps="handled">
       <Text style={aiStyles.sectionTitle}>Customer Cake Orders</Text>
+      <View style={aiStyles.filtersWrap}>
+        <View style={aiStyles.searchRow}>
+          <TextInput
+            style={aiStyles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search description or customer name"
+            placeholderTextColor={colors.textSecondary}
+          />
+          <TouchableOpacity
+            style={[
+              aiStyles.filterIconBtn,
+              (minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) && aiStyles.filterIconBtnActive,
+            ]}
+            onPress={() => setShowAgeFilterModal(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="options-outline"
+              size={18}
+              color={minAgeText.trim().length > 0 || maxAgeText.trim().length > 0 ? colors.primaryDark : colors.textSecondary}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={aiStyles.clearBtn}
+            onPress={() => {
+              setSearchQuery('');
+              setMinAgeText('');
+              setMaxAgeText('');
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={aiStyles.clearBtnText}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+        {(minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) && (
+          <View style={aiStyles.ageChipRow}>
+            <View style={aiStyles.ageChip}>
+              <Text style={aiStyles.ageChipText}>{`Age: ${minAgeText || 'Any'} - ${maxAgeText || 'Any'}`}</Text>
+              <TouchableOpacity onPress={() => { setMinAgeText(''); setMaxAgeText(''); }} style={aiStyles.ageChipClear}>
+                <Text style={aiStyles.ageChipClearText}>x</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
       {cakesLoading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
-      ) : !savedCakes?.length ? (
+      ) : !filteredCakes.length ? (
         <Text style={aiStyles.empty}>No custom cake orders yet</Text>
       ) : (
-        savedCakes.map((cake) => (
+        filteredCakes.map((cake) => (
           <View key={cake.id} style={aiStyles.cakeCard}>
             {cake.imageUrl ? (
               <Image source={{ uri: cake.imageUrl }} style={aiStyles.cakeThumbnail} resizeMode="cover" />
@@ -229,6 +307,9 @@ function AIStudioTab() {
             )}
             <View style={{ flex: 1 }}>
               <Text style={aiStyles.cakePrompt} numberOfLines={2}>{cake.prompt}</Text>
+              {cake.customerName ? (
+                <Text style={aiStyles.cakeCustomer} numberOfLines={1}>{cake.customerName}</Text>
+              ) : null}
               <Text style={aiStyles.cakeDate}>
                 {new Date(cake.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
               </Text>
@@ -236,6 +317,55 @@ function AIStudioTab() {
           </View>
         ))
       )}
+
+      <Modal
+        visible={showAgeFilterModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAgeFilterModal(false)}
+      >
+        <View style={aiStyles.filterModalRoot}>
+          <TouchableOpacity
+            style={aiStyles.filterModalScrim}
+            activeOpacity={1}
+            onPress={() => setShowAgeFilterModal(false)}
+          />
+          <View style={aiStyles.filterSheet}>
+            <View style={aiStyles.filterSheetTop}>
+              <View style={aiStyles.filterSheetHandle} />
+              <View style={aiStyles.filterSheetHeader}>
+                <Text style={aiStyles.filterSheetTitle}>Age Filter</Text>
+                <TouchableOpacity onPress={() => setShowAgeFilterModal(false)}>
+                  <Text style={aiStyles.filterSheetClose}>X</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={aiStyles.filterSheetBody}>
+              <Text style={aiStyles.filterLabel}>Age group range</Text>
+              <View style={aiStyles.ageRow}>
+                <TextInput
+                  style={aiStyles.ageInput}
+                  value={minAgeText}
+                  onChangeText={(text) => setMinAgeText(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  placeholder="Min age"
+                  placeholderTextColor={colors.textSecondary}
+                />
+                <Text style={aiStyles.ageDivider}>to</Text>
+                <TextInput
+                  style={aiStyles.ageInput}
+                  value={maxAgeText}
+                  onChangeText={(text) => setMaxAgeText(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  placeholder="Max age"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1076,6 +1206,166 @@ const aiStyles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
   },
+  filtersWrap: {
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  searchInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  ageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  filterIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.sm,
+  },
+  filterIconBtnActive: {
+    borderColor: colors.primaryTintStrong,
+    backgroundColor: colors.primaryTint,
+  },
+  ageInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 9,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  ageDivider: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
+  clearBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 9,
+    backgroundColor: colors.surface,
+  },
+  clearBtnText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.semibold,
+    textTransform: 'uppercase',
+  },
+  ageChipRow: {
+    marginTop: 2,
+  },
+  ageChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintStrong,
+    paddingLeft: spacing.sm,
+    paddingRight: 6,
+    paddingVertical: 4,
+  },
+  ageChipText: {
+    fontSize: typography.xs,
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+  ageChipClear: {
+    width: 18,
+    height: 18,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E6E8EA',
+  },
+  ageChipClearText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: typography.bold,
+  },
+  filterModalRoot: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+  },
+  filterModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+  },
+  filterSheet: {
+    maxHeight: '55%',
+    minHeight: 240,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+  },
+  filterSheetTop: {
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D3C5AC40',
+    backgroundColor: colors.surfaceElevated,
+  },
+  filterSheetHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: '#E6E8EA',
+    marginBottom: spacing.sm,
+  },
+  filterSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filterSheetTitle: {
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  filterSheetClose: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.bold,
+  },
+  filterSheetBody: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  filterLabel: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.semibold,
+  },
   empty: {
     fontSize: typography.sm,
     color: colors.textSecondary,
@@ -1111,5 +1401,11 @@ const aiStyles = StyleSheet.create({
     fontSize: typography.xs,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+  cakeCustomer: {
+    marginTop: 3,
+    fontSize: typography.xs,
+    color: colors.primaryDark,
+    fontWeight: typography.medium,
   },
 });
