@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useReviews } from '../../hooks/useReviews';
@@ -18,9 +19,11 @@ import { Review, ComplaintStatus } from '../../api/endpoints/reviews';
 import { FranchiseRankingItem, MetricsHeatmapItem } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
+import { ReviewMetricFilter } from '../../constants/reviewFilters';
 import StarRating from '../../components/StarRating';
 
 type Nav = NativeStackNavigationProp<ReviewsStackParamList, 'ReviewsList'>;
+type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewsList'>;
 type MetricKey = keyof MetricsHeatmapItem['metrics'];
 type OutletOption = { id: string; label: string };
 
@@ -187,9 +190,17 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
   );
 }
 
-export default function ReviewsScreen() {
+export default function ReviewsScreen({ route }: Props) {
   const navigation = useNavigation<Nav>();
   const [selectedOutletId, setSelectedOutletId] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<ReviewMetricFilter>('all');
+
+  useEffect(() => {
+    const incomingMetric = route.params?.initialReviewFilter?.metric;
+    if (incomingMetric) {
+      setStatusFilter(incomingMetric);
+    }
+  }, [route.params?.initialReviewFilter?.metric, route.params?.initialReviewFilter?.nonce]);
 
   const {
     data: reviews,
@@ -245,13 +256,23 @@ export default function ReviewsScreen() {
 
   const filteredReviews = useMemo(() => {
     if (!reviews) return [];
-    if (selectedOutletId === 'all') return reviews;
-
-    return reviews.filter((review) => {
+    const outletFiltered = selectedOutletId === 'all'
+      ? reviews
+      : reviews.filter((review) => {
       const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
       return outletKey === selectedOutletId;
     });
-  }, [reviews, selectedOutletId]);
+
+    if (statusFilter === 'open') {
+      return outletFiltered.filter((review) => review.isComplaint && review.complaintStatus === 'pending');
+    }
+
+    if (statusFilter === 'resolved') {
+      return outletFiltered.filter((review) => review.isComplaint && review.complaintStatus === 'resolved');
+    }
+
+    return outletFiltered;
+  }, [reviews, selectedOutletId, statusFilter]);
 
   const pendingCount = useMemo(
     () => filteredReviews.filter((review) => review.isComplaint && review.complaintStatus === 'pending').length,

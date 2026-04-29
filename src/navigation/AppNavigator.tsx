@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, shadow } from '../theme/theme';
 import OverviewScreen from '../screens/overview/OverviewScreen';
 import TasksNavigator, { TasksStackParamList } from './TasksNavigator';
-import ReviewsNavigator from './ReviewsNavigator';
+import ReviewsNavigator, { ReviewsStackParamList } from './ReviewsNavigator';
 import InfrastructureNavigator from './InfrastructureNavigator';
 import MoreNavigator from './MoreNavigator';
 import { useReviews } from '../hooks/useReviews';
@@ -14,7 +14,7 @@ import { useReviews } from '../hooks/useReviews';
 export type AppTabParamList = {
   Overview: undefined;
   Tasks: NavigatorScreenParams<TasksStackParamList> | undefined;
-  Reviews: undefined;
+  Reviews: NavigatorScreenParams<ReviewsStackParamList> | undefined;
   Infrastructure: undefined;
   More: undefined;
 };

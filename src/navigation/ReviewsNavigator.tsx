@@ -3,9 +3,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ReviewsScreen from '../screens/reviews/ReviewsScreen';
 import ReviewDetailScreen from '../screens/reviews/ReviewDetailScreen';
 import { colors, typography } from '../theme/theme';
+import { ReviewFilterParams } from '../constants/reviewFilters';
 
 export type ReviewsStackParamList = {
-  ReviewsList: undefined;
+  ReviewsList: { initialReviewFilter?: ReviewFilterParams } | undefined;
   ReviewDetail: { reviewId: string };
 };
 

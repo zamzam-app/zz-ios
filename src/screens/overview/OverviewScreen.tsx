@@ -24,6 +24,7 @@ import { Period } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { AppTabParamList } from '../../navigation/AppNavigator';
 import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
+import { ReviewMetricFilter } from '../../constants/reviewFilters';
 
 const PERIODS: { label: string; value: Period }[] = [
   { label: 'Daily', value: 'daily' },
@@ -306,18 +307,33 @@ export default function OverviewScreen() {
     });
   };
 
+  const navigateToReviewsWithFilter = (metric: ReviewMetricFilter, source: TaskFilterSource) => {
+    navigation.navigate('Reviews', {
+      screen: 'ReviewsList',
+      params: {
+        initialReviewFilter: {
+          metric,
+          source,
+          nonce: Date.now(),
+        },
+      },
+    });
+  };
+
   const reviewMetrics: SummaryMetricItem[] = [
     {
       key: 'open',
       label: 'Open',
       value: incidents.data?.totalOpenIncidents ?? '--',
       color: colors.warning,
+      onPress: () => navigateToReviewsWithFilter('open', 'overview_reviews_metric'),
     },
     {
       key: 'resolved',
       label: 'Resolved',
       value: incidents.data?.incidentsResolvedToday ?? '--',
       color: colors.success,
+      onPress: () => navigateToReviewsWithFilter('resolved', 'overview_reviews_metric'),
     },
   ];
 
