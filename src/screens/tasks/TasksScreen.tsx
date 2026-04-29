@@ -10,6 +10,9 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Alert,
+  Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -111,6 +114,28 @@ function isTaskCompleted(task: Task) {
   return task.status.trim().toUpperCase() === 'COMPLETED';
 }
 
+type AttachmentType = 'images' | 'videos' | 'audios' | 'files';
+
+function buildAttachmentName(url: string, prefix: string, index: number) {
+  try {
+    const parsed = new URL(url);
+    const fileName = parsed.pathname.split('/').pop();
+    if (fileName) return decodeURIComponent(fileName);
+  } catch {
+    // fallback for non-url strings
+  }
+  const fallback = url.split('/').pop()?.split('?')[0];
+  if (fallback) return decodeURIComponent(fallback);
+  return `${prefix}-${index + 1}`;
+}
+
+function getTaskAttachmentUrls(task: Task, type: AttachmentType) {
+  if (type === 'images') return task.attachments?.images ?? task.imageUrls ?? [];
+  if (type === 'videos') return task.attachments?.videos ?? [];
+  if (type === 'audios') return task.attachments?.audios ?? [];
+  return task.attachments?.files ?? [];
+}
+
 function formatDate(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'No due date';
@@ -145,72 +170,124 @@ function isSameCalendarDay(iso: string, now = new Date()) {
   );
 }
 
-function OpenTaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
-  const isOverdue = !isTaskCompleted(task) && new Date(task.dueDate) < new Date();
-  const outletName    = getTaskOutletName(task);
+function OpenTaskCard({
+  task,
+  onPress,
+  onOpenAttachment,
+}: {
+  task: Task;
+  onPress: () => void;
+  onOpenAttachment: (task: Task, type: AttachmentType) => void;
+}) {
+  const outletName = getTaskOutletName(task);
   const categoryName  = getTaskCategoryName(task);
   const assigneeNames = getTaskAssigneeNames(task);
-  const priorityColor = PRIORITY_COLORS[task.priority] ?? colors.textSecondary;
+  const imageCount = getTaskAttachmentUrls(task, 'images').length;
+  const videoCount = getTaskAttachmentUrls(task, 'videos').length;
+  const audioCount = getTaskAttachmentUrls(task, 'audios').length;
+  const fileCount = getTaskAttachmentUrls(task, 'files').length;
 
   return (
-    <TouchableOpacity style={styles.openCard} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity style={styles.openCard} onPress={onPress} activeOpacity={0.82}>
       <View style={styles.openCardInner}>
-        <View style={styles.openCardHeader}>
-          <StatusBadge status={task.status} />
-          <Text style={[styles.dueDate, isOverdue && { color: colors.error }]}>
-            {formatDate(task.dueDate)}
-          </Text>
+        <View style={styles.openCardTopRow}>
+          <View style={styles.openCardPill}>
+            <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
+          </View>
+          {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
         </View>
 
-        <Text style={styles.openTitle} numberOfLines={1}>
+        <Text style={styles.openTitle} numberOfLines={2}>
           {task.title || task.description}
         </Text>
-        {outletName ? <Text style={styles.outletName}>{outletName}</Text> : null}
-        <Text style={styles.description} numberOfLines={2}>{task.description}</Text>
+        <Text style={styles.openMetaLine} numberOfLines={1}>
+          <Text style={styles.openMetaLabel}>Assigned to: </Text>
+          <Text style={styles.openMetaStrong}>{assigneeNames[0] ?? 'Unassigned'}</Text>
+        </Text>
+
+        <View style={styles.openCardDivider} />
 
         <View style={styles.openCardFooter}>
-          {categoryName ? (
-            <View style={styles.metaPill}>
-              <Text style={styles.categoryText}>{categoryName}</Text>
-            </View>
-          ) : null}
-          {assigneeNames.length > 0 && (
-            <Text style={styles.assignees} numberOfLines={1}>{assigneeNames.join(', ')}</Text>
-          )}
-          <View style={styles.footerSpacer} />
-          <Text style={[styles.priorityLabel, { color: priorityColor }]}>{task.priority}</Text>
+          <View style={styles.openCardAttachmentActions}>
+            <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'images')}>
+              <Ionicons name="camera-outline" size={15} color={colors.textSecondary} />
+              {imageCount > 0 ? <Text style={styles.openCardIconCount}>{imageCount}</Text> : null}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'videos')}>
+              <Ionicons name="videocam-outline" size={15} color={colors.textSecondary} />
+              {videoCount > 0 ? <Text style={styles.openCardIconCount}>{videoCount}</Text> : null}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'files')}>
+              <Ionicons name="document-outline" size={15} color={colors.textSecondary} />
+              {fileCount > 0 ? <Text style={styles.openCardIconCount}>{fileCount}</Text> : null}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'audios')}>
+              <Ionicons name="mic-outline" size={15} color={colors.textSecondary} />
+              {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
   );
 }
 
-function CompletedTaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
+function CompletedTaskCard({
+  task,
+  onPress,
+  onOpenAttachment,
+}: {
+  task: Task;
+  onPress: () => void;
+  onOpenAttachment: (task: Task, type: AttachmentType) => void;
+}) {
   const assigneeNames = getTaskAssigneeNames(task);
-  const priorityColor = PRIORITY_COLORS[task.priority] ?? colors.textSecondary;
   const categoryName = getTaskCategoryName(task);
+  const outletName = getTaskOutletName(task);
+  const imageCount = getTaskAttachmentUrls(task, 'images').length;
+  const videoCount = getTaskAttachmentUrls(task, 'videos').length;
+  const audioCount = getTaskAttachmentUrls(task, 'audios').length;
+  const fileCount = getTaskAttachmentUrls(task, 'files').length;
 
   return (
     <TouchableOpacity style={styles.completedCard} onPress={onPress} activeOpacity={0.78}>
-      <View style={styles.completedMeta}>
-        <Text style={styles.completedId}>ID: #{task.id.slice(-4).toUpperCase()}</Text>
-        <Text style={styles.completedWhen}>{formatRelativeTime(task.completedAt)}</Text>
+      <View style={styles.openCardTopRow}>
+        <View style={styles.openCardPill}>
+          <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
+        </View>
+        {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
       </View>
+      <Text style={styles.completedWhen}>{formatRelativeTime(task.completedAt)}</Text>
 
-      <Text style={styles.completedTitle} numberOfLines={1}>
+      <Text style={styles.openTitle} numberOfLines={2}>
         {task.title || task.description}
       </Text>
-      <Text style={styles.completedDescription} numberOfLines={2}>
-        {task.description}
+      <Text style={styles.openMetaLine} numberOfLines={1}>
+        <Text style={styles.openMetaLabel}>Assigned to: </Text>
+        <Text style={styles.openMetaStrong}>{assigneeNames[0] ?? 'Unassigned'}</Text>
       </Text>
 
-      <View style={styles.completedFooter}>
-        <Text style={styles.completedAssignee} numberOfLines={1}>
-          {assigneeNames[0] ?? 'System'}
-        </Text>
-        {categoryName ? <Text style={styles.completedCategory}>{categoryName}</Text> : null}
-        <View style={styles.footerSpacer} />
-        <Text style={[styles.completedPriority, { color: priorityColor }]}>{task.priority}</Text>
+      <View style={styles.openCardDivider} />
+
+      <View style={styles.openCardFooter}>
+        <View style={styles.openCardAttachmentActions}>
+          <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'images')}>
+            <Ionicons name="camera-outline" size={15} color={colors.textSecondary} />
+            {imageCount > 0 ? <Text style={styles.openCardIconCount}>{imageCount}</Text> : null}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'videos')}>
+            <Ionicons name="videocam-outline" size={15} color={colors.textSecondary} />
+            {videoCount > 0 ? <Text style={styles.openCardIconCount}>{videoCount}</Text> : null}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'files')}>
+            <Ionicons name="document-outline" size={15} color={colors.textSecondary} />
+            {fileCount > 0 ? <Text style={styles.openCardIconCount}>{fileCount}</Text> : null}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'audios')}>
+            <Ionicons name="mic-outline" size={15} color={colors.textSecondary} />
+            {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
+          </TouchableOpacity>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -224,6 +301,7 @@ export default function TasksScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [attachmentModal, setAttachmentModal] = useState<{ task: Task; type: AttachmentType } | null>(null);
 
   const { data: tasks, isLoading, isFetching, refetch } = useTasks({ limit: 50 });
   const allTasks = tasks ?? [];
@@ -285,6 +363,41 @@ export default function TasksScreen() {
       .sort(compareCompletedTaskOrder),
     [filteredTasks],
   );
+
+  const openAttachmentModal = (task: Task, type: AttachmentType) => {
+    const urls = getTaskAttachmentUrls(task, type);
+    if (urls.length === 0) {
+      Alert.alert('No attachments', `No ${type} found for this task.`);
+      return;
+    }
+    setAttachmentModal({ task, type });
+  };
+
+  const openExternalAttachment = async (url: string) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert('Attachment unavailable', 'Could not open this attachment.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Attachment unavailable', 'Could not open this attachment.');
+    }
+  };
+
+  const attachmentModalUrls = attachmentModal
+    ? getTaskAttachmentUrls(attachmentModal.task, attachmentModal.type)
+    : [];
+  const attachmentModalTitle = attachmentModal
+    ? (attachmentModal.type === 'images'
+      ? 'Image Attachments'
+      : attachmentModal.type === 'videos'
+        ? 'Video Attachments'
+        : attachmentModal.type === 'audios'
+          ? 'Audio Attachments'
+          : 'File Attachments')
+    : '';
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -413,6 +526,7 @@ export default function TasksScreen() {
                 <OpenTaskCard
                   task={item}
                   onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+                  onOpenAttachment={openAttachmentModal}
                 />
               </View>
             )}
@@ -455,6 +569,7 @@ export default function TasksScreen() {
                   key={task.id}
                   task={task}
                   onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
+                  onOpenAttachment={openAttachmentModal}
                 />
               ))}
             </ScrollView>
@@ -496,6 +611,65 @@ export default function TasksScreen() {
               fill
               backgroundColor={colors.surface}
             />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(attachmentModal)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAttachmentModal(null)}
+      >
+        <View style={styles.attachModalRoot}>
+          <TouchableOpacity style={styles.attachModalScrim} activeOpacity={1} onPress={() => setAttachmentModal(null)} />
+          <View style={styles.attachModalCard}>
+            <View style={styles.attachModalHeader}>
+              <Text style={styles.attachModalTitle}>{attachmentModalTitle}</Text>
+              <TouchableOpacity onPress={() => setAttachmentModal(null)} style={styles.attachModalCloseBtn}>
+                <Ionicons name="close" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.attachModalContent}>
+              {attachmentModal?.type === 'images'
+                ? attachmentModalUrls.map((url, index) => (
+                  <TouchableOpacity
+                    key={`${url}-${index}`}
+                    onPress={() => { void openExternalAttachment(url); }}
+                    activeOpacity={0.84}
+                    style={styles.attachImageItem}
+                  >
+                    <Image source={{ uri: url }} style={styles.attachImageThumb} resizeMode="cover" />
+                  </TouchableOpacity>
+                ))
+                : attachmentModalUrls.map((url, index) => (
+                  <TouchableOpacity
+                    key={`${url}-${index}`}
+                    style={styles.attachRow}
+                    onPress={() => { void openExternalAttachment(url); }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.attachRowLeft}>
+                      <Ionicons
+                        name={
+                          attachmentModal?.type === 'videos'
+                            ? 'videocam-outline'
+                            : attachmentModal?.type === 'audios'
+                              ? 'mic-outline'
+                              : 'document-outline'
+                        }
+                        size={16}
+                        color={colors.primaryDark}
+                      />
+                      <Text style={styles.attachRowText} numberOfLines={1}>
+                        {buildAttachmentName(url, attachmentModal?.type ?? 'file', index)}
+                      </Text>
+                    </View>
+                    <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -722,41 +896,53 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: '#D3C5AC55',
     ...shadow.sm,
   },
-  openCardInner: { padding: spacing.md },
-  openCardHeader: {
+  openCardInner: { padding: spacing.md, gap: spacing.sm },
+  openCardPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: '#8ED3AE',
+    backgroundColor: '#DDF6E9',
+  },
+  openCardTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    gap: spacing.sm,
+  },
+  openCardPillText: { fontSize: typography.xs, color: '#1C7A52', fontWeight: typography.semibold },
+  openCardOutletName: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
   },
   openTitle: {
-    fontSize: typography.sm,
+    fontSize: typography.lg,
     color: colors.text,
     fontWeight: typography.semibold,
-    marginBottom: 2,
   },
-  dueDate: { fontSize: typography.xs, color: colors.textSecondary },
-  outletName: {
+  openMetaLine: {
     fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  openMetaLabel: {
+    fontSize: typography.sm,
+    color: '#4B6584',
     fontWeight: typography.semibold,
-    color: colors.primary,
-    marginBottom: 4,
   },
-  description: { fontSize: typography.sm, color: colors.textSecondary, marginBottom: spacing.sm, lineHeight: 19 },
-  openCardFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
-  footerSpacer: { flex: 1 },
-  metaPill: {
-    backgroundColor: colors.primaryTint,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  categoryText: { fontSize: typography.xs, color: colors.primary, fontWeight: typography.medium },
-  priorityLabel: { fontSize: typography.xs, fontWeight: typography.semibold },
-  assignees: { fontSize: typography.xs, color: colors.textSecondary },
+  openMetaStrong: { color: colors.text, fontWeight: typography.bold },
+  openCardDivider: { borderBottomWidth: 1, borderBottomColor: '#D3C5AC55' },
+  openCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  openCardAttachmentActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  openCardIconBtn: { minWidth: 18, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 2 },
+  openCardIconCount: { fontSize: 10, color: colors.textSecondary, fontWeight: typography.semibold },
 
   completedSection: {
     marginTop: spacing.md,
@@ -771,36 +957,14 @@ const styles = StyleSheet.create({
   },
   completedCard: {
     width: 300,
-    backgroundColor: '#F2F4F6',
+    backgroundColor: '#EEF1F4',
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: '#D3C5AC2A',
+    gap: spacing.sm,
   },
-  completedMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm },
-  completedId: {
-    backgroundColor: colors.text,
-    color: colors.textInverse,
-    fontSize: 10,
-    fontWeight: typography.bold,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  completedWhen: { fontSize: 10, color: colors.textSecondary, fontWeight: typography.medium },
-  completedTitle: { fontSize: typography.base, color: colors.text, fontWeight: typography.bold, marginBottom: 4 },
-  completedDescription: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 19, marginBottom: spacing.md },
-  completedFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  completedAssignee: { fontSize: typography.xs, color: colors.text, fontWeight: typography.semibold, maxWidth: 90 },
-  completedCategory: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  completedPriority: { fontSize: typography.xs, fontWeight: typography.bold },
+  completedWhen: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
 
   loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
   completedLoadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -816,6 +980,72 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(25, 28, 30, 0.4)',
   },
+
+  attachModalRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.md,
+  },
+  attachModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#00000055',
+  },
+  attachModalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    maxHeight: '72%',
+    overflow: 'hidden',
+  },
+  attachModalHeader: {
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  attachModalTitle: {
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+    color: colors.text,
+  },
+  attachModalCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EEF1F4',
+  },
+  attachModalContent: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  attachImageItem: {
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  attachImageThumb: {
+    width: '100%',
+    height: 180,
+  },
+  attachRow: {
+    minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  attachRowLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1, marginRight: spacing.sm },
+  attachRowText: { flex: 1, fontSize: typography.sm, color: colors.text },
   createSheet: {
     height: '92%',
     minHeight: 420,
