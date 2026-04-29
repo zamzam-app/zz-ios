@@ -71,6 +71,10 @@ export interface TasksOverviewResponse {
   dueTodayTasks: number;
   criticalOpenTasks: number;
   snapshotDate: string;
+  period?: Period;
+  dueInPeriodTasks?: number;
+  dueThisWeekTasks?: number;
+  dueThisMonthTasks?: number;
 }
 
 export interface OutletFeedbackItem {
@@ -135,8 +139,8 @@ export const analyticsApi = {
       period ? { params: { period } } : undefined,
     ),
 
-  getTasksOverview: () =>
+  getTasksOverview: (period?: Period) =>
     client
-      .get<TasksOverviewResponse>('/tasks/overview')
+      .get<TasksOverviewResponse>('/tasks/overview', period ? { params: { period } } : undefined)
       .then((response) => response.data),
 };

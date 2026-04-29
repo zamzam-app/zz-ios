@@ -45,9 +45,9 @@ export const useFranchiseAnalytics = (period?: Period) =>
     staleTime: ANALYTICS_STALE_TIME_MS,
   });
 
-export const useTasksOverview = () =>
+export const useTasksOverview = (period?: Period) =>
   useQuery({
-    queryKey: ['tasks-overview'],
-    queryFn: analyticsApi.getTasksOverview,
+    queryKey: ['tasks-overview', period ?? 'weekly'],
+    queryFn: () => analyticsApi.getTasksOverview(period),
     staleTime: ANALYTICS_STALE_TIME_MS,
   });

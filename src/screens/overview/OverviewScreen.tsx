@@ -245,7 +245,7 @@ export default function OverviewScreen() {
   const trendline = useCsatTrendline(period);
   const incidents = useIncidentsOverview(period);
   const feedback = useOutletFeedbackSummary(period);
-  const tasksOverview = useTasksOverview();
+  const tasksOverview = useTasksOverview(period);
 
   const isLoading = insights.isLoading || csat.isLoading;
   const isRefreshing = insights.isFetching
@@ -293,6 +293,7 @@ export default function OverviewScreen() {
   const taskCriticalCount = tasksOverview.data?.criticalOpenTasks;
   const taskCompletedCount = tasksOverview.data?.completedTasks;
   const dueTodayCount = tasksOverview.data?.dueTodayTasks;
+  const dueInPeriodCount = tasksOverview.data?.dueInPeriodTasks;
 
   const navigateToTasksWithFilter = (metric: TaskMetricFilter, source: TaskFilterSource) => {
     navigation.navigate('Tasks', {
@@ -354,10 +355,17 @@ export default function OverviewScreen() {
     },
   ];
 
-  const mainTitle = topTab === 'reviews' ? 'Overall CSAT Score' : 'Due today';
+  const taskDueTitle = period === 'daily'
+    ? 'Due today'
+    : period === 'weekly'
+      ? 'Due this week'
+      : 'Due this month';
+  const mainTitle = topTab === 'reviews' ? 'Overall CSAT Score' : taskDueTitle;
   const mainValue = topTab === 'reviews'
     ? (typeof csatScore === 'number' ? `${csatScore.toFixed(1)}/5` : '--')
-    : (typeof dueTodayCount === 'number' ? String(dueTodayCount) : '--');
+    : (typeof dueInPeriodCount === 'number'
+      ? String(dueInPeriodCount)
+      : (typeof dueTodayCount === 'number' ? String(dueTodayCount) : '--'));
   const mainSub = topTab === 'reviews'
     ? `${totalRatings} ratings this period`
     : `${taskCriticalCount ?? '--'} critical tasks`; // critical hidden in metric stack for Tasks tab
