@@ -16,6 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCreateOutlet, useUpdateOutlet } from '../../hooks/useOutlets';
 import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';
+import { useForms } from '../../hooks/useForms';
 import { useAuthStore } from '../../store/authStore';
 import { Outlet } from '../../api/endpoints/outlets';
 import { colors, spacing, radius, typography } from '../../theme/theme';
@@ -100,8 +101,10 @@ export function CreateOutletContent({
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
   const [outletTypeId, setOutletTypeId] = useState('');
+  const [formId, setFormId] = useState('');
   const [managerIds, setManagerIds] = useState<string[]>([]);
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [showFormPicker, setShowFormPicker] = useState(false);
   const [showManagerPicker, setShowManagerPicker] = useState(false);
 
   const {
@@ -111,6 +114,7 @@ export function CreateOutletContent({
     isFetching: isFetchingOutletTypes,
     refetch: refetchOutletTypes,
   } = useOutletTypes();
+  const { data: forms } = useForms();
   const { data: managers } = useManagers();
   const createOutlet = useCreateOutlet();
   const updateOutlet = useUpdateOutlet();
@@ -125,6 +129,7 @@ export function CreateOutletContent({
     setDescription(outletToEdit.description ?? '');
     setAddress(outletToEdit.address ?? '');
     setOutletTypeId(outletToEdit.outletTypeId ?? '');
+    setFormId(outletToEdit.formId ?? '');
     setManagerIds(outletToEdit.managerIds ?? []);
   }, [mode, outletToEdit]);
 
@@ -134,10 +139,12 @@ export function CreateOutletContent({
     setDescription('');
     setAddress('');
     setOutletTypeId('');
+    setFormId('');
     setManagerIds([]);
   }, [mode]);
 
   const selectedType = outletTypes?.find((t) => t.id === outletTypeId);
+  const selectedForm = forms?.find((f) => f.id === formId);
   const selectedManagers = managers?.filter((m) => managerIds.includes(m.id)) ?? [];
   const isSubmitting = createOutlet.isPending || updateOutlet.isPending;
 
@@ -148,6 +155,7 @@ export function CreateOutletContent({
     if (!name.trim()) return Alert.alert('Required', 'Outlet name is required.');
     if (!description.trim()) return Alert.alert('Required', 'Description is required.');
     if (!outletTypeId) return Alert.alert('Required', 'Please select an outlet type.');
+    if (!formId) return Alert.alert('Required', 'Please select a form.');
 
     if (mode === 'edit') {
       if (!outletToEdit) return;
@@ -159,6 +167,7 @@ export function CreateOutletContent({
             description: description.trim(),
             address: address.trim() || undefined,
             outletType: outletTypeId,
+            formId,
             managerIds,
           },
         },
@@ -177,6 +186,7 @@ export function CreateOutletContent({
         images: [],
         address: address.trim() || undefined,
         outletType: outletTypeId,
+        formId,
         ...(managerIds.length > 0 ? { managerIds } : {}),
       },
       {
@@ -252,6 +262,13 @@ export function CreateOutletContent({
           </Text>
         </TouchableOpacity>
 
+        <Label text="Form" required />
+        <TouchableOpacity style={styles.input} onPress={() => setShowFormPicker(true)}>
+          <Text style={{ color: selectedForm ? colors.text : colors.textDisabled }}>
+            {selectedForm?.title ?? 'Select form...'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.submitBtn, (isSubmitting || !isAdmin) && { opacity: 0.6 }]}
           onPress={handleSubmit}
@@ -284,6 +301,14 @@ export function CreateOutletContent({
           prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
         )}
         onClose={() => setShowManagerPicker(false)}
+      />
+      <PickerModal
+        visible={showFormPicker}
+        title="Select Form"
+        items={(forms ?? []).map((f) => ({ id: f.id, name: f.title }))}
+        selected={formId}
+        onSelect={(id) => { setFormId(id); setShowFormPicker(false); }}
+        onClose={() => setShowFormPicker(false)}
       />
     </View>
   );

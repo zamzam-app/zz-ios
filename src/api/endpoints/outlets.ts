@@ -6,6 +6,7 @@ export interface Outlet {
   name: string;
   description?: string;
   address?: string;
+  formId?: string;
   outletTypeId?: string;
   outletTypeName?: string;
   managerNames?: string[];
@@ -21,6 +22,7 @@ export interface CreateOutletPayload {
   description: string;
   images?: string[];
   address?: string;
+  formId?: string;
   outletType: string;
   managerIds?: string[];
 }
@@ -29,6 +31,7 @@ export interface UpdateOutletPayload {
   name?: string;
   description?: string;
   address?: string;
+  formId?: string;
   outletType?: string;
   managerIds?: string[];
   images?: string[];
@@ -40,6 +43,7 @@ interface RawOutlet {
   name?: string;
   description?: string;
   address?: string;
+  formId?: string | { _id?: string; id?: string };
   outletType?: string | { _id?: string; name?: string };
   outletTypeId?: string | { _id?: string; name?: string };
   outletTypeName?: string;
@@ -97,6 +101,13 @@ function mapOutlet(raw: RawOutlet): Outlet {
     name: raw.name ?? '',
     description: raw.description,
     address: raw.address,
+    formId: typeof raw.formId === 'string'
+      ? raw.formId
+      : raw.formId?._id
+        ? String(raw.formId._id)
+        : raw.formId?.id
+          ? String(raw.formId.id)
+          : undefined,
     outletTypeId,
     outletTypeName,
     managerIds,
