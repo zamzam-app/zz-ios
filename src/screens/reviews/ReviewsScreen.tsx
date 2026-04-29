@@ -345,6 +345,11 @@ export default function ReviewsScreen({ route }: Props) {
   }, [heatmapRows, outletOptions, selectedOutletId]);
 
   const refreshing = isReviewsFetching || isAnalyticsFetching;
+  const activeStatusFilterLabel = statusFilter === 'open'
+    ? 'Open'
+    : statusFilter === 'resolved'
+      ? 'Resolved'
+      : null;
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -450,6 +455,23 @@ export default function ReviewsScreen({ route }: Props) {
             )}
           </View>
         </View>
+
+        {statusFilter !== 'all' && (
+          <View style={styles.activeFilterRow}>
+            <View style={styles.activeFilterChip}>
+              <Text style={styles.activeFilterText}>Filter: {activeStatusFilterLabel}</Text>
+              <TouchableOpacity
+                onPress={() => setStatusFilter('all')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Clear review status filter"
+                style={styles.activeFilterClearBtn}
+              >
+                <Ionicons name="close" size={14} color={colors.primaryDark} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {hasUnresolvedComplaint && (
           <>
@@ -745,6 +767,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.xs,
+  },
+  activeFilterRow: {
+    paddingHorizontal: spacing.xs,
+  },
+  activeFilterChip: {
+    alignSelf: 'flex-start',
+    height: 30,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintStrong,
+    paddingLeft: spacing.sm,
+    paddingRight: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  activeFilterText: {
+    fontSize: typography.xs,
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+  activeFilterClearBtn: {
+    width: 18,
+    height: 18,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF80',
   },
   filterRow: {
     flexDirection: 'row',
