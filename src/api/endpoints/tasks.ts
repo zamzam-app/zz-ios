@@ -14,6 +14,14 @@ export interface TaskAttachments {
   files: string[];
 }
 
+export interface TaskSubmission {
+  text?: string;
+  attachments?: TaskAttachments;
+  createdBy?: { _id: string; name?: string };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface TaskCategoryOption {
   id: string;
   name: string;
@@ -37,6 +45,8 @@ export interface Task {
   assignees?: Array<{ _id: string; name?: string }>;
   imageUrls?: string[];
   attachments?: TaskAttachments;
+  adminSubmission?: TaskSubmission;
+  managerSubmission?: TaskSubmission;
   createdAt: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -88,6 +98,34 @@ export interface CreateTaskPayload {
   };
 }
 
+export interface UpdateTaskPayload {
+  description?: string;
+  taskCategoryId?: string;
+  priority?: TaskPriority;
+  dueDate?: string;
+  outletId?: string;
+  assigneeIds?: string[];
+  status?: TaskStatus;
+  adminSubmission?: {
+    text?: string;
+    attachments?: {
+      images?: string[];
+      videos?: string[];
+      audios?: string[];
+      files?: string[];
+    };
+  };
+  managerSubmission?: {
+    text?: string;
+    attachments?: {
+      images?: string[];
+      videos?: string[];
+      audios?: string[];
+      files?: string[];
+    };
+  };
+}
+
 // ─── Raw API shape (backend returns nested objects) ───────────────────────────
 
 interface RawTask {
@@ -116,6 +154,16 @@ interface RawTask {
     files?: string[];
   };
   adminSubmission?: {
+    text?: string;
+    attachments?: {
+      images?: string[];
+      videos?: string[];
+      audios?: string[];
+      files?: string[];
+    };
+  };
+  managerSubmission?: {
+    text?: string;
     attachments?: {
       images?: string[];
       videos?: string[];
@@ -239,6 +287,32 @@ function mapTask(raw: RawTask): Task {
       : undefined,
     imageUrls: images.length > 0 ? images : undefined,
     attachments: hasAttachments ? { images, videos, audios, files } : undefined,
+    adminSubmission: raw.adminSubmission
+      ? {
+        text: raw.adminSubmission.text,
+        attachments: raw.adminSubmission.attachments
+          ? {
+            images: listFromRaw(raw.adminSubmission.attachments.images),
+            videos: listFromRaw(raw.adminSubmission.attachments.videos),
+            audios: listFromRaw(raw.adminSubmission.attachments.audios),
+            files: listFromRaw(raw.adminSubmission.attachments.files),
+          }
+          : undefined,
+      }
+      : undefined,
+    managerSubmission: raw.managerSubmission
+      ? {
+        text: raw.managerSubmission.text,
+        attachments: raw.managerSubmission.attachments
+          ? {
+            images: listFromRaw(raw.managerSubmission.attachments.images),
+            videos: listFromRaw(raw.managerSubmission.attachments.videos),
+            audios: listFromRaw(raw.managerSubmission.attachments.audios),
+            files: listFromRaw(raw.managerSubmission.attachments.files),
+          }
+          : undefined,
+      }
+      : undefined,
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt,
     completedAt: raw.completedAt ?? null,
@@ -278,6 +352,9 @@ export const tasksApi = {
 
   create: (payload: CreateTaskPayload) =>
     client.post<RawTask>('/tasks', payload).then((r) => mapTask(r.data)),
+
+  update: (id: string, payload: UpdateTaskPayload) =>
+    client.patch<RawTask>(`/tasks/${id}`, payload).then((r) => mapTask(r.data)),
 
   listCategories: async () => {
     const response = await client.get<{ data: RawTaskCategory[] } | RawTaskCategory[]>('/task-category', {

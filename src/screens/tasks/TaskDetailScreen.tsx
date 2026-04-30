@@ -11,17 +11,23 @@ import {
   Platform,
   Image,
   Linking,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useTask, useUpdateTaskStatus, useDeleteTask } from '../../hooks/useTasks';
+import { useTask, useUpdateTaskStatus, useDeleteTask, useUpdateTask } from '../../hooks/useTasks';
 import { TaskStatus } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
+import { uploadToCloudinary } from '../../api/endpoints/upload';
+import { getApiErrorMessage } from '../../utils/errors';
+import { useAuthStore } from '../../store/authStore';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
 
@@ -84,16 +90,127 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SubmissionBlock({
+  title,
+  text,
+  attachments,
+  onOpenAttachment,
+}: {
+  title: string;
+  text?: string;
+  attachments?: {
+    images?: string[];
+    videos?: string[];
+    audios?: string[];
+    files?: string[];
+  };
+  onOpenAttachment: (url: string) => void;
+}) {
+  const imageItems = attachments?.images ?? [];
+  const videoItems = attachments?.videos ?? [];
+  const audioItems = attachments?.audios ?? [];
+  const fileItems = attachments?.files ?? [];
+  const hasAny = Boolean(text?.trim())
+    || imageItems.length > 0
+    || videoItems.length > 0
+    || audioItems.length > 0
+    || fileItems.length > 0;
+
+  if (!hasAny) return null;
+
+  return (
+    <View style={styles.submissionCard}>
+      <Text style={styles.submissionTitle}>{title}</Text>
+      {text?.trim() ? (
+        <Text style={styles.submissionText}>{text.trim()}</Text>
+      ) : null}
+
+      {imageItems.length > 0 && (
+        <View style={styles.attachmentGroup}>
+          <Text style={styles.attachmentGroupTitle}>Images</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRow}>
+            {imageItems.map((url, index) => (
+              <TouchableOpacity
+                key={`${title}-image-${url}-${index}`}
+                onPress={() => onOpenAttachment(url)}
+                style={styles.imageItem}
+                activeOpacity={0.85}
+              >
+                <Image source={{ uri: url }} style={styles.imageThumb} resizeMode="cover" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {videoItems.map((url, index) => (
+        <TouchableOpacity
+          key={`${title}-video-${url}-${index}`}
+          style={styles.attachmentRow}
+          onPress={() => onOpenAttachment(url)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.attachmentRowLeft}>
+            <Ionicons name="videocam-outline" size={16} color={colors.primaryDark} />
+            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+          </View>
+          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+        </TouchableOpacity>
+      ))}
+
+      {audioItems.map((url, index) => (
+        <TouchableOpacity
+          key={`${title}-audio-${url}-${index}`}
+          style={styles.attachmentRow}
+          onPress={() => onOpenAttachment(url)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.attachmentRowLeft}>
+            <Ionicons name="mic-outline" size={16} color={colors.primaryDark} />
+            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
+          </View>
+          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+        </TouchableOpacity>
+      ))}
+
+      {fileItems.map((url, index) => (
+        <TouchableOpacity
+          key={`${title}-file-${url}-${index}`}
+          style={styles.attachmentRow}
+          onPress={() => onOpenAttachment(url)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.attachmentRowLeft}>
+            <Ionicons name="document-outline" size={16} color={colors.primaryDark} />
+            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+          </View>
+          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
 export default function TaskDetailScreen({ route, navigation }: Props) {
   const { taskId } = route.params;
   const { data: task, isLoading } = useTask(taskId);
   const updateStatus = useUpdateTaskStatus();
+  const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
   const previewPlayer = useAudioPlayer(null, { updateInterval: 150 });
   const previewPlayerStatus = useAudioPlayerStatus(previewPlayer);
   const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
   const [probingAudioAttachmentId, setProbingAudioAttachmentId] = useState<string | null>(null);
   const [audioDurationById, setAudioDurationById] = useState<Record<string, number>>({});
+  const [managerText, setManagerText] = useState('');
+  const [managerAttachments, setManagerAttachments] = useState<{
+    images: string[];
+    videos: string[];
+    audios: string[];
+    files: string[];
+  }>({ images: [], videos: [], audios: [], files: [] });
+  const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
 
   const runPreviewPlayerActionSafely = useCallback((action: () => unknown): boolean => {
     try {
@@ -193,6 +310,107 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     + audioAttachments.length
     + fileAttachments.length;
   const hasAttachments = attachmentCount > 0;
+
+  useEffect(() => {
+    if (!task) return;
+    setManagerText(task.managerSubmission?.text ?? '');
+    setManagerAttachments({
+      images: task.managerSubmission?.attachments?.images ?? [],
+      videos: task.managerSubmission?.attachments?.videos ?? [],
+      audios: task.managerSubmission?.attachments?.audios ?? [],
+      files: task.managerSubmission?.attachments?.files ?? [],
+    });
+  }, [task?.id, task?.managerSubmission?.text, task?.managerSubmission?.attachments]);
+
+  const addAttachmentUrl = (
+    type: 'images' | 'videos' | 'audios' | 'files',
+    url: string,
+  ) => {
+    setManagerAttachments((prev) => ({
+      ...prev,
+      [type]: [...prev[type], url],
+    }));
+  };
+
+  const removeAttachmentUrl = (
+    type: 'images' | 'videos' | 'audios' | 'files',
+    index: number,
+  ) => {
+    setManagerAttachments((prev) => ({
+      ...prev,
+      [type]: prev[type].filter((_, idx) => idx !== index),
+    }));
+  };
+
+  const uploadLocalFile = async (
+    type: 'images' | 'videos' | 'audios' | 'files',
+    uri: string,
+  ) => {
+    setUploadingType(type);
+    try {
+      const remoteUrl = await uploadToCloudinary(uri, 'tasks');
+      addAttachmentUrl(type, remoteUrl);
+    } catch (error) {
+      Alert.alert('Upload failed', getApiErrorMessage(error, 'Could not upload attachment.'));
+    } finally {
+      setUploadingType(null);
+    }
+  };
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await uploadLocalFile('images', result.assets[0].uri);
+  };
+
+  const pickVideo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await uploadLocalFile('videos', result.assets[0].uri);
+  };
+
+  const pickFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ multiple: false });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await uploadLocalFile('files', result.assets[0].uri);
+  };
+
+  const pickVoice = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', multiple: false });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await uploadLocalFile('audios', result.assets[0].uri);
+  };
+
+  const saveManagerSubmission = () => {
+    if (!task) return;
+    updateTask.mutate(
+      {
+        id: task.id,
+        payload: {
+          managerSubmission: {
+            text: managerText,
+            attachments: {
+              images: managerAttachments.images,
+              videos: managerAttachments.videos,
+              audios: managerAttachments.audios,
+              files: managerAttachments.files,
+            },
+          },
+        },
+      },
+      {
+        onError: (error) => {
+          Alert.alert('Could not save', getApiErrorMessage(error, 'Failed to save manager submission.'));
+        },
+      },
+    );
+  };
 
   useEffect(() => {
     return () => {
@@ -309,57 +527,44 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             <Text style={styles.subheading}>Task #{task.id.slice(-6).toUpperCase()}</Text>
           </View>
           <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={[styles.iconActionBtn, updateStatus.isPending && styles.iconActionBtnDisabled]}
-              onPress={handleStatusChange}
-              disabled={updateStatus.isPending}
-              activeOpacity={0.82}
-            >
-              {updateStatus.isPending ? (
-                <ActivityIndicator color={colors.textInverse} size="small" />
-              ) : (
-                <Ionicons name="checkmark-done-outline" size={18} color={colors.textInverse} />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
-              onPress={handleDelete}
-              disabled={deleteTask.isPending}
-              activeOpacity={0.82}
-            >
-              {deleteTask.isPending ? (
-                <ActivityIndicator color={colors.textInverse} size="small" />
-              ) : (
-                <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
-              )}
-            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity
+                style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
+                onPress={handleDelete}
+                disabled={deleteTask.isPending}
+                activeOpacity={0.82}
+              >
+                {deleteTask.isPending ? (
+                  <ActivityIndicator color={colors.textInverse} size="small" />
+                ) : (
+                  <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
         <View style={styles.summaryCard}>
-          <View style={styles.topRow}>
-            <StatusBadge status={task.status} />
-            <View style={[styles.priorityBadge, { backgroundColor: (PRIORITY_COLORS[task.priority] ?? colors.textSecondary) + '22' }]}>
-              <Text style={[styles.priorityText, { color: PRIORITY_COLORS[task.priority] ?? colors.textSecondary }]}>
-                {task.priority}
-              </Text>
+          <View style={styles.ownerTopRow}>
+            <View style={styles.ownerHeadingWrap}>
+              <View style={styles.ownerTitleRow}>
+                <Text style={styles.ownerTitle}>{categoryName || 'Task'}</Text>
+                {isOverdue ? <Text style={styles.overdueTopTag}>Overdue</Text> : null}
+              </View>
+              {outletName ? <Text style={styles.ownerOutlet}>{outletName}</Text> : null}
+            </View>
+            <View style={styles.ownerBadgeWrap}>
+              <View style={styles.ownerStatusPriorityRow}>
+                <StatusBadge status={task.status} />
+                <View style={[styles.priorityBadge, { backgroundColor: (PRIORITY_COLORS[task.priority] ?? colors.textSecondary) + '22' }]}>
+                  <Text style={[styles.priorityText, { color: PRIORITY_COLORS[task.priority] ?? colors.textSecondary }]}>
+                    {task.priority}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
-          <Text style={styles.description}>{task.description}</Text>
-          {isOverdue && <Text style={styles.overdueTag}>Overdue</Text>}
-        </View>
 
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionHeadingWrap}>
-            <View style={styles.sectionDot} />
-            <Text style={styles.sectionTitle}>Task Details</Text>
-          </View>
-        </View>
-
-        <View style={styles.detailsCard}>
-          {outletName && <Row label="Outlet" value={outletName} />}
-          {categoryName && <Row label="Category" value={categoryName} />}
           <Row label="Due Date" value={formatDate(task.dueDate)} />
           {assigneeNames.length > 0 && (
             <Row label="Assigned To" value={assigneeNames.join(', ')} />
@@ -368,19 +573,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           {task.completedAt && (
             <Row label="Completed" value={formatDate(task.completedAt)} />
           )}
-        </View>
 
-        {hasAttachments && (
-          <>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeadingWrap}>
-                <View style={styles.sectionDot} />
-                <Text style={styles.sectionTitle}>Attachments</Text>
-              </View>
-              <Text style={styles.sectionCount}>{attachmentCount}</Text>
-            </View>
+          <Text style={styles.ownerDescriptionLabel}>Description</Text>
+          <Text style={styles.description}>{task.description}</Text>
 
-            <View style={styles.attachmentsCard}>
+          {hasAttachments && (
+            <View style={styles.attachmentsInlineWrap}>
+              <Text style={styles.ownerDescriptionLabel}>Attachments</Text>
               {imageAttachments.length > 0 && (
                 <View style={styles.attachmentGroup}>
                   <Text style={styles.attachmentGroupTitle}>Images</Text>
@@ -503,8 +702,120 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 </View>
               )}
             </View>
-          </>
-        )}
+          )}
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeadingWrap}>
+            <View style={styles.sectionDot} />
+            <Text style={styles.sectionTitle}>Manager Submission</Text>
+          </View>
+        </View>
+
+        <View style={styles.managerCard}>
+          <TextInput
+            style={styles.managerTextInput}
+            placeholder="Add manager notes..."
+            placeholderTextColor={colors.textSecondary}
+            value={managerText}
+            onChangeText={setManagerText}
+            multiline
+            textAlignVertical="top"
+          />
+
+          <View style={styles.managerActionsRow}>
+            <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null}>
+              <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
+              <Text style={styles.managerActionBtnText}>Image</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVideo(); }} disabled={uploadingType !== null}>
+              <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
+              <Text style={styles.managerActionBtnText}>Video</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickFile(); }} disabled={uploadingType !== null}>
+              <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
+              <Text style={styles.managerActionBtnText}>File</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVoice(); }} disabled={uploadingType !== null}>
+              <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
+              <Text style={styles.managerActionBtnText}>Voice</Text>
+            </TouchableOpacity>
+          </View>
+
+          {uploadingType && (
+            <View style={styles.uploadingRow}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.uploadingText}>Uploading {uploadingType.slice(0, -1)}...</Text>
+            </View>
+          )}
+
+          {(managerAttachments.images.length > 0
+            || managerAttachments.videos.length > 0
+            || managerAttachments.audios.length > 0
+            || managerAttachments.files.length > 0) && (
+            <SubmissionBlock
+              title={task.status === 'COMPLETED' ? 'Manager Submission (Completed)' : 'Attached'}
+              text={task.status === 'COMPLETED' ? managerText : undefined}
+              attachments={managerAttachments}
+              onOpenAttachment={(url) => { void openAttachment(url); }}
+            />
+          )}
+
+          {task.status !== 'COMPLETED' && managerText.trim().length > 0 && (
+            <Text style={styles.managerDraftPreview}>{managerText.trim()}</Text>
+          )}
+
+          <View style={styles.managerTagGroup}>
+            {managerAttachments.images.map((url, index) => (
+              <TouchableOpacity
+                key={`manager-image-${url}-${index}`}
+                style={styles.attachmentTag}
+                onLongPress={() => removeAttachmentUrl('images', index)}
+              >
+                <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'image', index)}</Text>
+              </TouchableOpacity>
+            ))}
+            {managerAttachments.videos.map((url, index) => (
+              <TouchableOpacity
+                key={`manager-video-${url}-${index}`}
+                style={styles.attachmentTag}
+                onLongPress={() => removeAttachmentUrl('videos', index)}
+              >
+                <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+              </TouchableOpacity>
+            ))}
+            {managerAttachments.audios.map((url, index) => (
+              <TouchableOpacity
+                key={`manager-audio-${url}-${index}`}
+                style={styles.attachmentTag}
+                onLongPress={() => removeAttachmentUrl('audios', index)}
+              >
+                <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
+              </TouchableOpacity>
+            ))}
+            {managerAttachments.files.map((url, index) => (
+              <TouchableOpacity
+                key={`manager-file-${url}-${index}`}
+                style={styles.attachmentTag}
+                onLongPress={() => removeAttachmentUrl('files', index)}
+              >
+                <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.saveManagerBtn, updateTask.isPending && styles.iconActionBtnDisabled]}
+            onPress={saveManagerSubmission}
+            disabled={updateTask.isPending}
+          >
+            {updateTask.isPending ? (
+              <ActivityIndicator color={colors.textInverse} size="small" />
+            ) : (
+              <Text style={styles.saveManagerBtnText}>Save Submission</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -570,6 +881,40 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
+  ownerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  ownerHeadingWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  ownerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  ownerTitle: {
+    fontSize: typography.md,
+    color: colors.text,
+    fontWeight: typography.bold,
+  },
+  ownerOutlet: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
+  ownerBadgeWrap: {
+    alignItems: 'flex-end',
+  },
+  ownerStatusPriorityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   priorityBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -584,10 +929,22 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
+  ownerDescriptionLabel: {
+    marginTop: spacing.sm,
+    marginBottom: 4,
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
   overdueTag: {
     color: colors.error,
     fontSize: typography.xs,
     marginTop: spacing.xs,
+    fontWeight: typography.semibold,
+  },
+  overdueTopTag: {
+    color: colors.error,
+    fontSize: typography.xs,
     fontWeight: typography.semibold,
   },
 
@@ -634,6 +991,25 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...shadow.sm,
   },
+  submissionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    ...shadow.sm,
+  },
+  submissionTitle: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
+    marginBottom: spacing.xs,
+  },
+  submissionText: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -658,6 +1034,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     ...shadow.sm,
+  },
+  attachmentsInlineWrap: {
+    marginTop: spacing.sm,
   },
   attachmentGroup: {
     marginBottom: spacing.sm,
@@ -748,5 +1127,90 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     minWidth: 76,
     textAlign: 'right',
+  },
+  managerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadow.sm,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  managerTextInput: {
+    minHeight: 92,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  managerActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  managerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+  },
+  managerActionBtnText: {
+    fontSize: typography.xs,
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+  uploadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  uploadingText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  managerDraftPreview: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  managerTagGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  attachmentTag: {
+    maxWidth: '100%',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+  },
+  attachmentTagText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  saveManagerBtn: {
+    minHeight: 42,
+    borderRadius: radius.md,
+    backgroundColor: colors.buttonPrimaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.sm,
+  },
+  saveManagerBtnText: {
+    fontSize: typography.sm,
+    color: colors.textInverse,
+    fontWeight: typography.semibold,
   },
 });

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { tasksApi, TasksQuery, CreateTaskPayload, TaskStatus } from '../api/endpoints/tasks';
+import { tasksApi, TasksQuery, CreateTaskPayload, TaskStatus, UpdateTaskPayload } from '../api/endpoints/tasks';
 
 export const useTasks = (query?: TasksQuery) =>
   useQuery({
@@ -65,6 +65,19 @@ export const useDeleteTask = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
+    },
+  });
+};
+
+export const useUpdateTask = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateTaskPayload }) =>
+      tasksApi.update(id, payload),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-overview'] });
+      qc.invalidateQueries({ queryKey: ['task', updated.id] });
     },
   });
 };
