@@ -32,6 +32,7 @@ import {
   useUploadedCakes,
 } from '../../hooks/useProducts';
 import { Product, Category } from '../../api/endpoints/products';
+import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
 import ImagePickerButton from '../../components/ImagePickerButton';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
@@ -207,7 +208,7 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
   );
 }
 
-function AIStudioTab() {
+function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake) => void }) {
   const { data: savedCakes, isLoading: cakesLoading } = useCustomCakes();
   const [searchQuery, setSearchQuery] = useState('');
   const [minAgeText, setMinAgeText] = useState('');
@@ -297,7 +298,7 @@ function AIStudioTab() {
         <Text style={aiStyles.empty}>No custom cake orders yet</Text>
       ) : (
         filteredCakes.map((cake) => (
-          <View key={cake.id} style={aiStyles.cakeCard}>
+          <TouchableOpacity key={cake.id} style={aiStyles.cakeCard} activeOpacity={0.86} onPress={() => onOpenCustomCake(cake)}>
             {cake.imageUrl ? (
               <Image source={{ uri: cake.imageUrl }} style={aiStyles.cakeThumbnail} resizeMode="cover" />
             ) : (
@@ -314,7 +315,7 @@ function AIStudioTab() {
                 {new Date(cake.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         ))
       )}
 
@@ -370,7 +371,7 @@ function AIStudioTab() {
   );
 }
 
-function UploadedImagesTab({ onOpenPreview }: { onOpenPreview: (url: string) => void }) {
+function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: UploadedCakeImage) => void }) {
   const { data: uploadedImages, isLoading } = useUploadedCakes();
 
   return (
@@ -388,7 +389,7 @@ function UploadedImagesTab({ onOpenPreview }: { onOpenPreview: (url: string) => 
                 key={item.id}
                 style={styles.uploadCard}
                 activeOpacity={0.85}
-                onPress={() => onOpenPreview(item.referenceImageUrl)}
+                onPress={() => onOpenUploadedCake(item)}
               >
                 <Image source={{ uri: item.referenceImageUrl }} style={styles.uploadImage} resizeMode="cover" />
                 <View style={styles.uploadMeta}>
@@ -496,7 +497,6 @@ function CakeRow({
 export default function StudioScreen() {
   const navigation = useNavigation<StudioNav>();
   const [activeTab, setActiveTab] = useState<StudioTab>('catalogue');
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const { data: products, isLoading: productsLoading, isFetching: productsFetching, refetch: refetchProducts } = useProducts();
   const { data: categories, isLoading: categoriesLoading, isFetching: categoriesFetching, refetch: refetchCategories } = useCategories();
@@ -675,9 +675,19 @@ export default function StudioScreen() {
         </View>
 
         {activeTab === 'ai' ? (
-          <AIStudioTab />
+          <AIStudioTab
+            onOpenCustomCake={(item) => navigation.navigate('StudioDocumentDetail', {
+              type: 'custom-cake',
+              item,
+            })}
+          />
         ) : activeTab === 'uploads' ? (
-          <UploadedImagesTab onOpenPreview={setPreviewUrl} />
+          <UploadedImagesTab
+            onOpenUploadedCake={(item) => navigation.navigate('StudioDocumentDetail', {
+              type: 'uploaded-cake',
+              item,
+            })}
+          />
         ) : (
           productsLoading ? (
             <ActivityIndicator color={colors.primary} style={styles.loader} />
@@ -796,18 +806,6 @@ export default function StudioScreen() {
         </SafeAreaView>
       </Modal>
 
-      {previewUrl ? (
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.uploadPreviewOverlay}
-          onPress={() => setPreviewUrl(null)}
-        >
-          <Image source={{ uri: previewUrl }} style={styles.uploadPreviewImageFull} resizeMode="contain" />
-          <TouchableOpacity style={styles.uploadPreviewCloseBtn} onPress={() => setPreviewUrl(null)}>
-            <Ionicons name="close" size={20} color={colors.textInverse} />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -824,28 +822,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-  },
-  uploadPreviewOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
-    backgroundColor: '#000000E0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uploadPreviewImageFull: {
-    width: '100%',
-    height: '100%',
-  },
-  uploadPreviewCloseBtn: {
-    position: 'absolute',
-    top: spacing.lg,
-    right: spacing.md,
-    width: 34,
-    height: 34,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#00000080',
   },
   uploadCard: {
     width: '48.5%',
