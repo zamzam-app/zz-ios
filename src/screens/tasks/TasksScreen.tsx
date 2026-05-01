@@ -625,7 +625,6 @@ export default function TasksScreen() {
                 <View style={[styles.sectionDot, styles.sectionDotCompleted]} />
                 <Text style={styles.sectionTitle}>Completed Tasks</Text>
               </View>
-              <Text style={styles.sectionCount}>{completedTasksTotal} done</Text>
             </View>
 
             {!isLoading && completedTasks.length === 0 && (
