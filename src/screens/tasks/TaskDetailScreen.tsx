@@ -709,118 +709,142 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionHeadingWrap}>
-            <View style={styles.sectionDot} />
-            <Text style={styles.sectionTitle}>Manager Submission</Text>
-          </View>
-        </View>
-
-        <View style={styles.managerCard}>
-          <TextInput
-            style={styles.managerTextInput}
-            placeholder="Add manager notes..."
-            placeholderTextColor={colors.textSecondary}
-            value={managerText}
-            onChangeText={setManagerText}
-            multiline
-            textAlignVertical="top"
-          />
-
-          <View style={styles.managerActionsRow}>
-            <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null}>
-              <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
-              <Text style={styles.managerActionBtnText}>Image</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVideo(); }} disabled={uploadingType !== null}>
-              <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
-              <Text style={styles.managerActionBtnText}>Video</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickFile(); }} disabled={uploadingType !== null}>
-              <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
-              <Text style={styles.managerActionBtnText}>File</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVoice(); }} disabled={uploadingType !== null}>
-              <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
-              <Text style={styles.managerActionBtnText}>Voice</Text>
-            </TouchableOpacity>
-          </View>
-
-          {uploadingType && (
-            <View style={styles.uploadingRow}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.uploadingText}>Uploading {uploadingType.slice(0, -1)}...</Text>
+        {task.status !== 'COMPLETED' ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeadingWrap}>
+                <View style={styles.sectionDot} />
+                <Text style={styles.sectionTitle}>Manager Submission</Text>
+              </View>
             </View>
-          )}
 
-          {(managerText.trim().length > 0
+            <View style={styles.managerCard}>
+              <TextInput
+                style={styles.managerTextInput}
+                placeholder="Add manager notes..."
+                placeholderTextColor={colors.textSecondary}
+                value={managerText}
+                onChangeText={setManagerText}
+                multiline
+                textAlignVertical="top"
+              />
+
+              <View style={styles.managerActionsRow}>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null}>
+                  <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Image</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVideo(); }} disabled={uploadingType !== null}>
+                  <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Video</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickFile(); }} disabled={uploadingType !== null}>
+                  <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>File</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVoice(); }} disabled={uploadingType !== null}>
+                  <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Voice</Text>
+                </TouchableOpacity>
+              </View>
+
+              {uploadingType && (
+                <View style={styles.uploadingRow}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.uploadingText}>Uploading {uploadingType.slice(0, -1)}...</Text>
+                </View>
+              )}
+
+              {(managerAttachments.images.length > 0
+                || managerAttachments.videos.length > 0
+                || managerAttachments.audios.length > 0
+                || managerAttachments.files.length > 0) && (
+                <SubmissionBlock
+                  title="Attached"
+                  text={undefined}
+                  attachments={managerAttachments}
+                  onOpenAttachment={(url) => { void openAttachment(url); }}
+                />
+              )}
+
+              {managerText.trim().length > 0 && (
+                <Text style={styles.managerDraftPreview}>{managerText.trim()}</Text>
+              )}
+
+              <View style={styles.managerTagGroup}>
+                {managerAttachments.images.map((url, index) => (
+                  <TouchableOpacity
+                    key={`manager-image-${url}-${index}`}
+                    style={styles.attachmentTag}
+                    onLongPress={() => removeAttachmentUrl('images', index)}
+                  >
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'image', index)}</Text>
+                  </TouchableOpacity>
+                ))}
+                {managerAttachments.videos.map((url, index) => (
+                  <TouchableOpacity
+                    key={`manager-video-${url}-${index}`}
+                    style={styles.attachmentTag}
+                    onLongPress={() => removeAttachmentUrl('videos', index)}
+                  >
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+                  </TouchableOpacity>
+                ))}
+                {managerAttachments.audios.map((url, index) => (
+                  <TouchableOpacity
+                    key={`manager-audio-${url}-${index}`}
+                    style={styles.attachmentTag}
+                    onLongPress={() => removeAttachmentUrl('audios', index)}
+                  >
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
+                  </TouchableOpacity>
+                ))}
+                {managerAttachments.files.map((url, index) => (
+                  <TouchableOpacity
+                    key={`manager-file-${url}-${index}`}
+                    style={styles.attachmentTag}
+                    onLongPress={() => removeAttachmentUrl('files', index)}
+                  >
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.saveManagerBtn, updateTask.isPending && styles.iconActionBtnDisabled]}
+                onPress={saveManagerSubmission}
+                disabled={updateTask.isPending}
+              >
+                {updateTask.isPending ? (
+                  <ActivityIndicator color={colors.textInverse} size="small" />
+                ) : (
+                  <Text style={styles.saveManagerBtnText}>Save Submission</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          (managerText.trim().length > 0
             || managerAttachments.images.length > 0
             || managerAttachments.videos.length > 0
             || managerAttachments.audios.length > 0
-            || managerAttachments.files.length > 0) && (
-            <SubmissionBlock
-              title={task.status === 'COMPLETED' ? 'Manager Submission (Completed)' : 'Attached'}
-              text={task.status === 'COMPLETED' ? managerText : undefined}
-              attachments={managerAttachments}
-              onOpenAttachment={(url) => { void openAttachment(url); }}
-            />
-          )}
-
-          {task.status !== 'COMPLETED' && managerText.trim().length > 0 && (
-            <Text style={styles.managerDraftPreview}>{managerText.trim()}</Text>
-          )}
-
-          <View style={styles.managerTagGroup}>
-            {managerAttachments.images.map((url, index) => (
-              <TouchableOpacity
-                key={`manager-image-${url}-${index}`}
-                style={styles.attachmentTag}
-                onLongPress={() => removeAttachmentUrl('images', index)}
-              >
-                <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'image', index)}</Text>
-              </TouchableOpacity>
-            ))}
-            {managerAttachments.videos.map((url, index) => (
-              <TouchableOpacity
-                key={`manager-video-${url}-${index}`}
-                style={styles.attachmentTag}
-                onLongPress={() => removeAttachmentUrl('videos', index)}
-              >
-                <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
-              </TouchableOpacity>
-            ))}
-            {managerAttachments.audios.map((url, index) => (
-              <TouchableOpacity
-                key={`manager-audio-${url}-${index}`}
-                style={styles.attachmentTag}
-                onLongPress={() => removeAttachmentUrl('audios', index)}
-              >
-                <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
-              </TouchableOpacity>
-            ))}
-            {managerAttachments.files.map((url, index) => (
-              <TouchableOpacity
-                key={`manager-file-${url}-${index}`}
-                style={styles.attachmentTag}
-                onLongPress={() => removeAttachmentUrl('files', index)}
-              >
-                <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.saveManagerBtn, updateTask.isPending && styles.iconActionBtnDisabled]}
-            onPress={saveManagerSubmission}
-            disabled={updateTask.isPending}
-          >
-            {updateTask.isPending ? (
-              <ActivityIndicator color={colors.textInverse} size="small" />
-            ) : (
-              <Text style={styles.saveManagerBtnText}>Save Submission</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            || managerAttachments.files.length > 0) ? (
+            <>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeadingWrap}>
+                  <View style={styles.sectionDot} />
+                  <Text style={styles.sectionTitle}>Manager Submission</Text>
+                </View>
+              </View>
+              <SubmissionBlock
+                title="Submitted Details"
+                text={managerText}
+                attachments={managerAttachments}
+                onOpenAttachment={(url) => { void openAttachment(url); }}
+              />
+            </>
+          ) : null
+        )}
       </ScrollView>
     </SafeAreaView>
   );
