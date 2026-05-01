@@ -21,6 +21,7 @@ import {
 } from '../../hooks/useOutletTypes';
 import { OutletType } from '../../api/endpoints/outletTypes';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { useAuthStore } from '../../store/authStore';
 
 function TypeFormModal({
   visible,
@@ -158,6 +159,7 @@ function TypeFormModal({
 export default function OutletTypesScreen() {
   const { data: types, isLoading, isFetching, refetch } = useOutletTypes();
   const createType = useCreateOutletType();
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
   const updateType = useUpdateOutletType();
   const deleteType = useDeleteOutletType();
 
@@ -218,20 +220,22 @@ export default function OutletTypesScreen() {
           <Text style={styles.typeName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.typeDesc} numberOfLines={1} ellipsizeMode="tail">{item.description}</Text>
         </View>
-        <View style={styles.cardActions}>
-          <TouchableOpacity
-            onPress={() => {
-              setEditing(item);
-              setShowModal(true);
-            }}
-            style={[styles.actionBtn, styles.editBtn]}
-          >
-            <Ionicons name="create-outline" size={16} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.actionBtn, styles.deleteBtn]}>
-            <Ionicons name="trash-outline" size={16} color={colors.error} />
-          </TouchableOpacity>
-        </View>
+        {isAdmin && (
+          <View style={styles.cardActions}>
+            <TouchableOpacity
+              onPress={() => {
+                setEditing(item);
+                setShowModal(true);
+              }}
+              style={[styles.actionBtn, styles.editBtn]}
+            >
+              <Ionicons name="create-outline" size={16} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.actionBtn, styles.deleteBtn]}>
+              <Ionicons name="trash-outline" size={16} color={colors.error} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -243,15 +247,17 @@ export default function OutletTypesScreen() {
           <Text style={styles.heading}>Outlet Types</Text>
           <Text style={styles.subheading}>Manage foundational categories for your outlets</Text>
         </View>
-        <TouchableOpacity
-          style={styles.createBtn}
-          onPress={() => {
-            setEditing(undefined);
-            setShowModal(true);
-          }}
-        >
-          <Text style={styles.createBtnText}>+ New</Text>
-        </TouchableOpacity>
+        {isAdmin && (
+          <TouchableOpacity
+            style={styles.createBtn}
+            onPress={() => {
+              setEditing(undefined);
+              setShowModal(true);
+            }}
+          >
+            <Text style={styles.createBtnText}>+ New</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <FlatList

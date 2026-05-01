@@ -110,10 +110,12 @@ function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete
           <Ionicons name="qr-code-outline" size={16} color={colors.text} />
           <Text style={styles.actionBtnText}>QR Code</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onEditPress}>
-          <Ionicons name="create-outline" size={16} color={colors.text} />
-          <Text style={styles.actionBtnText}>Edit</Text>
-        </TouchableOpacity>
+        {isAdmin && (
+          <TouchableOpacity style={styles.actionBtn} onPress={onEditPress}>
+            <Ionicons name="create-outline" size={16} color={colors.text} />
+            <Text style={styles.actionBtnText}>Edit</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );

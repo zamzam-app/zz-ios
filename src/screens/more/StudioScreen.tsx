@@ -36,6 +36,7 @@ import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
 import ImagePickerButton from '../../components/ImagePickerButton';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
+import { useAuthStore } from '../../store/authStore';
 
 type StudioNav = NativeStackNavigationProp<MoreStackParamList, 'Studio'>;
 type StudioTab = 'catalogue' | 'ai' | 'uploads';
@@ -432,6 +433,7 @@ function CakeRow({
   onDelete,
   onToggleActive,
   isMutating,
+  isAdmin,
 }: {
   item: Product;
   categoryNames: string[];
@@ -439,6 +441,7 @@ function CakeRow({
   onDelete: () => void;
   onToggleActive: (next: boolean) => void;
   isMutating: boolean;
+  isAdmin: boolean;
 }) {
   return (
     <View style={styles.card}>
@@ -473,23 +476,25 @@ function CakeRow({
         </View>
       </View>
 
-      <View style={styles.cardFooter}>
-        <Switch
-          value={item.isActive}
-          onValueChange={onToggleActive}
-          disabled={isMutating}
-          trackColor={{ true: colors.primary, false: colors.border }}
-          thumbColor={colors.textInverse}
-        />
-        <View style={styles.cardActions}>
-          <TouchableOpacity style={styles.iconBtn} onPress={onEdit} disabled={isMutating}>
-            <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={onDelete} disabled={isMutating}>
-            <Ionicons name="trash-outline" size={16} color={colors.error} />
-          </TouchableOpacity>
+      {isAdmin && (
+        <View style={styles.cardFooter}>
+          <Switch
+            value={item.isActive}
+            onValueChange={onToggleActive}
+            disabled={isMutating}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor={colors.textInverse}
+          />
+          <View style={styles.cardActions}>
+            <TouchableOpacity style={styles.iconBtn} onPress={onEdit} disabled={isMutating}>
+              <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={onDelete} disabled={isMutating}>
+              <Ionicons name="trash-outline" size={16} color={colors.error} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      )}
     </View>
   );
 }
@@ -497,6 +502,7 @@ function CakeRow({
 export default function StudioScreen() {
   const navigation = useNavigation<StudioNav>();
   const [activeTab, setActiveTab] = useState<StudioTab>('catalogue');
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
 
   const { data: products, isLoading: productsLoading, isFetching: productsFetching, refetch: refetchProducts } = useProducts();
   const { data: categories, isLoading: categoriesLoading, isFetching: categoriesFetching, refetch: refetchCategories } = useCategories();
@@ -638,15 +644,17 @@ export default function StudioScreen() {
             <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowCategoryManagerModal(true)}>
               <Text style={styles.secondaryBtnText}>Category</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.createBtn}
-              onPress={() => {
-                setEditingProduct(undefined);
-                setShowProductModal(true);
-              }}
-            >
-              <Text style={styles.createBtnText}>+ New Cake</Text>
-            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity
+                style={styles.createBtn}
+                onPress={() => {
+                  setEditingProduct(undefined);
+                  setShowProductModal(true);
+                }}
+              >
+                <Text style={styles.createBtnText}>+ New Cake</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -710,6 +718,7 @@ export default function StudioScreen() {
                     item={item}
                     categoryNames={categoryNames}
                     isMutating={isProductMutating}
+                    isAdmin={isAdmin}
                     onToggleActive={(next) => updateProduct.mutate({ id: item.id, payload: { isActive: next } })}
                     onEdit={() => {
                       setEditingProduct(item);
@@ -754,14 +763,16 @@ export default function StudioScreen() {
               <Text style={styles.modalHeaderCancel}>Done</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Categories</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setEditingCategory(undefined);
-                setShowCategoryModal(true);
-              }}
-            >
-              <Text style={styles.modalHeaderSave}>+ New</Text>
-            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity
+                onPress={() => {
+                  setEditingCategory(undefined);
+                  setShowCategoryModal(true);
+                }}
+              >
+                <Text style={styles.modalHeaderSave}>+ New</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {categoriesLoading ? (
@@ -779,25 +790,27 @@ export default function StudioScreen() {
                     <Text style={styles.categoryName}>{item.name}</Text>
                     {item.description ? <Text style={styles.categoryDesc}>{item.description}</Text> : null}
                   </View>
-                  <View style={styles.cardActions}>
-                    <TouchableOpacity
-                      style={styles.iconBtn}
-                      onPress={() => {
-                        setEditingCategory(item);
-                        setShowCategoryModal(true);
-                      }}
-                      disabled={isCategoryMutating}
-                    >
-                      <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.iconBtn}
-                      onPress={() => handleDeleteCategory(item)}
-                      disabled={isCategoryMutating}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={colors.error} />
-                    </TouchableOpacity>
-                  </View>
+                  {isAdmin && (
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity
+                        style={styles.iconBtn}
+                        onPress={() => {
+                          setEditingCategory(item);
+                          setShowCategoryModal(true);
+                        }}
+                        disabled={isCategoryMutating}
+                      >
+                        <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconBtn}
+                        onPress={() => handleDeleteCategory(item)}
+                        disabled={isCategoryMutating}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               )}
               ListEmptyComponent={<Text style={styles.empty}>No categories yet.</Text>}
