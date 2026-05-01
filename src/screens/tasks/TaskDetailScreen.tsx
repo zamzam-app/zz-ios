@@ -406,9 +406,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         },
       },
       {
-        onSuccess: () => {
-          Alert.alert('Success', 'Manager submission saved successfully!');
-        },
         onError: (error) => {
           Alert.alert('Could not save', getApiErrorMessage(error, 'Failed to save manager submission.'));
         },
@@ -767,9 +764,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 />
               )}
 
-              {managerText.trim().length > 0 && (
-                <Text style={styles.managerDraftPreview}>{managerText.trim()}</Text>
-              )}
+
 
               <View style={styles.managerTagGroup}>
                 {managerAttachments.images.map((url, index) => (
