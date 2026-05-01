@@ -22,13 +22,13 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useInfiniteTasks } from '../../hooks/useTasks';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
-import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 import { CreateTaskContent } from './CreateTaskScreen';
 import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
 import { getApiErrorMessage } from '../../utils/errors';
+import { useAuthStore } from '../../store/authStore';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
@@ -200,7 +200,7 @@ function OpenTaskCard({
         </Text>
         <Text style={styles.openMetaLine} numberOfLines={1}>
           <Text style={styles.openMetaLabel}>Assigned to: </Text>
-          <Text style={styles.openMetaStrong}>{assigneeNames[0] ?? 'Unassigned'}</Text>
+          <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
         </Text>
 
         <View style={styles.openCardDivider} />
@@ -262,7 +262,7 @@ function CompletedTaskCard({
       </Text>
       <Text style={styles.openMetaLine} numberOfLines={1}>
         <Text style={styles.openMetaLabel}>Assigned to: </Text>
-        <Text style={styles.openMetaStrong}>{assigneeNames[0] ?? 'Unassigned'}</Text>
+        <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
       </Text>
 
       <View style={styles.openCardDivider} />
@@ -292,6 +292,10 @@ function CompletedTaskCard({
 }
 
 export default function TasksScreen() {
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === 'admin';
+  const isManager = user?.role === 'manager';
+  const userIdentifier = user?._id || user?.id;
   const navigation = useNavigation<Nav>();
   const route = useRoute<TasksRoute>();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
@@ -344,6 +348,7 @@ export default function TasksScreen() {
       search: debouncedSearchQuery || undefined,
       dueFrom: effectiveOpenDueDateStart ? effectiveOpenDueDateStart.toISOString() : undefined,
       dueTo: effectiveOpenDueDateEnd ? effectiveOpenDueDateEnd.toISOString() : undefined,
+      assigneeId: isAdmin ? undefined : userIdentifier,
     },
     { enabled: showOpenSection },
   );
@@ -356,6 +361,7 @@ export default function TasksScreen() {
       search: debouncedSearchQuery || undefined,
       dueFrom: effectiveCompletedDueDateStart ? effectiveCompletedDueDateStart.toISOString() : undefined,
       dueTo: effectiveCompletedDueDateEnd ? effectiveCompletedDueDateEnd.toISOString() : undefined,
+      assigneeId: isAdmin ? undefined : userIdentifier,
     },
     { enabled: showCompletedSection },
   );
@@ -476,9 +482,11 @@ export default function TasksScreen() {
           <Text style={styles.heading}>Task Board</Text>
           <Text style={styles.subheading}>Manage operational flows across all outlets</Text>
         </View>
-        <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
-          <Text style={styles.createBtnText}>+ New</Text>
-        </TouchableOpacity>
+        {!isManager && (
+          <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
+            <Text style={styles.createBtnText}>+ New</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.controlsRow}>
@@ -601,7 +609,7 @@ export default function TasksScreen() {
                     </View>
                   ) : (
                     <View style={styles.emptyWrap}>
-                      <Text style={styles.empty}>No open tasks found</Text>
+                      <Text style={styles.empty}>{isManager ? 'No open tasks found for you' : 'No open tasks found'}</Text>
                     </View>
                   )
                 )}
@@ -621,7 +629,7 @@ export default function TasksScreen() {
             </View>
 
             {!isLoading && completedTasks.length === 0 && (
-              <Text style={styles.completedEmpty}>No completed tasks yet</Text>
+              <Text style={styles.completedEmpty}>{isManager ? 'No completed tasks found for you' : 'No completed tasks yet'}</Text>
             )}
 
             {isLoading && (

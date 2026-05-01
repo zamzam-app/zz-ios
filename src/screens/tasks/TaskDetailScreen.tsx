@@ -393,6 +393,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       {
         id: task.id,
         payload: {
+          status: 'COMPLETED',
           managerSubmission: {
             text: managerText,
             attachments: {
@@ -405,6 +406,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         },
       },
       {
+        onSuccess: () => {
+          Alert.alert('Success', 'Manager submission saved successfully!');
+        },
         onError: (error) => {
           Alert.alert('Could not save', getApiErrorMessage(error, 'Failed to save manager submission.'));
         },
@@ -749,7 +753,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
-          {(managerAttachments.images.length > 0
+          {(managerText.trim().length > 0
+            || managerAttachments.images.length > 0
             || managerAttachments.videos.length > 0
             || managerAttachments.audios.length > 0
             || managerAttachments.files.length > 0) && (

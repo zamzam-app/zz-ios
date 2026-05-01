@@ -40,6 +40,7 @@ export const useCreateTask = () => {
     mutationFn: (payload: CreateTaskPayload) => tasksApi.create(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
     },
   });
@@ -52,6 +53,7 @@ export const useUpdateTaskStatus = () => {
       tasksApi.updateStatus(id, status),
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
       qc.invalidateQueries({ queryKey: ['task', updated.id] });
     },
@@ -64,6 +66,7 @@ export const useDeleteTask = () => {
     mutationFn: (id: string) => tasksApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
     },
   });
@@ -76,6 +79,7 @@ export const useUpdateTask = () => {
       tasksApi.update(id, payload),
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
       qc.invalidateQueries({ queryKey: ['task', updated.id] });
     },

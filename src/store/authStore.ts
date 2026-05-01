@@ -3,6 +3,7 @@ import client from '../api/client';
 import { refreshTokenStorage, tokenStorage } from '../api/storage';
 
 export interface AuthUser {
+  _id?: string;
   id: string;
   email: string;
   name: string;
