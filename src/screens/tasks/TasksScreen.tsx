@@ -700,7 +700,7 @@ export default function TasksScreen() {
                     setShowDueDatePicker(false);
                   }}
                 >
-                  <Text style={styles.createSheetCloseText}>X</Text>
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -828,7 +828,7 @@ export default function TasksScreen() {
                   style={styles.createSheetClose}
                   onPress={() => setShowCreateModal(false)}
                 >
-                  <Text style={styles.createSheetCloseText}>X</Text>
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1401,8 +1401,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   createSheetClose: {
-    width: 36,
-    height: 36,
+    width: 28,
+    height: 28,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',

@@ -337,8 +337,11 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
               <View style={aiStyles.filterSheetHandle} />
               <View style={aiStyles.filterSheetHeader}>
                 <Text style={aiStyles.filterSheetTitle}>Age Filter</Text>
-                <TouchableOpacity onPress={() => setShowAgeFilterModal(false)}>
-                  <Text style={aiStyles.filterSheetClose}>X</Text>
+                <TouchableOpacity 
+                  onPress={() => setShowAgeFilterModal(false)}
+                  style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F4F6' }}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
