@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import apiClient from '../api/client';
 
 // Controls how notifications appear when app is in foreground
@@ -26,7 +26,11 @@ export async function registerForPushNotifications(): Promise<string | null> {
     return null;
   }
 
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
+  const token = (
+    await Notifications.getExpoPushTokenAsync({
+      projectId: Constants.expoConfig?.extra?.eas?.projectId,
+    })
+  ).data;
   return token;
 }
 
