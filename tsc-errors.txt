@@ -1,0 +1,6 @@
+src/navigation/RootNavigator.tsx(12,32): error TS2554: Expected 1 arguments, but got 0.
+src/navigation/RootNavigator.tsx(13,28): error TS2554: Expected 1 arguments, but got 0.
+src/navigation/RootNavigator.tsx(29,23): error TS2339: Property 'removeNotificationSubscription' does not exist on type 'typeof import("/home/abin98anto/Desktop/zz-repos/zz-ios/node_modules/expo-notifications/build/index")'.
+src/navigation/RootNavigator.tsx(32,23): error TS2339: Property 'removeNotificationSubscription' does not exist on type 'typeof import("/home/abin98anto/Desktop/zz-repos/zz-ios/node_modules/expo-notifications/build/index")'.
+src/utils/notifications.ts(7,35): error TS2322: Type 'Promise<{ shouldShowAlert: true; shouldPlaySound: true; shouldSetBadge: false; }>' is not assignable to type 'Promise<NotificationBehavior>'.
+  Type '{ shouldShowAlert: true; shouldPlaySound: true; shouldSetBadge: false; }' is missing the following properties from type 'NotificationBehavior': shouldShowBanner, shouldShowList
