@@ -201,6 +201,7 @@ type CreateTaskContentProps = {
   fill?: boolean;
   backgroundColor?: string;
   initialIsRecurring?: boolean;
+  hideRecurringToggle?: boolean;
 };
 
 export function CreateTaskContent({
@@ -210,6 +211,7 @@ export function CreateTaskContent({
   fill = true,
   backgroundColor = colors.background,
   initialIsRecurring = false,
+  hideRecurringToggle = false,
 }: CreateTaskContentProps) {
   const [description, setDescription] = useState('');
   const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>();
@@ -223,6 +225,12 @@ export function CreateTaskContent({
   useEffect(() => {
     setIsRecurring(initialIsRecurring);
   }, [initialIsRecurring]);
+
+  useEffect(() => {
+    if (hideRecurringToggle) {
+      setIsRecurring(true);
+    }
+  }, [hideRecurringToggle]);
 
   const [showMonthDaysPicker, setShowMonthDaysPicker] = useState(false);
   const [outletId, setOutletId] = useState('');
@@ -957,15 +965,17 @@ export function CreateTaskContent({
             {dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
           </Text>
         </TouchableOpacity>
-        <View style={styles.recurrenceRow}>
-          <Text style={[styles.label, { marginTop: 0 }]}>Recurring Task</Text>
-          <Switch
-            value={isRecurring}
-            onValueChange={setIsRecurring}
-            trackColor={{ false: colors.border, true: colors.primary + '40' }}
-            thumbColor={isRecurring ? colors.primary : '#f4f3f4'}
-          />
-        </View>
+        {!hideRecurringToggle && (
+          <View style={styles.recurrenceRow}>
+            <Text style={[styles.label, { marginTop: 0 }]}>Recurring Task</Text>
+            <Switch
+              value={isRecurring}
+              onValueChange={setIsRecurring}
+              trackColor={{ false: colors.border, true: colors.primary + '40' }}
+              thumbColor={isRecurring ? colors.primary : '#f4f3f4'}
+            />
+          </View>
+        )}
 
         {showDatePicker && (
           <DateTimePicker

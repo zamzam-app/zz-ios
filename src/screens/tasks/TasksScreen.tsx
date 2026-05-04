@@ -866,6 +866,7 @@ export default function TasksScreen() {
                 void refetch();
               }}
               initialIsRecurring={activeTab === 'RECURRING'}
+              hideRecurringToggle={activeTab === 'RECURRING'}
               bottomPadding={24}
               fill
               backgroundColor={colors.surface}
