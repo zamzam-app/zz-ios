@@ -216,9 +216,14 @@ export function CreateTaskContent({
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const isRecurring = initialIsRecurring;
+  const [isRecurring, setIsRecurring] = useState(initialIsRecurring);
   const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
+
+  useEffect(() => {
+    setIsRecurring(initialIsRecurring);
+  }, [initialIsRecurring]);
+
   const [showMonthDaysPicker, setShowMonthDaysPicker] = useState(false);
   const [outletId, setOutletId] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
@@ -947,6 +952,16 @@ export function CreateTaskContent({
             {dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
           </Text>
         </TouchableOpacity>
+        <View style={styles.recurrenceRow}>
+          <Text style={[styles.label, { marginTop: 0 }]}>Recurring Task</Text>
+          <Switch
+            value={isRecurring}
+            onValueChange={setIsRecurring}
+            trackColor={{ false: colors.border, true: colors.primary + '40' }}
+            thumbColor={isRecurring ? colors.primary : '#f4f3f4'}
+          />
+        </View>
+
         {showDatePicker && (
           <DateTimePicker
             value={dueDate}

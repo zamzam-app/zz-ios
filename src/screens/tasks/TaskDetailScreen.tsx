@@ -389,27 +389,41 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   const saveManagerSubmission = () => {
     if (!task) return;
-    updateTask.mutate(
-      {
-        id: task.id,
-        payload: {
-          status: 'COMPLETED',
-          managerSubmission: {
-            text: managerText,
-            attachments: {
-              images: managerAttachments.images,
-              videos: managerAttachments.videos,
-              audios: managerAttachments.audios,
-              files: managerAttachments.files,
-            },
+
+    Alert.alert(
+      'Complete Task',
+      'Are you sure you want to save this submission and mark the task as completed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete Task',
+          style: 'default',
+          onPress: () => {
+            updateTask.mutate(
+              {
+                id: task.id,
+                payload: {
+                  status: 'COMPLETED',
+                  managerSubmission: {
+                    text: managerText,
+                    attachments: {
+                      images: managerAttachments.images,
+                      videos: managerAttachments.videos,
+                      audios: managerAttachments.audios,
+                      files: managerAttachments.files,
+                    },
+                  },
+                },
+              },
+              {
+                onError: (error) => {
+                  Alert.alert('Could not save', getApiErrorMessage(error, 'Failed to save manager submission.'));
+                },
+              },
+            );
           },
         },
-      },
-      {
-        onError: (error) => {
-          Alert.alert('Could not save', getApiErrorMessage(error, 'Failed to save manager submission.'));
-        },
-      },
+      ],
     );
   };
 
