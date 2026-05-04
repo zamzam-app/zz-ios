@@ -16,7 +16,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.zamzam.adminapp",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserNotificationUsageDescription": "Receive alerts for new tasks and complaints."
       }
     },
     "android": {
@@ -33,7 +34,14 @@
     },
     "plugins": [
       "@react-native-community/datetimepicker",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563eb"
+        }
+      ]
     ],
     "extra": {
       "eas": {

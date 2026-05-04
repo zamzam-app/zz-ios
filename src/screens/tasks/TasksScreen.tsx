@@ -13,23 +13,27 @@ import {
   Alert,
   Image,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTasks } from '../../hooks/useTasks';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useInfiniteTasks } from '../../hooks/useTasks';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
-import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 import { CreateTaskContent } from './CreateTaskScreen';
 import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
+import { getApiErrorMessage } from '../../utils/errors';
+import { useAuthStore } from '../../store/authStore';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
 type PriorityFilter = TaskPriority | 'ALL';
+type FilterSection = 'priority' | 'dueDate';
 
 const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
   { label: 'All priorities', value: 'ALL' },
@@ -37,12 +41,6 @@ const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
   { label: 'Medium', value: 'MEDIUM' },
   { label: 'Low', value: 'LOW' },
 ];
-
-const PRIORITY_COLORS: Record<string, string> = {
-  HIGH:   colors.priorityHigh,
-  MEDIUM: colors.priorityMedium,
-  LOW:    colors.priorityLow,
-};
 
 const PRIORITY_SORT_ORDER: Record<TaskPriority, number> = {
   HIGH: 0,
@@ -202,7 +200,7 @@ function OpenTaskCard({
         </Text>
         <Text style={styles.openMetaLine} numberOfLines={1}>
           <Text style={styles.openMetaLabel}>Assigned to: </Text>
-          <Text style={styles.openMetaStrong}>{assigneeNames[0] ?? 'Unassigned'}</Text>
+          <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
         </Text>
 
         <View style={styles.openCardDivider} />
@@ -264,7 +262,7 @@ function CompletedTaskCard({
       </Text>
       <Text style={styles.openMetaLine} numberOfLines={1}>
         <Text style={styles.openMetaLabel}>Assigned to: </Text>
-        <Text style={styles.openMetaStrong}>{assigneeNames[0] ?? 'Unassigned'}</Text>
+        <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
       </Text>
 
       <View style={styles.openCardDivider} />
@@ -294,18 +292,82 @@ function CompletedTaskCard({
 }
 
 export default function TasksScreen() {
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === 'admin';
+  const isManager = user?.role === 'manager';
+  const userIdentifier = user?._id || user?.id;
   const navigation = useNavigation<Nav>();
   const route = useRoute<TasksRoute>();
+  const [activeTab, setActiveTab] = useState<'NORMAL' | 'RECURRING'>('NORMAL');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
+  const [dueDateFilter, setDueDateFilter] = useState<Date | null>(null);
   const [metricFilter, setMetricFilter] = useState<TaskMetricFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showPriorityMenu, setShowPriorityMenu] = useState(false);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [activeFilterSection, setActiveFilterSection] = useState<FilterSection>('priority');
+  const [showDueDatePicker, setShowDueDatePicker] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [attachmentModal, setAttachmentModal] = useState<{ task: Task; type: AttachmentType } | null>(null);
+  const [lastLoadError, setLastLoadError] = useState('');
 
-  const { data: tasks, isLoading, isFetching, refetch } = useTasks({ limit: 50 });
-  const allTasks = tasks ?? [];
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const showOpenSection = metricFilter !== 'resolved';
+  const showCompletedSection = metricFilter === 'all' || metricFilter === 'resolved';
+  const isCriticalMetric = metricFilter === 'critical';
+  const isDueTodayMetric = metricFilter === 'due_today';
+
+  const effectivePriorityFilter: TaskPriority | undefined = isCriticalMetric
+    ? 'HIGH'
+    : priorityFilter === 'ALL'
+      ? undefined
+      : priorityFilter;
+
+  const effectiveOpenDateFilter = dueDateFilter ?? (isDueTodayMetric ? new Date() : null);
+  const effectiveOpenDueDateStart = effectiveOpenDateFilter
+    ? new Date(
+      effectiveOpenDateFilter.getFullYear(),
+      effectiveOpenDateFilter.getMonth(),
+      effectiveOpenDateFilter.getDate(),
+    )
+    : null;
+  const effectiveOpenDueDateEnd = effectiveOpenDueDateStart
+    ? new Date(effectiveOpenDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+    : null;
+
+  const effectiveCompletedDueDateStart = dueDateFilter
+    ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
+    : null;
+  const effectiveCompletedDueDateEnd = effectiveCompletedDueDateStart
+    ? new Date(effectiveCompletedDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+    : null;
+
+  const openTasksQuery = useInfiniteTasks(
+    {
+      status: 'OPEN',
+      limit: 20,
+      priority: effectivePriorityFilter,
+      search: debouncedSearchQuery || undefined,
+      dueFrom: effectiveOpenDueDateStart ? effectiveOpenDueDateStart.toISOString() : undefined,
+      dueTo: effectiveOpenDueDateEnd ? effectiveOpenDueDateEnd.toISOString() : undefined,
+      assigneeId: isAdmin ? undefined : userIdentifier,
+      isRecurring: activeTab === 'RECURRING',
+    },
+    { enabled: showOpenSection },
+  );
+
+  const completedTasksQuery = useInfiniteTasks(
+    {
+      status: 'COMPLETED',
+      limit: 20,
+      priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
+      search: debouncedSearchQuery || undefined,
+      dueFrom: effectiveCompletedDueDateStart ? effectiveCompletedDueDateStart.toISOString() : undefined,
+      dueTo: effectiveCompletedDueDateEnd ? effectiveCompletedDueDateEnd.toISOString() : undefined,
+      assigneeId: isAdmin ? undefined : userIdentifier,
+      isRecurring: activeTab === 'RECURRING',
+    },
+    { enabled: showCompletedSection },
+  );
 
   useEffect(() => {
     const incomingMetric = route.params?.initialTaskFilter?.metric;
@@ -313,56 +375,83 @@ export default function TasksScreen() {
     setMetricFilter(incomingMetric);
   }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
 
-  const searchAndPriorityFilteredTasks = useMemo(
-    () => allTasks.filter((task) => {
-      const matchesPriority = priorityFilter === 'ALL' || task.priority === priorityFilter;
-      if (!matchesPriority) return false;
-      if (!normalizedSearchQuery) return true;
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [searchQuery]);
 
-      const searchTokens = [
-        task.id,
-        task.title,
-        task.description,
-        task.priority,
-        task.status,
-        getTaskOutletName(task),
-        getTaskCategoryName(task),
-        ...getTaskAssigneeNames(task),
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join(' ')
-        .toLowerCase();
+  useEffect(() => {
+    const openError = openTasksQuery.error;
+    const completedError = completedTasksQuery.error;
+    if (!openError && !completedError) {
+      if (lastLoadError) setLastLoadError('');
+      return;
+    }
+    const message = getApiErrorMessage(
+      openError ?? completedError,
+      'Could not apply filters. Please try again.',
+    );
+    if (message === lastLoadError) return;
+    setLastLoadError(message);
+    Alert.alert('Could not load tasks', message);
+  }, [openTasksQuery.error, completedTasksQuery.error, lastLoadError]);
 
-      return searchTokens.includes(normalizedSearchQuery);
-    }),
-    [allTasks, priorityFilter, normalizedSearchQuery],
+  const openTasksFromApi = useMemo(
+    () => {
+      const isRecTab = activeTab === 'RECURRING';
+      return (openTasksQuery.data?.pages ?? [])
+        .flatMap((page) => page.data)
+        .filter((task) => !!task.isRecurring === isRecTab);
+    },
+    [openTasksQuery.data?.pages, activeTab],
   );
-
-  const filteredTasks = useMemo(() => {
-    if (metricFilter === 'all') return searchAndPriorityFilteredTasks;
-
-    return searchAndPriorityFilteredTasks.filter((task) => {
-      if (metricFilter === 'open') return !isTaskCompleted(task);
-      if (metricFilter === 'resolved') return isTaskCompleted(task);
-      if (metricFilter === 'critical') return !isTaskCompleted(task) && task.priority === 'HIGH';
-      if (metricFilter === 'due_today') return !isTaskCompleted(task) && isSameCalendarDay(task.dueDate);
-      return true;
-    });
-  }, [searchAndPriorityFilteredTasks, metricFilter]);
+  const completedTasksFromApi = useMemo(
+    () => {
+      const isRecTab = activeTab === 'RECURRING';
+      return (completedTasksQuery.data?.pages ?? [])
+        .flatMap((page) => page.data)
+        .filter((task) => !!task.isRecurring === isRecTab);
+    },
+    [completedTasksQuery.data?.pages, activeTab],
+  );
 
   const openTasks = useMemo(() => {
     const now = new Date();
-    return filteredTasks
-      .filter((task) => !isTaskCompleted(task))
-      .sort((a, b) => compareOpenTaskOrder(a, b, now));
-  }, [filteredTasks]);
+    return [...openTasksFromApi].sort((a, b) => compareOpenTaskOrder(a, b, now));
+  }, [openTasksFromApi]);
 
   const completedTasks = useMemo(
-    () => filteredTasks
-      .filter(isTaskCompleted)
-      .sort(compareCompletedTaskOrder),
-    [filteredTasks],
+    () => [...completedTasksFromApi].sort(compareCompletedTaskOrder),
+    [completedTasksFromApi],
   );
+  const openTasksTotal = openTasks.length;
+  const completedTasksTotal = completedTasks.length;
+
+  const formatFilterDate = (date: Date) => date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const onDueDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') setShowDueDatePicker(false);
+    if (selectedDate) setDueDateFilter(selectedDate);
+  };
+
+  const refetch = async () => {
+    const refetchers: Array<() => Promise<unknown>> = [];
+    if (showOpenSection) refetchers.push(() => openTasksQuery.refetch());
+    if (showCompletedSection) refetchers.push(() => completedTasksQuery.refetch());
+    await Promise.all(refetchers.map((run) => run()));
+  };
+  const isLoading = showOpenSection
+    ? (openTasksQuery.isLoading || (showCompletedSection && completedTasksQuery.isLoading))
+    : completedTasksQuery.isLoading;
+  const isFetching = showOpenSection
+    ? (openTasksQuery.isFetching || (showCompletedSection && completedTasksQuery.isFetching))
+    : completedTasksQuery.isFetching;
 
   const openAttachmentModal = (task: Task, type: AttachmentType) => {
     const urls = getTaskAttachmentUrls(task, type);
@@ -406,8 +495,25 @@ export default function TasksScreen() {
           <Text style={styles.heading}>Task Board</Text>
           <Text style={styles.subheading}>Manage operational flows across all outlets</Text>
         </View>
-        <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
-          <Text style={styles.createBtnText}>+ New</Text>
+        {!isManager && (
+          <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
+            <Text style={styles.createBtnText}>+ New</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'NORMAL' && styles.tabItemActive]}
+          onPress={() => setActiveTab('NORMAL')}
+        >
+          <Text style={[styles.tabText, activeTab === 'NORMAL' && styles.tabTextActive]}>Normal Task</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'RECURRING' && styles.tabItemActive]}
+          onPress={() => setActiveTab('RECURRING')}
+        >
+          <Text style={[styles.tabText, activeTab === 'RECURRING' && styles.tabTextActive]}>Recurring Task</Text>
         </TouchableOpacity>
       </View>
 
@@ -420,7 +526,6 @@ export default function TasksScreen() {
             style={styles.searchInput}
             placeholder="Search tasks..."
             placeholderTextColor={colors.textSecondary}
-            onFocus={() => setShowPriorityMenu(false)}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity
@@ -438,45 +543,20 @@ export default function TasksScreen() {
         <View style={styles.filterMenuWrap}>
           <TouchableOpacity
             accessibilityRole="button"
-            accessibilityLabel="Open priority filters"
-            style={[styles.filterIconBtn, priorityFilter !== 'ALL' && styles.filterIconBtnActive]}
-            onPress={() => setShowPriorityMenu((prev) => !prev)}
+            accessibilityLabel="Open filters"
+            style={[
+              styles.filterIconBtn,
+              (priorityFilter !== 'ALL' || Boolean(dueDateFilter)) && styles.filterIconBtnActive,
+            ]}
+            onPress={() => setShowFilterModal(true)}
             activeOpacity={0.82}
           >
             <Ionicons
               name="options-outline"
               size={18}
-              color={priorityFilter === 'ALL' ? colors.textSecondary : colors.primaryDark}
+              color={priorityFilter === 'ALL' && !dueDateFilter ? colors.textSecondary : colors.primaryDark}
             />
           </TouchableOpacity>
-
-          {showPriorityMenu && (
-            <View style={styles.priorityDropdown}>
-              {PRIORITY_FILTERS.map((option, index) => {
-                const active = option.value === priorityFilter;
-                return (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.priorityOption,
-                      index < PRIORITY_FILTERS.length - 1 && styles.priorityOptionDivider,
-                      active && styles.priorityOptionActive,
-                    ]}
-                    onPress={() => {
-                      setPriorityFilter(option.value);
-                      setShowPriorityMenu(false);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.priorityOptionText, active && styles.priorityOptionTextActive]}>
-                      {option.label}
-                    </Text>
-                    {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
         </View>
       </View>
 
@@ -493,89 +573,267 @@ export default function TasksScreen() {
         </View>
       )}
 
-      {showPriorityMenu && (
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setShowPriorityMenu(false)}
-          style={styles.priorityMenuBackdrop}
-        />
+      {dueDateFilter && (
+        <View style={styles.metricFilterChipRow}>
+          <View style={styles.metricFilterChip}>
+            <Text style={styles.metricFilterChipText}>
+              {`Due: ${formatFilterDate(dueDateFilter)}`}
+            </Text>
+            <TouchableOpacity onPress={() => setDueDateFilter(null)} style={styles.metricFilterChipClear}>
+              <Text style={styles.metricFilterChipClearText}>x</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
 
       <View style={styles.sectionsContainer}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionHeadingWrap}>
-            <View style={styles.sectionDot} />
-            <Text style={styles.sectionTitle}>Open Tasks</Text>
-          </View>
-          <Text style={styles.sectionCount}>{openTasks.length} active</Text>
-        </View>
+        {showOpenSection && (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeadingWrap}>
+                <View style={styles.sectionDot} />
+                <Text style={styles.sectionTitle}>Open Tasks</Text>
+              </View>
+              <Text style={styles.sectionCount}>{openTasksTotal} active</Text>
+            </View>
 
-        <View style={styles.openListShell}>
-          <FlatList
-            style={styles.openList}
-            data={openTasks}
-            keyExtractor={(task) => task.id}
-            contentContainerStyle={
-              openTasks.length > 0 ? styles.openListContent : styles.openListEmptyContent
-            }
-            showsVerticalScrollIndicator
-            persistentScrollbar
-            refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
-            renderItem={({ item }) => (
-              <View style={styles.openCardWrap}>
-                <OpenTaskCard
-                  task={item}
-                  onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-                  onOpenAttachment={openAttachmentModal}
-                />
+            <View style={styles.openListShell}>
+              <FlatList
+                style={styles.openList}
+                data={openTasks}
+                keyExtractor={(task) => task.id}
+                contentContainerStyle={
+                  openTasks.length > 0 ? styles.openListContent : styles.openListEmptyContent
+                }
+                showsVerticalScrollIndicator
+                persistentScrollbar
+                refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+                onEndReached={() => {
+                  if (openTasksQuery.hasNextPage && !openTasksQuery.isFetchingNextPage) {
+                    void openTasksQuery.fetchNextPage();
+                  }
+                }}
+                onEndReachedThreshold={0.3}
+                renderItem={({ item }) => (
+                  <View style={styles.openCardWrap}>
+                    <OpenTaskCard
+                      task={item}
+                      onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+                      onOpenAttachment={openAttachmentModal}
+                    />
+                  </View>
+                )}
+                ListFooterComponent={
+                  openTasksQuery.isFetchingNextPage ? (
+                    <View style={styles.loadingMoreWrap}>
+                      <ActivityIndicator color={colors.primary} />
+                    </View>
+                  ) : null
+                }
+                ListEmptyComponent={(
+                  isLoading ? (
+                    <View style={styles.loadingWrap}>
+                      <ActivityIndicator color={colors.primary} />
+                    </View>
+                  ) : (
+                    <View style={styles.emptyWrap}>
+                      <Text style={styles.empty}>{isManager ? 'No open tasks found for you' : 'No open tasks found'}</Text>
+                    </View>
+                  )
+                )}
+              />
+            </View>
+          </>
+        )}
+
+        {showCompletedSection && (
+          <View style={styles.completedSection}>
+            <View style={styles.completedSectionHeader}>
+              <View style={styles.sectionHeadingWrap}>
+                <View style={[styles.sectionDot, styles.sectionDotCompleted]} />
+                <Text style={styles.sectionTitle}>Completed Tasks</Text>
+              </View>
+            </View>
+
+            {!isLoading && completedTasks.length === 0 && (
+              <Text style={styles.completedEmpty}>{isManager ? 'No completed tasks found for you' : 'No completed tasks yet'}</Text>
+            )}
+
+            {isLoading && (
+              <View style={styles.completedLoadingWrap}>
+                <ActivityIndicator color={colors.primary} />
               </View>
             )}
-            ListEmptyComponent={(
-              isLoading ? (
-                <View style={styles.loadingWrap}>
-                  <ActivityIndicator color={colors.primary} />
-                </View>
-              ) : (
-                <View style={styles.emptyWrap}>
-                  <Text style={styles.empty}>No open tasks found</Text>
-                </View>
-              )
-            )}
-          />
-        </View>
 
-        <View style={styles.completedSection}>
-          <View style={styles.completedSectionHeader}>
-            <View style={styles.sectionHeadingWrap}>
-              <View style={[styles.sectionDot, styles.sectionDotCompleted]} />
-              <Text style={styles.sectionTitle}>Completed Tasks</Text>
+            {!isLoading && completedTasks.length > 0 && (
+              <FlatList
+                horizontal
+                data={completedTasks}
+                keyExtractor={(task) => task.id}
+                contentContainerStyle={styles.completedRow}
+                showsHorizontalScrollIndicator={false}
+                onEndReached={() => {
+                  if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
+                    void completedTasksQuery.fetchNextPage();
+                  }
+                }}
+                onEndReachedThreshold={0.4}
+                renderItem={({ item }) => (
+                  <CompletedTaskCard
+                    task={item}
+                    onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+                    onOpenAttachment={openAttachmentModal}
+                  />
+                )}
+                ListFooterComponent={
+                  completedTasksQuery.isFetchingNextPage ? (
+                    <View style={styles.completedLoadingMoreWrap}>
+                      <ActivityIndicator color={colors.primary} />
+                    </View>
+                  ) : null
+                }
+              />
+            )}
+          </View>
+        )}
+      </View>
+
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowFilterModal(false);
+          setShowDueDatePicker(false);
+        }}
+      >
+        <View style={styles.createModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.createModalScrim}
+            onPress={() => {
+              setShowFilterModal(false);
+              setShowDueDatePicker(false);
+            }}
+          />
+          <View style={styles.filterSheet}>
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Filters</Text>
+                <TouchableOpacity
+                  style={styles.createSheetClose}
+                  onPress={() => {
+                    setShowFilterModal(false);
+                    setShowDueDatePicker(false);
+                  }}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.filterBody}>
+              <View style={styles.filterSidebar}>
+                <TouchableOpacity
+                  style={[styles.filterSidebarItem, activeFilterSection === 'priority' && styles.filterSidebarItemActive]}
+                  onPress={() => setActiveFilterSection('priority')}
+                >
+                  <Text style={[styles.filterSidebarItemText, activeFilterSection === 'priority' && styles.filterSidebarItemTextActive]}>
+                    Priority
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterSidebarItem, activeFilterSection === 'dueDate' && styles.filterSidebarItemActive]}
+                  onPress={() => setActiveFilterSection('dueDate')}
+                >
+                  <Text style={[styles.filterSidebarItemText, activeFilterSection === 'dueDate' && styles.filterSidebarItemTextActive]}>
+                    Due Date
+                  </Text>
+                </TouchableOpacity>
+                <View style={styles.filterSidebarFooter}>
+                  <TouchableOpacity
+                    style={styles.filterSidebarClearBtn}
+                    onPress={() => {
+                      setPriorityFilter('ALL');
+                      setDueDateFilter(null);
+                      setShowDueDatePicker(false);
+                      setActiveFilterSection('priority');
+                    }}
+                    activeOpacity={0.82}
+                  >
+                    <Text style={styles.filterSidebarClearBtnText}>Clear Filters</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.filterContent}>
+                {activeFilterSection === 'priority' && (
+                  <View style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>Filter by priority</Text>
+                    {PRIORITY_FILTERS.map((option, index) => {
+                      const active = option.value === priorityFilter;
+                      return (
+                        <TouchableOpacity
+                          key={option.value}
+                          style={[
+                            styles.priorityOption,
+                            index < PRIORITY_FILTERS.length - 1 && styles.priorityOptionDivider,
+                            active && styles.priorityOptionActive,
+                          ]}
+                          onPress={() => setPriorityFilter(option.value)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.priorityOptionText, active && styles.priorityOptionTextActive]}>
+                            {option.label}
+                          </Text>
+                          {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {activeFilterSection === 'dueDate' && (
+                  <View style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>Filter by due date</Text>
+                    <Text style={styles.filterSectionHint}>
+                      {dueDateFilter ? `Selected: ${formatFilterDate(dueDateFilter)}` : 'No date selected'}
+                    </Text>
+
+                    <TouchableOpacity
+                      style={styles.filterActionBtn}
+                      onPress={() => setShowDueDatePicker(true)}
+                      activeOpacity={0.82}
+                    >
+                      <Text style={styles.filterActionBtnText}>{dueDateFilter ? 'Change Date' : 'Select Date'}</Text>
+                    </TouchableOpacity>
+
+                    {dueDateFilter && (
+                      <TouchableOpacity
+                        style={[styles.filterActionBtn, styles.filterActionBtnSecondary]}
+                        onPress={() => setDueDateFilter(null)}
+                        activeOpacity={0.82}
+                      >
+                        <Text style={[styles.filterActionBtnText, styles.filterActionBtnSecondaryText]}>Clear Date</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {showDueDatePicker && (
+                      <DateTimePicker
+                        value={dueDateFilter ?? new Date()}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                        onChange={onDueDateChange}
+                      />
+                    )}
+                  </View>
+                )}
+              </View>
             </View>
           </View>
-
-          {!isLoading && completedTasks.length === 0 && (
-            <Text style={styles.completedEmpty}>No completed tasks yet</Text>
-          )}
-
-          {isLoading && (
-            <View style={styles.completedLoadingWrap}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          )}
-
-          {!isLoading && completedTasks.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.completedRow}>
-              {completedTasks.map((task) => (
-                <CompletedTaskCard
-                  key={task.id}
-                  task={task}
-                  onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
-                  onOpenAttachment={openAttachmentModal}
-                />
-              ))}
-            </ScrollView>
-          )}
         </View>
-      </View>
+      </Modal>
 
       <Modal
         visible={showCreateModal}
@@ -598,7 +856,7 @@ export default function TasksScreen() {
                   style={styles.createSheetClose}
                   onPress={() => setShowCreateModal(false)}
                 >
-                  <Text style={styles.createSheetCloseText}>X</Text>
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -607,6 +865,8 @@ export default function TasksScreen() {
                 setShowCreateModal(false);
                 void refetch();
               }}
+              initialIsRecurring={activeTab === 'RECURRING'}
+              hideRecurringToggle
               bottomPadding={24}
               fill
               backgroundColor={colors.surface}
@@ -760,7 +1020,6 @@ const styles = StyleSheet.create({
   },
   filterMenuWrap: {
     position: 'relative',
-    zIndex: 60,
   },
   filterIconBtn: {
     width: 40,
@@ -776,19 +1035,6 @@ const styles = StyleSheet.create({
   filterIconBtnActive: {
     borderColor: colors.primaryTintStrong,
     backgroundColor: colors.primaryTint,
-  },
-  priorityDropdown: {
-    position: 'absolute',
-    right: 0,
-    top: 46,
-    minWidth: 170,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.md,
-    zIndex: 999,
-    overflow: 'hidden',
   },
   priorityOption: {
     minHeight: 42,
@@ -813,10 +1059,6 @@ const styles = StyleSheet.create({
   priorityOptionTextActive: {
     color: colors.primary,
     fontWeight: typography.semibold,
-  },
-  priorityMenuBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 20,
   },
   metricFilterChipRow: {
     paddingHorizontal: spacing.md,
@@ -967,7 +1209,9 @@ const styles = StyleSheet.create({
   completedWhen: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
 
   loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
+  loadingMoreWrap: { paddingVertical: spacing.sm, alignItems: 'center' },
   completedLoadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  completedLoadingMoreWrap: { justifyContent: 'center', alignItems: 'center', paddingRight: spacing.sm },
   emptyWrap: { paddingVertical: spacing.xl },
   empty: { textAlign: 'center', color: colors.textSecondary, fontSize: typography.sm },
   completedEmpty: { color: colors.textSecondary, fontSize: typography.sm, marginBottom: spacing.md },
@@ -979,6 +1223,106 @@ const styles = StyleSheet.create({
   createModalScrim: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(25, 28, 30, 0.4)',
+  },
+  filterSheet: {
+    maxHeight: '72%',
+    minHeight: 360,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+  },
+  filterBody: {
+    flex: 1,
+    flexDirection: 'row',
+    minHeight: 300,
+  },
+  filterSidebar: {
+    width: 118,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+    backgroundColor: colors.screenBackground,
+    paddingVertical: spacing.xs,
+  },
+  filterSidebarFooter: {
+    marginTop: 'auto',
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.sm,
+    paddingTop: spacing.sm,
+  },
+  filterSidebarClearBtn: {
+    minHeight: 34,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+  },
+  filterSidebarClearBtnText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  filterSidebarItem: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
+  },
+  filterSidebarItemActive: {
+    backgroundColor: colors.primaryTint,
+    borderLeftColor: colors.primary,
+  },
+  filterSidebarItemText: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
+  filterSidebarItemTextActive: {
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+  filterContent: {
+    flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  filterSection: {
+    gap: spacing.sm,
+  },
+  filterSectionTitle: {
+    fontSize: typography.md,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
+  filterSectionHint: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  filterActionBtn: {
+    minHeight: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  filterActionBtnText: {
+    fontSize: typography.sm,
+    color: colors.textInverse,
+    fontWeight: typography.semibold,
+  },
+  filterActionBtnSecondary: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterActionBtnSecondaryText: {
+    color: colors.text,
   },
 
   attachModalRoot: {
@@ -1087,8 +1431,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   createSheetClose: {
-    width: 36,
-    height: 36,
+    width: 28,
+    height: 28,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1098,5 +1442,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: typography.base,
     fontWeight: typography.semibold,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: '#E6E8EA',
+    borderRadius: radius.md,
+    padding: 2,
+  },
+  tabItem: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: radius.md,
+  },
+  tabItemActive: {
+    backgroundColor: colors.surface,
+    ...shadow.sm,
+  },
+  tabText: {
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+    color: colors.textSecondary,
+  },
+  tabTextActive: {
+    color: colors.primaryDark,
+    fontWeight: typography.bold,
   },
 });

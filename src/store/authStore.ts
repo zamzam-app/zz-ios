@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import client from '../api/client';
 import { refreshTokenStorage, tokenStorage } from '../api/storage';
+import { syncPushToken } from '../utils/notifications';
 
 export interface AuthUser {
+  _id?: string;
   id: string;
   email: string;
   name: string;
@@ -43,6 +45,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { data: profile } = await client.get<AuthUser>('/auth/profile');
 
     set({ user: profile });
+    void syncPushToken();
   },
 
   logout: async () => {
@@ -63,6 +66,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       const { data: profile } = await client.get<AuthUser>('/auth/profile');
       set({ user: profile });
+      void syncPushToken();
     } catch {
       await tokenStorage.clear();
     } finally {

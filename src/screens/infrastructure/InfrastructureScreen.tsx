@@ -110,10 +110,12 @@ function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete
           <Ionicons name="qr-code-outline" size={16} color={colors.text} />
           <Text style={styles.actionBtnText}>QR Code</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onEditPress}>
-          <Ionicons name="create-outline" size={16} color={colors.text} />
-          <Text style={styles.actionBtnText}>Edit</Text>
-        </TouchableOpacity>
+        {isAdmin && (
+          <TouchableOpacity style={styles.actionBtn} onPress={onEditPress}>
+            <Ionicons name="create-outline" size={16} color={colors.text} />
+            <Text style={styles.actionBtnText}>Edit</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -258,7 +260,7 @@ export default function InfrastructureScreen() {
                   style={styles.createSheetClose}
                   onPress={() => setShowCreateModal(false)}
                 >
-                  <Text style={styles.createSheetCloseText}>X</Text>
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -297,7 +299,7 @@ export default function InfrastructureScreen() {
                   style={styles.createSheetClose}
                   onPress={() => setEditingOutlet(null)}
                 >
-                  <Text style={styles.createSheetCloseText}>X</Text>
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -337,7 +339,7 @@ export default function InfrastructureScreen() {
                 style={styles.qrCloseBtn}
                 onPress={() => setSelectedQrOutlet(null)}
               >
-                <Text style={styles.qrCloseText}>X</Text>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -617,8 +619,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   createSheetClose: {
-    width: 36,
-    height: 36,
+    width: 28,
+    height: 28,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -666,8 +668,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   qrCloseBtn: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',

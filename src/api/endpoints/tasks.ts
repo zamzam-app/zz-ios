@@ -6,12 +6,21 @@ import { mapListSafely } from './mapListSafely';
 export type TaskStatus = 'OPEN' | 'COMPLETED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 export type TaskCategory = string;
+export type TaskRecurrenceType = 'WEEKLY' | 'MONTHLY';
 
 export interface TaskAttachments {
   images: string[];
   videos: string[];
   audios: string[];
   files: string[];
+}
+
+export interface TaskSubmission {
+  text?: string;
+  attachments?: TaskAttachments;
+  createdBy?: { _id: string; name?: string };
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TaskCategoryOption {
@@ -37,6 +46,11 @@ export interface Task {
   assignees?: Array<{ _id: string; name?: string }>;
   imageUrls?: string[];
   attachments?: TaskAttachments;
+  adminSubmission?: TaskSubmission;
+  managerSubmission?: TaskSubmission;
+  isRecurring?: boolean;
+  recurrenceType?: TaskRecurrenceType;
+  recurrenceDays?: number[];
   createdAt: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -52,6 +66,22 @@ export interface TasksQuery {
   priority?: TaskPriority;
   assigneeId?: string;
   search?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  isRecurring?: boolean;
+}
+
+export interface TasksListMeta {
+  total: number;
+  currentPage: number;
+  hasPrevPage: boolean;
+  hasNextPage: boolean;
+  limit: number;
+}
+
+export interface TasksListResponse {
+  data: Task[];
+  meta: TasksListMeta;
 }
 
 export interface CreateTaskPayload {
@@ -62,7 +92,41 @@ export interface CreateTaskPayload {
   outletId?: string;
   assigneeIds?: string[];
   status?: TaskStatus;
+  isRecurring?: boolean;
+  recurrenceType?: TaskRecurrenceType;
+  recurrenceDays?: number[];
   adminSubmission?: {
+    text?: string;
+    attachments?: {
+      images?: string[];
+      videos?: string[];
+      audios?: string[];
+      files?: string[];
+    };
+  };
+}
+
+export interface UpdateTaskPayload {
+  description?: string;
+  taskCategoryId?: string;
+  priority?: TaskPriority;
+  dueDate?: string;
+  outletId?: string;
+  assigneeIds?: string[];
+  status?: TaskStatus;
+  isRecurring?: boolean;
+  recurrenceType?: TaskRecurrenceType;
+  recurrenceDays?: number[];
+  adminSubmission?: {
+    text?: string;
+    attachments?: {
+      images?: string[];
+      videos?: string[];
+      audios?: string[];
+      files?: string[];
+    };
+  };
+  managerSubmission?: {
     text?: string;
     attachments?: {
       images?: string[];
@@ -101,6 +165,7 @@ interface RawTask {
     files?: string[];
   };
   adminSubmission?: {
+    text?: string;
     attachments?: {
       images?: string[];
       videos?: string[];
@@ -108,6 +173,18 @@ interface RawTask {
       files?: string[];
     };
   };
+  managerSubmission?: {
+    text?: string;
+    attachments?: {
+      images?: string[];
+      videos?: string[];
+      audios?: string[];
+      files?: string[];
+    };
+  };
+  isRecurring?: boolean;
+  recurrenceType?: string;
+  recurrenceDays?: number[];
   createdAt?: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -224,6 +301,35 @@ function mapTask(raw: RawTask): Task {
       : undefined,
     imageUrls: images.length > 0 ? images : undefined,
     attachments: hasAttachments ? { images, videos, audios, files } : undefined,
+    adminSubmission: raw.adminSubmission
+      ? {
+        text: raw.adminSubmission.text,
+        attachments: raw.adminSubmission.attachments
+          ? {
+            images: listFromRaw(raw.adminSubmission.attachments.images),
+            videos: listFromRaw(raw.adminSubmission.attachments.videos),
+            audios: listFromRaw(raw.adminSubmission.attachments.audios),
+            files: listFromRaw(raw.adminSubmission.attachments.files),
+          }
+          : undefined,
+      }
+      : undefined,
+    managerSubmission: raw.managerSubmission
+      ? {
+        text: raw.managerSubmission.text,
+        attachments: raw.managerSubmission.attachments
+          ? {
+            images: listFromRaw(raw.managerSubmission.attachments.images),
+            videos: listFromRaw(raw.managerSubmission.attachments.videos),
+            audios: listFromRaw(raw.managerSubmission.attachments.audios),
+            files: listFromRaw(raw.managerSubmission.attachments.files),
+          }
+          : undefined,
+      }
+      : undefined,
+    isRecurring: !!raw.isRecurring,
+    recurrenceType: raw.recurrenceType as TaskRecurrenceType | undefined,
+    recurrenceDays: raw.recurrenceDays ?? [],
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt,
     completedAt: raw.completedAt ?? null,
@@ -233,19 +339,39 @@ function mapTask(raw: RawTask): Task {
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 export const tasksApi = {
-  list: (query?: TasksQuery) =>
+  listPaginated: (query?: TasksQuery) =>
     client
-      .get<{ data: RawTask[]; total?: number } | RawTask[]>('/tasks', { params: query })
-      .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawTask[] }).data ?? [];
-        return mapListSafely(raw, 'tasks', mapTask);
+      .get<{ data: RawTask[]; meta?: Partial<TasksListMeta> } | RawTask[]>('/tasks', { params: query })
+      .then((r): TasksListResponse => {
+        const dataRoot = Array.isArray(r.data) ? { data: r.data } : r.data;
+        const raw = dataRoot.data ?? [];
+        const mapped = mapListSafely(raw, 'tasks', mapTask);
+        const fallbackLimit = query?.limit ?? raw.length ?? 0;
+        const currentPage = dataRoot.meta?.currentPage ?? query?.page ?? 1;
+        const total = dataRoot.meta?.total ?? mapped.length;
+        return {
+          data: mapped,
+          meta: {
+            total,
+            currentPage,
+            hasPrevPage: dataRoot.meta?.hasPrevPage ?? currentPage > 1,
+            hasNextPage: dataRoot.meta?.hasNextPage ?? currentPage * fallbackLimit < total,
+            limit: dataRoot.meta?.limit ?? fallbackLimit,
+          },
+        };
       }),
+
+  list: (query?: TasksQuery) =>
+    tasksApi.listPaginated(query).then((r) => r.data),
 
   getById: (id: string) =>
     client.get<RawTask>(`/tasks/${id}`).then((r) => mapTask(r.data)),
 
   create: (payload: CreateTaskPayload) =>
     client.post<RawTask>('/tasks', payload).then((r) => mapTask(r.data)),
+
+  update: (id: string, payload: UpdateTaskPayload) =>
+    client.patch<RawTask>(`/tasks/${id}`, payload).then((r) => mapTask(r.data)),
 
   listCategories: async () => {
     const response = await client.get<{ data: RawTaskCategory[] } | RawTaskCategory[]>('/task-category', {

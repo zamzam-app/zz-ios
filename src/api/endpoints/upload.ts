@@ -91,6 +91,8 @@ export interface CustomCake {
   prompt: string;
   imageUrl: string;
   createdAt: string;
+  customerName?: string;
+  customerDob?: string;
 }
 
 export interface UploadedCakeImage {
@@ -109,6 +111,7 @@ interface RawCustomCake {
   prompt?: string;
   imageUrl?: string;
   createdAt?: string;
+  userId?: string | { name?: string; dob?: string | Date };
 }
 
 interface RawUploadedCakeImage {
@@ -124,11 +127,14 @@ interface RawUploadedCakeImage {
 }
 
 function mapCustomCake(raw: RawCustomCake): CustomCake {
+  const user = typeof raw.userId === 'object' && raw.userId ? raw.userId : undefined;
   return {
     id: String(raw._id ?? raw.id ?? ''),
     prompt: raw.prompt ?? '',
     imageUrl: raw.imageUrl ?? '',
     createdAt: raw.createdAt ?? '',
+    customerName: user?.name,
+    customerDob: user?.dob ? new Date(user.dob).toISOString() : undefined,
   };
 }
 

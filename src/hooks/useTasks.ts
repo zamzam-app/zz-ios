@@ -1,10 +1,23 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tasksApi, TasksQuery, CreateTaskPayload, TaskStatus } from '../api/endpoints/tasks';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { tasksApi, TasksQuery, CreateTaskPayload, TaskStatus, UpdateTaskPayload } from '../api/endpoints/tasks';
 
 export const useTasks = (query?: TasksQuery) =>
   useQuery({
     queryKey: ['tasks', query],
     queryFn: () => tasksApi.list(query),
+  });
+
+export const useInfiniteTasks = (
+  query?: Omit<TasksQuery, 'page'>,
+  options?: { enabled?: boolean },
+) =>
+  useInfiniteQuery({
+    queryKey: ['tasks-infinite', query],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => tasksApi.listPaginated({ ...query, page: pageParam }),
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.hasNextPage ? lastPage.meta.currentPage + 1 : undefined,
+    enabled: options?.enabled ?? true,
   });
 
 export const useTask = (id: string) =>
@@ -27,6 +40,7 @@ export const useCreateTask = () => {
     mutationFn: (payload: CreateTaskPayload) => tasksApi.create(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
     },
   });
@@ -39,6 +53,7 @@ export const useUpdateTaskStatus = () => {
       tasksApi.updateStatus(id, status),
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
       qc.invalidateQueries({ queryKey: ['task', updated.id] });
     },
@@ -51,7 +66,22 @@ export const useDeleteTask = () => {
     mutationFn: (id: string) => tasksApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
+    },
+  });
+};
+
+export const useUpdateTask = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateTaskPayload }) =>
+      tasksApi.update(id, payload),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
+      qc.invalidateQueries({ queryKey: ['tasks-overview'] });
+      qc.invalidateQueries({ queryKey: ['task', updated.id] });
     },
   });
 };

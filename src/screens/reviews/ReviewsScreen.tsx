@@ -104,11 +104,14 @@ function getComment(review: Review) {
   return 'Customer complaint reported. Tap to view full details.';
 }
 
-function getSeverity(status?: ComplaintStatus) {
-  if (status === 'pending') {
+function getSeverity(rating: number) {
+  if (rating < 2.0) {
     return { label: 'CRITICAL', bg: colors.error, text: colors.textInverse };
   }
-  return { label: 'CONCERN', bg: colors.warning, text: colors.textInverse };
+  if (rating < 3.5) {
+    return { label: 'CONCERN', bg: colors.warning, text: colors.textInverse };
+  }
+  return { label: 'FEEDBACK', bg: colors.primary, text: colors.textInverse };
 }
 
 function getAllReviewCardBackground(review: Review) {
@@ -192,6 +195,7 @@ export default function ReviewsScreen({ route }: Props) {
   const navigation = useNavigation<Nav>();
   const [selectedOutletId, setSelectedOutletId] = useState('all');
   const [statusFilter, setStatusFilter] = useState<ReviewMetricFilter>('all');
+  const [allReviewsFilter, setAllReviewsFilter] = useState<'all' | 'open' | 'resolved' | 'dismissed' | 'critical' | 'concern'>('all');
 
   useEffect(() => {
     const incomingMetric = route.params?.initialReviewFilter?.metric;
@@ -299,6 +303,18 @@ export default function ReviewsScreen({ route }: Props) {
     () => [...filteredReviews].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [filteredReviews],
   );
+
+  const displayedAllReviews = useMemo(() => {
+    return allReviews.filter(review => {
+      if (allReviewsFilter === 'all') return true;
+      if (allReviewsFilter === 'open') return review.isComplaint && review.complaintStatus === 'pending';
+      if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
+      if (allReviewsFilter === 'dismissed') return review.isComplaint && review.complaintStatus === 'dismissed';
+      if (allReviewsFilter === 'critical') return review.overallRating < 2.0;
+      if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
+      return true;
+    });
+  }, [allReviews, allReviewsFilter]);
 
   const heatmapRows = useMemo(() => {
     const scopedHeatmap = selectedOutletId === 'all'
@@ -482,7 +498,7 @@ export default function ReviewsScreen({ route }: Props) {
                 <Text style={styles.emptyText}>No reviews available.</Text>
               ) : (
                 criticalFeed.map((review, index) => {
-                  const severity = getSeverity(review.complaintStatus);
+                  const severity = getSeverity(review.overallRating);
                   const tags = getReviewTags(review);
 
                   return (
@@ -528,17 +544,39 @@ export default function ReviewsScreen({ route }: Props) {
         <View style={styles.feedbackHeaderRow}>
           <Text style={styles.sectionEyebrow}>All Reviews</Text>
           <View style={styles.totalBadge}>
-            <Text style={styles.totalBadgeText}>{allReviews.length} TOTAL</Text>
+            <Text style={styles.totalBadgeText}>{displayedAllReviews.length} TOTAL</Text>
           </View>
         </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.filterPillsRow, { paddingHorizontal: spacing.xs, marginBottom: spacing.sm }]}
+        >
+          {(['all', 'open', 'resolved', 'dismissed', 'critical', 'concern'] as const).map((opt) => {
+            const active = opt === allReviewsFilter;
+            return (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.filterPill, active && styles.filterPillActive]}
+                onPress={() => setAllReviewsFilter(opt)}
+                activeOpacity={0.82}
+              >
+                <Text style={[styles.filterPillText, active && styles.filterPillTextActive]} numberOfLines={1}>
+                  {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         <View style={styles.feedbackContainer}>
           {isReviewsLoading ? (
             <ActivityIndicator color={colors.primary} style={styles.loading} />
-          ) : allReviews.length === 0 ? (
+          ) : displayedAllReviews.length === 0 ? (
             <Text style={styles.emptyText}>No reviews available.</Text>
           ) : (
-            allReviews.map((review, index) => {
+            displayedAllReviews.map((review, index) => {
               const tags = getReviewTags(review);
               return (
                 <TouchableOpacity
@@ -546,7 +584,7 @@ export default function ReviewsScreen({ route }: Props) {
                   style={[
                     styles.feedbackItem,
                     { backgroundColor: getAllReviewCardBackground(review) },
-                    index < allReviews.length - 1 && styles.feedbackItemBorder,
+                    index < displayedAllReviews.length - 1 && styles.feedbackItemBorder,
                   ]}
                   activeOpacity={0.85}
                   onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
