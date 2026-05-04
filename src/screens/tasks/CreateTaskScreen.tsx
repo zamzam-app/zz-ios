@@ -226,12 +226,6 @@ export function CreateTaskContent({
     setIsRecurring(initialIsRecurring);
   }, [initialIsRecurring]);
 
-  useEffect(() => {
-    if (hideRecurringToggle) {
-      setIsRecurring(true);
-    }
-  }, [hideRecurringToggle]);
-
   const [showMonthDaysPicker, setShowMonthDaysPicker] = useState(false);
   const [outletId, setOutletId] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
