@@ -104,11 +104,14 @@ function getComment(review: Review) {
   return 'Customer complaint reported. Tap to view full details.';
 }
 
-function getSeverity(status?: ComplaintStatus) {
-  if (status === 'pending') {
+function getSeverity(rating: number) {
+  if (rating < 2.0) {
     return { label: 'CRITICAL', bg: colors.error, text: colors.textInverse };
   }
-  return { label: 'CONCERN', bg: colors.warning, text: colors.textInverse };
+  if (rating < 3.5) {
+    return { label: 'CONCERN', bg: colors.warning, text: colors.textInverse };
+  }
+  return { label: 'FEEDBACK', bg: colors.primary, text: colors.textInverse };
 }
 
 function getAllReviewCardBackground(review: Review) {
@@ -307,8 +310,8 @@ export default function ReviewsScreen({ route }: Props) {
       if (allReviewsFilter === 'open') return review.isComplaint && review.complaintStatus === 'pending';
       if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
       if (allReviewsFilter === 'dismissed') return review.isComplaint && review.complaintStatus === 'dismissed';
-      if (allReviewsFilter === 'critical') return review.isComplaint && getSeverity(review.complaintStatus).label === 'CRITICAL';
-      if (allReviewsFilter === 'concern') return review.isComplaint && getSeverity(review.complaintStatus).label === 'CONCERN';
+      if (allReviewsFilter === 'critical') return review.overallRating < 2.0;
+      if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
       return true;
     });
   }, [allReviews, allReviewsFilter]);
@@ -495,7 +498,7 @@ export default function ReviewsScreen({ route }: Props) {
                 <Text style={styles.emptyText}>No reviews available.</Text>
               ) : (
                 criticalFeed.map((review, index) => {
-                  const severity = getSeverity(review.complaintStatus);
+                  const severity = getSeverity(review.overallRating);
                   const tags = getReviewTags(review);
 
                   return (
