@@ -720,7 +720,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        {task.status !== 'COMPLETED' ? (
+        {task.status !== 'COMPLETED' && !isAdmin ? (
           <>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeadingWrap}>
