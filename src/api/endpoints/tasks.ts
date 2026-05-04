@@ -6,6 +6,7 @@ import { mapListSafely } from './mapListSafely';
 export type TaskStatus = 'OPEN' | 'COMPLETED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 export type TaskCategory = string;
+export type TaskRecurrenceType = 'WEEKLY' | 'MONTHLY';
 
 export interface TaskAttachments {
   images: string[];
@@ -47,6 +48,9 @@ export interface Task {
   attachments?: TaskAttachments;
   adminSubmission?: TaskSubmission;
   managerSubmission?: TaskSubmission;
+  isRecurring?: boolean;
+  recurrenceType?: TaskRecurrenceType;
+  recurrenceDays?: number[];
   createdAt: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -64,6 +68,7 @@ export interface TasksQuery {
   search?: string;
   dueFrom?: string;
   dueTo?: string;
+  isRecurring?: boolean;
 }
 
 export interface TasksListMeta {
@@ -87,6 +92,9 @@ export interface CreateTaskPayload {
   outletId?: string;
   assigneeIds?: string[];
   status?: TaskStatus;
+  isRecurring?: boolean;
+  recurrenceType?: TaskRecurrenceType;
+  recurrenceDays?: number[];
   adminSubmission?: {
     text?: string;
     attachments?: {
@@ -106,6 +114,9 @@ export interface UpdateTaskPayload {
   outletId?: string;
   assigneeIds?: string[];
   status?: TaskStatus;
+  isRecurring?: boolean;
+  recurrenceType?: TaskRecurrenceType;
+  recurrenceDays?: number[];
   adminSubmission?: {
     text?: string;
     attachments?: {
@@ -171,6 +182,9 @@ interface RawTask {
       files?: string[];
     };
   };
+  isRecurring?: boolean;
+  recurrenceType?: string;
+  recurrenceDays?: number[];
   createdAt?: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -313,6 +327,9 @@ function mapTask(raw: RawTask): Task {
           : undefined,
       }
       : undefined,
+    isRecurring: !!raw.isRecurring,
+    recurrenceType: raw.recurrenceType as TaskRecurrenceType | undefined,
+    recurrenceDays: raw.recurrenceDays ?? [],
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt,
     completedAt: raw.completedAt ?? null,

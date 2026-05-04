@@ -298,6 +298,7 @@ export default function TasksScreen() {
   const userIdentifier = user?._id || user?.id;
   const navigation = useNavigation<Nav>();
   const route = useRoute<TasksRoute>();
+  const [activeTab, setActiveTab] = useState<'NORMAL' | 'RECURRING'>('NORMAL');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
   const [dueDateFilter, setDueDateFilter] = useState<Date | null>(null);
   const [metricFilter, setMetricFilter] = useState<TaskMetricFilter>('all');
@@ -349,6 +350,7 @@ export default function TasksScreen() {
       dueFrom: effectiveOpenDueDateStart ? effectiveOpenDueDateStart.toISOString() : undefined,
       dueTo: effectiveOpenDueDateEnd ? effectiveOpenDueDateEnd.toISOString() : undefined,
       assigneeId: isAdmin ? undefined : userIdentifier,
+      isRecurring: activeTab === 'RECURRING',
     },
     { enabled: showOpenSection },
   );
@@ -362,6 +364,7 @@ export default function TasksScreen() {
       dueFrom: effectiveCompletedDueDateStart ? effectiveCompletedDueDateStart.toISOString() : undefined,
       dueTo: effectiveCompletedDueDateEnd ? effectiveCompletedDueDateEnd.toISOString() : undefined,
       assigneeId: isAdmin ? undefined : userIdentifier,
+      isRecurring: activeTab === 'RECURRING',
     },
     { enabled: showCompletedSection },
   );
@@ -396,12 +399,22 @@ export default function TasksScreen() {
   }, [openTasksQuery.error, completedTasksQuery.error, lastLoadError]);
 
   const openTasksFromApi = useMemo(
-    () => (openTasksQuery.data?.pages ?? []).flatMap((page) => page.data),
-    [openTasksQuery.data?.pages],
+    () => {
+      const isRecTab = activeTab === 'RECURRING';
+      return (openTasksQuery.data?.pages ?? [])
+        .flatMap((page) => page.data)
+        .filter((task) => !!task.isRecurring === isRecTab);
+    },
+    [openTasksQuery.data?.pages, activeTab],
   );
   const completedTasksFromApi = useMemo(
-    () => (completedTasksQuery.data?.pages ?? []).flatMap((page) => page.data),
-    [completedTasksQuery.data?.pages],
+    () => {
+      const isRecTab = activeTab === 'RECURRING';
+      return (completedTasksQuery.data?.pages ?? [])
+        .flatMap((page) => page.data)
+        .filter((task) => !!task.isRecurring === isRecTab);
+    },
+    [completedTasksQuery.data?.pages, activeTab],
   );
 
   const openTasks = useMemo(() => {
@@ -413,8 +426,8 @@ export default function TasksScreen() {
     () => [...completedTasksFromApi].sort(compareCompletedTaskOrder),
     [completedTasksFromApi],
   );
-  const openTasksTotal = openTasksQuery.data?.pages?.[0]?.meta.total ?? openTasks.length;
-  const completedTasksTotal = completedTasksQuery.data?.pages?.[0]?.meta.total ?? completedTasks.length;
+  const openTasksTotal = openTasks.length;
+  const completedTasksTotal = completedTasks.length;
 
   const formatFilterDate = (date: Date) => date.toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -487,6 +500,21 @@ export default function TasksScreen() {
             <Text style={styles.createBtnText}>+ New</Text>
           </TouchableOpacity>
         )}
+      </View>
+
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'NORMAL' && styles.tabItemActive]}
+          onPress={() => setActiveTab('NORMAL')}
+        >
+          <Text style={[styles.tabText, activeTab === 'NORMAL' && styles.tabTextActive]}>Normal Task</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'RECURRING' && styles.tabItemActive]}
+          onPress={() => setActiveTab('RECURRING')}
+        >
+          <Text style={[styles.tabText, activeTab === 'RECURRING' && styles.tabTextActive]}>Recurring Task</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.controlsRow}>
@@ -837,6 +865,7 @@ export default function TasksScreen() {
                 setShowCreateModal(false);
                 void refetch();
               }}
+              initialIsRecurring={activeTab === 'RECURRING'}
               bottomPadding={24}
               fill
               backgroundColor={colors.surface}
@@ -1412,5 +1441,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: typography.base,
     fontWeight: typography.semibold,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: '#E6E8EA',
+    borderRadius: radius.md,
+    padding: 2,
+  },
+  tabItem: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: radius.md,
+  },
+  tabItemActive: {
+    backgroundColor: colors.surface,
+    ...shadow.sm,
+  },
+  tabText: {
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+    color: colors.textSecondary,
+  },
+  tabTextActive: {
+    color: colors.primaryDark,
+    fontWeight: typography.bold,
   },
 });

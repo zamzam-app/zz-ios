@@ -13,6 +13,7 @@ import {
   Platform,
   Image,
   Linking,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -45,6 +46,16 @@ import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
+const WEEK_DAYS = [
+  { label: 'Sun', value: 0 },
+  { label: 'Mon', value: 1 },
+  { label: 'Tue', value: 2 },
+  { label: 'Wed', value: 3 },
+  { label: 'Thu', value: 4 },
+  { label: 'Fri', value: 5 },
+  { label: 'Sat', value: 6 },
+];
+const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({ id: String(i + 1), name: String(i + 1) }));
 const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
 const AUDIO_FILE_WAIT_RETRIES = 25;
 const AUDIO_FILE_WAIT_DELAY_MS = 120;
@@ -189,6 +200,7 @@ type CreateTaskContentProps = {
   bottomPadding?: number;
   fill?: boolean;
   backgroundColor?: string;
+  initialIsRecurring?: boolean;
 };
 
 export function CreateTaskContent({
@@ -197,12 +209,17 @@ export function CreateTaskContent({
   bottomPadding = 40,
   fill = true,
   backgroundColor = colors.background,
+  initialIsRecurring = false,
 }: CreateTaskContentProps) {
   const [description, setDescription] = useState('');
   const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>();
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const isRecurring = initialIsRecurring;
+  const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
+  const [showMonthDaysPicker, setShowMonthDaysPicker] = useState(false);
   const [outletId, setOutletId] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [showOutletPicker, setShowOutletPicker] = useState(false);
@@ -646,6 +663,8 @@ export function CreateTaskContent({
         taskCategoryId,
         priority,
         dueDate: dueDate.toISOString(),
+        isRecurring,
+        ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
         ...(outletId ? { outletId } : {}),
         assigneeIds,
         ...(hasUploadedAttachments
@@ -940,6 +959,40 @@ export function CreateTaskContent({
           />
         )}
 
+        {isRecurring && (
+          <View style={styles.recurrenceContainer}>
+            <Label text="Recurrence Type" />
+            <ChipGroup options={['WEEKLY', 'MONTHLY']} value={recurrenceType} onChange={(val: any) => { setRecurrenceType(val); setRecurrenceDays([]); }} />
+            
+            <Label text={recurrenceType === 'WEEKLY' ? 'Days of Week' : 'Days of Month'} required />
+            {recurrenceType === 'WEEKLY' ? (
+              <View style={styles.chipRow}>
+                {WEEK_DAYS.map(o => (
+                  <TouchableOpacity
+                    key={o.value}
+                    style={[styles.chip, recurrenceDays.includes(o.value) && styles.chipActive]}
+                    onPress={() => {
+                      setRecurrenceDays(prev => prev.includes(o.value) ? prev.filter(v => v !== o.value) : [...prev, o.value].sort((a,b)=>a-b));
+                    }}
+                  >
+                    <Text style={[styles.chipText, recurrenceDays.includes(o.value) && styles.chipTextActive]}>
+                      {o.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.input} onPress={() => setShowMonthDaysPicker(true)}>
+                <Text style={{ color: recurrenceDays.length > 0 ? colors.text : colors.textDisabled }}>
+                  {recurrenceDays.length > 0
+                    ? recurrenceDays.sort((a, b) => a - b).join(', ')
+                    : 'Select days...'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         <Label text="Outlet" />
         <TouchableOpacity style={styles.input} onPress={() => setShowOutletPicker(true)}>
           <Text style={{ color: selectedOutlet ? colors.text : colors.textDisabled }}>
@@ -1000,6 +1053,19 @@ export function CreateTaskContent({
       />
 
       <PickerModal
+        visible={showMonthDaysPicker}
+        title="Select Days of the Month"
+        items={MONTH_DAYS}
+        selected={recurrenceDays.map(String)}
+        multi
+        onSelect={(id) => {
+          const num = Number(id);
+          setRecurrenceDays((prev) => prev.includes(num) ? prev.filter(x => x !== num) : [...prev, num].sort((a, b) => a - b));
+        }}
+        onClose={() => setShowMonthDaysPicker(false)}
+      />
+
+      <PickerModal
         visible={showAssigneePicker}
         title="Select Assignees"
         items={filteredManagers}
@@ -1038,6 +1104,20 @@ const styles = StyleSheet.create({
     fontWeight: typography.medium,
     color: colors.text,
     marginBottom: 2,
+    marginTop: spacing.sm,
+  },
+  recurrenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+  },
+  recurrenceContainer: {
+    backgroundColor: colors.surfaceElevated,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginTop: spacing.sm,
   },
   input: {
