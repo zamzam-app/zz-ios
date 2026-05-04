@@ -655,6 +655,11 @@ export function CreateTaskContent({
       return Alert.alert('Upload failed', 'Please remove failed attachments or try selecting them again.');
     }
 
+    if (isRecurring && recurrenceDays.length === 0) {
+      const typeLabel = recurrenceType === 'WEEKLY' ? 'days of the week' : 'days of the month';
+      return Alert.alert('Required', `Please select at least one day for ${typeLabel}.`);
+    }
+
     const uploaded = attachments.filter((item) => item.status === 'uploaded' && item.remoteUrl);
     const images = uploaded.filter((item) => item.type === 'image').map((item) => item.remoteUrl as string);
     const videos = uploaded.filter((item) => item.type === 'video').map((item) => item.remoteUrl as string);
