@@ -491,15 +491,26 @@ export default function TasksScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.heading}>Task Board</Text>
-          <Text style={styles.subheading}>Manage operational flows across all outlets</Text>
+        <View style={{ flexShrink: 1, marginRight: spacing.sm }}>
+          <Text style={styles.heading} numberOfLines={1}>Task Board</Text>
+          <Text style={styles.subheading} numberOfLines={1}>Manage operational flows</Text>
         </View>
-        {!isManager && (
-          <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
-            <Text style={styles.createBtnText}>+ New</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerBtns}>
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => navigation.navigate('TaskCategories')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryBtnText}>Categories</Text>
+            </TouchableOpacity>
+          )}
+          {!isManager && (
+            <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
+              <Text style={styles.createBtnText}>+ New</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <View style={styles.tabBar}>
@@ -948,6 +959,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
   },
+  headerBtns: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
   heading: {
     fontSize: 26,
     fontWeight: typography.bold,
@@ -958,6 +974,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: typography.sm,
     color: colors.textSecondary,
+  },
+  secondaryBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC80',
+    backgroundColor: colors.buttonLightBg,
+  },
+  secondaryBtnText: {
+    color: colors.text,
+    fontWeight: typography.semibold,
+    fontSize: typography.sm,
   },
   createBtn: {
     backgroundColor: colors.buttonPrimaryBg,
