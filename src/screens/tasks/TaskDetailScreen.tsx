@@ -356,12 +356,27 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       setUploadingType(null);
     }
   };
-
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
     });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await uploadLocalFile('images', result.assets[0].uri);
+  };
+
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Camera access is required to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+
     if (result.canceled || !result.assets?.[0]?.uri) return;
     await uploadLocalFile('images', result.assets[0].uri);
   };
@@ -741,6 +756,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               />
 
               <View style={styles.managerActionsRow}>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void takePhoto(); }} disabled={uploadingType !== null}>
+                  <Ionicons name="camera-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Camera</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null}>
                   <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>Image</Text>

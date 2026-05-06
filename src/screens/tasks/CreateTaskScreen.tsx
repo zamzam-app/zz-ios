@@ -496,6 +496,26 @@ export function CreateTaskContent({
     addAttachment(kind, picked.uri, picked.fileName ?? fallbackName);
   };
 
+  const takePhoto = async () => {
+    setShowAttachmentMenu(false);
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Camera access is required to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const picked = result.assets[0];
+    const fallbackName = `photo-${attachments.length + 1}.jpg`;
+    addAttachment('image', picked.uri, picked.fileName ?? fallbackName);
+  };
+
   const pickFile = async () => {
     setShowAttachmentMenu(false);
     const result = await DocumentPicker.getDocumentAsync({
@@ -767,13 +787,24 @@ export function CreateTaskContent({
             <View style={styles.attachmentInlineDropdown}>
               <TouchableOpacity
                 style={styles.attachmentInlineDropdownItem}
+                onPress={() => { void takePhoto(); }}
+              >
+                <View style={[styles.attachmentInlineIconWrap, { backgroundColor: '#F0FDF4' }]}>
+                  <MaterialCommunityIcons name="camera" size={18} color="#15803D" />
+                </View>
+                <Text style={styles.attachmentInlineDropdownText}>Camera</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void pickMedia('image'); }}
               >
-                <View style={styles.attachmentInlineDropdownIconBox}>
-                  <MaterialCommunityIcons name="image-outline" size={18} color={colors.primary} />
+                <View style={[styles.attachmentInlineIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                  <MaterialCommunityIcons name="image" size={18} color="#1D4ED8" />
                 </View>
                 <Text style={styles.attachmentInlineDropdownText}>Image</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void pickMedia('video'); }}
@@ -1249,6 +1280,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+  },
+  attachmentInlineIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   attachmentInlineDropdownText: {
     color: colors.text,
