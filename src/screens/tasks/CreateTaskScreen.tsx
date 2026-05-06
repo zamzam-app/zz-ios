@@ -789,8 +789,8 @@ export function CreateTaskContent({
                 style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void takePhoto(); }}
               >
-                <View style={[styles.attachmentInlineIconWrap, { backgroundColor: '#F0FDF4' }]}>
-                  <MaterialCommunityIcons name="camera" size={18} color="#15803D" />
+                <View style={styles.attachmentInlineDropdownIconBox}>
+                  <MaterialCommunityIcons name="camera-outline" size={18} color={colors.primary} />
                 </View>
                 <Text style={styles.attachmentInlineDropdownText}>Camera</Text>
               </TouchableOpacity>
@@ -799,8 +799,8 @@ export function CreateTaskContent({
                 style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void pickMedia('image'); }}
               >
-                <View style={[styles.attachmentInlineIconWrap, { backgroundColor: '#EFF6FF' }]}>
-                  <MaterialCommunityIcons name="image" size={18} color="#1D4ED8" />
+                <View style={styles.attachmentInlineDropdownIconBox}>
+                  <MaterialCommunityIcons name="image-outline" size={18} color={colors.primary} />
                 </View>
                 <Text style={styles.attachmentInlineDropdownText}>Image</Text>
               </TouchableOpacity>
