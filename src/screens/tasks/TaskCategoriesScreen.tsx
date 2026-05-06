@@ -10,25 +10,23 @@ import {
   ActivityIndicator,
   Modal,
   RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  useOutletTypes,
-  useCreateOutletType,
-  useUpdateOutletType,
-  useDeleteOutletType,
-} from '../../hooks/useOutletTypes';
-import { OutletType } from '../../api/endpoints/outletTypes';
+  useTaskCategories,
+  useCreateTaskCategory,
+  useUpdateTaskCategory,
+  useDeleteTaskCategory,
+} from '../../hooks/useTasks';
+import { TaskCategoryOption } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { useAuthStore } from '../../store/authStore';
-import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
+import { TasksStackParamList } from '../../navigation/TasksNavigator';
 
-function TypeFormModal({
+function CategoryFormModal({
   visible,
   initial,
   onClose,
@@ -36,7 +34,7 @@ function TypeFormModal({
   submitting,
 }: {
   visible: boolean;
-  initial?: OutletType;
+  initial?: TaskCategoryOption;
   onClose: () => void;
   onSubmit: (name: string, description: string) => void;
   submitting: boolean;
@@ -67,8 +65,12 @@ function TypeFormModal({
       setNameError(null);
     }
 
-    // Description is now optional
-    setDescriptionError(null);
+    if (trimmedDescription.length < 5) {
+      setDescriptionError('Description must be at least 5 characters.');
+      hasError = true;
+    } else {
+      setDescriptionError(null);
+    }
 
     if (hasError) return;
     onSubmit(trimmedName, trimmedDescription);
@@ -87,14 +89,11 @@ function TypeFormModal({
           style={styles.createModalScrim}
           onPress={onClose}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.createSheet}
-        >
+        <View style={styles.createSheet}>
           <View style={styles.createSheetTop}>
             <View style={styles.createSheetHandle} />
             <View style={styles.createSheetHeader}>
-              <Text style={styles.createSheetTitle}>{initial ? 'Edit Outlet Type' : 'Create Outlet Type'}</Text>
+              <Text style={styles.createSheetTitle}>{initial ? 'Edit Category' : 'Create Category'}</Text>
               <TouchableOpacity
                 style={styles.createSheetClose}
                 onPress={onClose}
@@ -109,7 +108,7 @@ function TypeFormModal({
             <Text style={styles.label}>Name</Text>
             <TextInput
               style={[styles.input, nameError && styles.inputError]}
-              placeholder="e.g. Cafe, Bakery"
+              placeholder="e.g. Cleaning, Maintenance"
               placeholderTextColor={colors.textDisabled}
               value={name}
               onChangeText={(value) => {
@@ -149,84 +148,84 @@ function TypeFormModal({
                 {submitting ? (
                   <ActivityIndicator color={colors.textInverse} />
                 ) : (
-                  <Text style={styles.submitBtnText}>{initial ? 'Save Changes' : 'Create Type'}</Text>
+                  <Text style={styles.submitBtnText}>{initial ? 'Save Changes' : 'Create Category'}</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </View>
     </Modal>
   );
 }
 
-export default function OutletTypesScreen() {
-  const { data: types, isLoading, isFetching, refetch } = useOutletTypes();
-  const createType = useCreateOutletType();
+export default function TaskCategoriesScreen() {
+  const { data: categories, isLoading, isFetching, refetch } = useTaskCategories();
+  const createCategory = useCreateTaskCategory();
   const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
-  const updateType = useUpdateOutletType();
-  const deleteType = useDeleteOutletType();
+  const updateCategory = useUpdateTaskCategory();
+  const deleteCategory = useDeleteTaskCategory();
 
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<OutletType | undefined>();
-  const navigation = useNavigation<NativeStackNavigationProp<InfrastructureStackParamList>>();
+  const [editing, setEditing] = useState<TaskCategoryOption | undefined>();
+  const navigation = useNavigation<NativeStackNavigationProp<TasksStackParamList>>();
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-    navigation.navigate('OutletsList');
+    navigation.navigate('TasksList');
   };
 
   const handleSubmit = (name: string, description: string) => {
     if (editing) {
-      updateType.mutate(
+      updateCategory.mutate(
         { id: editing.id, payload: { name, description } },
         {
           onSuccess: () => {
             setShowModal(false);
-            Alert.alert('Updated', 'Outlet type updated successfully.');
+            Alert.alert('Updated', 'Task category updated successfully.');
           },
           onError: () => {
-            Alert.alert('Update Failed', 'Unable to update outlet type. Please try again.');
+            Alert.alert('Update Failed', 'Unable to update task category. Please try again.');
           },
         },
       );
       return;
     }
 
-    createType.mutate(
+    createCategory.mutate(
       { name, description },
       {
         onSuccess: () => {
           setShowModal(false);
-          Alert.alert('Created', 'New outlet type created successfully.');
+          Alert.alert('Created', 'New task category created successfully.');
         },
         onError: () => {
-          Alert.alert('Create Failed', 'Unable to create outlet type. Please try again.');
+          Alert.alert('Create Failed', 'Unable to create task category. Please try again.');
         },
       },
     );
   };
 
-  const handleDelete = (type: OutletType) => {
-    Alert.alert('Delete Type', `Delete "${type.name}"?`, [
+  const handleDelete = (category: TaskCategoryOption) => {
+    Alert.alert('Delete Category', `Delete "${category.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: () =>
-          deleteType.mutate(type.id, {
+          deleteCategory.mutate(category.id, {
             onError: () => {
-              Alert.alert('Delete Failed', 'Unable to delete outlet type. Please try again.');
+              Alert.alert('Delete Failed', 'Unable to delete task category. Please try again.');
             },
           }),
       },
     ]);
   };
 
-  const renderItem = ({ item }: { item: OutletType }) => (
+  const renderItem = ({ item }: { item: TaskCategoryOption }) => (
     <View style={styles.card}>
       <View style={styles.cardRow}>
         <View style={styles.cardBody}>
@@ -266,9 +265,9 @@ export default function OutletTypesScreen() {
             >
               <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.heading}>Outlet Types</Text>
+            <Text style={styles.heading}>Task Categories</Text>
           </View>
-          <Text style={styles.subheading}>Manage foundational categories for your outlets</Text>
+          <Text style={styles.subheading}>Manage foundational categories for your tasks</Text>
         </View>
         {isAdmin && (
           <TouchableOpacity
@@ -284,8 +283,8 @@ export default function OutletTypesScreen() {
       </View>
 
       <FlatList
-        data={types ?? []}
-        extraData={types}
+        data={categories ?? []}
+        extraData={categories}
         keyExtractor={(t) => t.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
@@ -294,16 +293,16 @@ export default function OutletTypesScreen() {
         }
         renderItem={renderItem}
         ListEmptyComponent={
-          !isLoading ? <Text style={styles.empty}>No outlet types yet</Text> : null
+          !isLoading ? <Text style={styles.empty}>No task categories yet</Text> : null
         }
       />
 
-      <TypeFormModal
+      <CategoryFormModal
         visible={showModal}
         initial={editing}
         onClose={() => setShowModal(false)}
         onSubmit={handleSubmit}
-        submitting={createType.isPending || updateType.isPending}
+        submitting={createCategory.isPending || updateCategory.isPending}
       />
     </SafeAreaView>
   );

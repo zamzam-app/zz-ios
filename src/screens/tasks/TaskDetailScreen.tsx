@@ -12,6 +12,7 @@ import {
   Image,
   Linking,
   TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTask, useUpdateTaskStatus, useDeleteTask, useUpdateTask } from '../../hooks/useTasks';
-import { TaskStatus } from '../../api/endpoints/tasks';
+import { TaskStatus, Task } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
@@ -28,6 +29,7 @@ import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './
 import { uploadToCloudinary } from '../../api/endpoints/upload';
 import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
+import { CreateTaskContent } from './CreateTaskScreen';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
 
@@ -211,6 +213,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     files: string[];
   }>({ images: [], videos: [], audios: [], files: [] });
   const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const runPreviewPlayerActionSafely = useCallback((action: () => unknown): boolean => {
     try {
@@ -230,6 +233,14 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       return false;
     }
   }, []);
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('TasksList');
+  };
 
   const handleStatusChange = () => {
     if (!task) return;
@@ -298,10 +309,23 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const imageAttachments = task?.attachments?.images ?? task?.imageUrls ?? [];
-  const videoAttachments = task?.attachments?.videos ?? [];
-  const audioAttachments = task?.attachments?.audios ?? [];
-  const fileAttachments = task?.attachments?.files ?? [];
+  const adminAttachments = task?.adminSubmission?.attachments;
+  const imageAttachments = Array.from(new Set([
+    ...(task?.attachments?.images ?? task?.imageUrls ?? []),
+    ...(adminAttachments?.images ?? [])
+  ]));
+  const videoAttachments = Array.from(new Set([
+    ...(task?.attachments?.videos ?? []),
+    ...(adminAttachments?.videos ?? [])
+  ]));
+  const audioAttachments = Array.from(new Set([
+    ...(task?.attachments?.audios ?? []),
+    ...(adminAttachments?.audios ?? [])
+  ]));
+  const fileAttachments = Array.from(new Set([
+    ...(task?.attachments?.files ?? []),
+    ...(adminAttachments?.files ?? [])
+  ]));
   const audioAttachmentMeta = audioAttachments.map((url, index) => ({ id: `audio-${index}-${url}`, url }));
   const audioAttachmentIds = audioAttachmentMeta.map((item) => item.id);
   const audioAttachmentIdsKey = audioAttachmentIds.join('|');
@@ -356,12 +380,27 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       setUploadingType(null);
     }
   };
-
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
     });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await uploadLocalFile('images', result.assets[0].uri);
+  };
+
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Camera access is required to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+
     if (result.canceled || !result.assets?.[0]?.uri) return;
     await uploadLocalFile('images', result.assets[0].uri);
   };
@@ -538,23 +577,42 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <View style={styles.headingWrap}>
-            <Text style={styles.heading} numberOfLines={1}>Task Details</Text>
+            <View style={styles.titleRow}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                onPress={handleBack}
+                style={styles.backButton}
+              >
+                <Ionicons name="arrow-back" size={24} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.heading} numberOfLines={1}>Task Details</Text>
+            </View>
             <Text style={styles.subheading}>Task #{task.id.slice(-6).toUpperCase()}</Text>
           </View>
           <View style={styles.headerActions}>
             {isAdmin && (
-              <TouchableOpacity
-                style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
-                onPress={handleDelete}
-                disabled={deleteTask.isPending}
-                activeOpacity={0.82}
-              >
-                {deleteTask.isPending ? (
-                  <ActivityIndicator color={colors.textInverse} size="small" />
-                ) : (
-                  <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
-                )}
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={[styles.iconActionBtn, styles.editActionBtn]}
+                  onPress={() => setShowEditModal(true)}
+                  activeOpacity={0.82}
+                >
+                  <Ionicons name="create-outline" size={18} color={colors.textInverse} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
+                  onPress={handleDelete}
+                  disabled={deleteTask.isPending}
+                  activeOpacity={0.82}
+                >
+                  {deleteTask.isPending ? (
+                    <ActivityIndicator color={colors.textInverse} size="small" />
+                  ) : (
+                    <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
+                  )}
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </View>
@@ -741,6 +799,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               />
 
               <View style={styles.managerActionsRow}>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void takePhoto(); }} disabled={uploadingType !== null}>
+                  <Ionicons name="camera-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Camera</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null}>
                   <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>Image</Text>
@@ -770,13 +832,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 || managerAttachments.videos.length > 0
                 || managerAttachments.audios.length > 0
                 || managerAttachments.files.length > 0) && (
-                <SubmissionBlock
-                  title="Attached"
-                  text={undefined}
-                  attachments={managerAttachments}
-                  onOpenAttachment={(url) => { void openAttachment(url); }}
-                />
-              )}
+                  <SubmissionBlock
+                    title="Attached"
+                    text={undefined}
+                    attachments={managerAttachments}
+                    onOpenAttachment={(url) => { void openAttachment(url); }}
+                  />
+                )}
 
 
 
@@ -855,6 +917,45 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           ) : null
         )}
       </ScrollView>
+
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.editModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.editModalScrim}
+            onPress={() => setShowEditModal(false)}
+          />
+          <View style={styles.editSheet}>
+            <View style={styles.editSheetTop}>
+              <View style={styles.editSheetHandle} />
+              <View style={styles.editSheetHeader}>
+                <Text style={styles.editSheetTitle}>Edit Task</Text>
+                <TouchableOpacity
+                  style={styles.editSheetClose}
+                  onPress={() => setShowEditModal(false)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <CreateTaskContent
+              onSuccess={() => {
+                setShowEditModal(false);
+              }}
+              editTask={task}
+              submitLabel="Save Changes"
+              bottomPadding={24}
+              fill
+              backgroundColor={colors.surface}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -875,10 +976,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heading: {
-    fontSize: 26,
+    fontSize: 34,
+    lineHeight: 40,
     fontWeight: typography.bold,
     color: colors.text,
     letterSpacing: -0.5,
+    flexShrink: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginLeft: -spacing.xs,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   subheading: {
     marginTop: 2,
@@ -901,8 +1016,55 @@ const styles = StyleSheet.create({
   deleteActionBtn: {
     backgroundColor: colors.error,
   },
+  editActionBtn: {
+    backgroundColor: colors.primary,
+  },
   iconActionBtnDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
+  },
+  editModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  editModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  editSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '92%',
+    overflow: 'hidden',
+  },
+  editSheetTop: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  editSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 12,
+  },
+  editSheetHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  editSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  editSheetClose: {
+    padding: 4,
   },
 
   summaryCard: {

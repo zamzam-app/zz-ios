@@ -19,8 +19,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useInfiniteTasks } from '../../hooks/useTasks';
+import DatePickerModal from '../../components/DatePickerModal';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
@@ -29,6 +29,7 @@ import { CreateTaskContent } from './CreateTaskScreen';
 import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
 import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
+import TaskQueueStatusBanner from '../../components/TaskQueueStatusBanner';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
@@ -292,6 +293,7 @@ function CompletedTaskCard({
 }
 
 export default function TasksScreen() {
+  const [showCompletedAccordion, setShowCompletedAccordion] = useState(false);
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager';
@@ -435,9 +437,8 @@ export default function TasksScreen() {
     year: 'numeric',
   });
 
-  const onDueDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === 'android') setShowDueDatePicker(false);
-    if (selectedDate) setDueDateFilter(selectedDate);
+  const onDueDateChange = (selectedDate: Date) => {
+    setDueDateFilter(selectedDate);
   };
 
   const refetch = async () => {
@@ -491,16 +492,28 @@ export default function TasksScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.heading}>Task Board</Text>
-          <Text style={styles.subheading}>Manage operational flows across all outlets</Text>
+        <View style={{ flexShrink: 1, marginRight: spacing.sm }}>
+          <Text style={styles.heading} numberOfLines={1}>Task Board</Text>
+          <Text style={styles.subheading} numberOfLines={1}>Manage operational flows</Text>
         </View>
-        {!isManager && (
-          <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
-            <Text style={styles.createBtnText}>+ New</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerBtns}>
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => navigation.navigate('TaskCategories')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryBtnText}>Categories</Text>
+            </TouchableOpacity>
+          )}
+          {!isManager && (
+            <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
+              <Text style={styles.createBtnText}>+ New</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
+      <TaskQueueStatusBanner />
 
       <View style={styles.tabBar}>
         <TouchableOpacity
@@ -646,56 +659,6 @@ export default function TasksScreen() {
           </>
         )}
 
-        {showCompletedSection && (
-          <View style={styles.completedSection}>
-            <View style={styles.completedSectionHeader}>
-              <View style={styles.sectionHeadingWrap}>
-                <View style={[styles.sectionDot, styles.sectionDotCompleted]} />
-                <Text style={styles.sectionTitle}>Completed Tasks</Text>
-              </View>
-            </View>
-
-            {!isLoading && completedTasks.length === 0 && (
-              <Text style={styles.completedEmpty}>{isManager ? 'No completed tasks found for you' : 'No completed tasks yet'}</Text>
-            )}
-
-            {isLoading && (
-              <View style={styles.completedLoadingWrap}>
-                <ActivityIndicator color={colors.primary} />
-              </View>
-            )}
-
-            {!isLoading && completedTasks.length > 0 && (
-              <FlatList
-                horizontal
-                data={completedTasks}
-                keyExtractor={(task) => task.id}
-                contentContainerStyle={styles.completedRow}
-                showsHorizontalScrollIndicator={false}
-                onEndReached={() => {
-                  if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
-                    void completedTasksQuery.fetchNextPage();
-                  }
-                }}
-                onEndReachedThreshold={0.4}
-                renderItem={({ item }) => (
-                  <CompletedTaskCard
-                    task={item}
-                    onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-                    onOpenAttachment={openAttachmentModal}
-                  />
-                )}
-                ListFooterComponent={
-                  completedTasksQuery.isFetchingNextPage ? (
-                    <View style={styles.completedLoadingMoreWrap}>
-                      <ActivityIndicator color={colors.primary} />
-                    </View>
-                  ) : null
-                }
-              />
-            )}
-          </View>
-        )}
       </View>
 
       <Modal
@@ -767,7 +730,11 @@ export default function TasksScreen() {
                 </View>
               </View>
 
-              <View style={styles.filterContent}>
+              <ScrollView
+                style={styles.filterContent}
+                contentContainerStyle={{ paddingBottom: spacing.lg }}
+                showsVerticalScrollIndicator={false}
+              >
                 {activeFilterSection === 'priority' && (
                   <View style={styles.filterSection}>
                     <Text style={styles.filterSectionTitle}>Filter by priority</Text>
@@ -801,15 +768,17 @@ export default function TasksScreen() {
                       {dueDateFilter ? `Selected: ${formatFilterDate(dueDateFilter)}` : 'No date selected'}
                     </Text>
 
-                    <TouchableOpacity
-                      style={styles.filterActionBtn}
-                      onPress={() => setShowDueDatePicker(true)}
-                      activeOpacity={0.82}
-                    >
-                      <Text style={styles.filterActionBtnText}>{dueDateFilter ? 'Change Date' : 'Select Date'}</Text>
-                    </TouchableOpacity>
+                    {!showDueDatePicker && (
+                      <TouchableOpacity
+                        style={styles.filterActionBtn}
+                        onPress={() => setShowDueDatePicker(true)}
+                        activeOpacity={0.82}
+                      >
+                        <Text style={styles.filterActionBtnText}>{dueDateFilter ? 'Change Date' : 'Select Date'}</Text>
+                      </TouchableOpacity>
+                    )}
 
-                    {dueDateFilter && (
+                    {dueDateFilter && !showDueDatePicker && (
                       <TouchableOpacity
                         style={[styles.filterActionBtn, styles.filterActionBtnSecondary]}
                         onPress={() => setDueDateFilter(null)}
@@ -819,17 +788,15 @@ export default function TasksScreen() {
                       </TouchableOpacity>
                     )}
 
-                    {showDueDatePicker && (
-                      <DateTimePicker
-                        value={dueDateFilter ?? new Date()}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                        onChange={onDueDateChange}
-                      />
-                    )}
+                    <DatePickerModal
+                      visible={showDueDatePicker}
+                      value={dueDateFilter ?? new Date()}
+                      onClose={() => setShowDueDatePicker(false)}
+                      onChange={onDueDateChange}
+                    />
                   </View>
                 )}
-              </View>
+              </ScrollView>
             </View>
           </View>
         </View>
@@ -933,6 +900,65 @@ export default function TasksScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Persistent Sticky Completed Tasks Accordion */}
+      {showCompletedSection && (
+        <View style={[
+          styles.accordionContainer,
+          showCompletedAccordion && styles.accordionContainerExpanded
+        ]}>
+          <TouchableOpacity
+            style={styles.completedAccordionToggle}
+            onPress={() => setShowCompletedAccordion(!showCompletedAccordion)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.accordionHeaderLeft}>
+              <View style={[styles.sectionDot, styles.sectionDotCompleted, { marginRight: spacing.sm }]} />
+              <Text style={styles.accordionTitle}>Completed Tasks</Text>
+              <View style={styles.accordionCountBadge}>
+                <Text style={styles.accordionCountText}>{completedTasksTotal}</Text>
+              </View>
+            </View>
+            <Ionicons
+              name={showCompletedAccordion ? "chevron-down" : "chevron-up"}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {showCompletedAccordion && (
+            <View style={styles.accordionContentHorizontal}>
+              <FlatList
+                horizontal
+                data={completedTasks}
+                keyExtractor={(task) => task.id}
+                contentContainerStyle={styles.completedRow}
+                showsHorizontalScrollIndicator={false}
+                onEndReached={() => {
+                  if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
+                    void completedTasksQuery.fetchNextPage();
+                  }
+                }}
+                onEndReachedThreshold={0.4}
+                renderItem={({ item }) => (
+                  <CompletedTaskCard
+                    task={item}
+                    onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+                    onOpenAttachment={openAttachmentModal}
+                  />
+                )}
+                ListFooterComponent={
+                  completedTasksQuery.isFetchingNextPage ? (
+                    <View style={styles.completedLoadingMoreWrap}>
+                      <ActivityIndicator color={colors.primary} />
+                    </View>
+                  ) : null
+                }
+              />
+            </View>
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -948,6 +974,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
   },
+  headerBtns: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
   heading: {
     fontSize: 26,
     fontWeight: typography.bold,
@@ -958,6 +989,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: typography.sm,
     color: colors.textSecondary,
+  },
+  secondaryBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#D3C5AC80',
+    backgroundColor: colors.buttonLightBg,
+  },
+  secondaryBtnText: {
+    color: colors.text,
+    fontWeight: typography.semibold,
+    fontSize: typography.sm,
   },
   createBtn: {
     backgroundColor: colors.buttonPrimaryBg,
@@ -1099,8 +1143,8 @@ const styles = StyleSheet.create({
   sectionsContainer: {
     flex: 1,
     paddingHorizontal: spacing.md,
-    paddingBottom: 120,
     paddingTop: spacing.xs,
+    paddingBottom: 170, // Padding for floating tab bar (96) + accordion toggle (56)
   },
   sectionHeader: {
     marginBottom: spacing.sm,
@@ -1141,7 +1185,12 @@ const styles = StyleSheet.create({
     borderColor: '#D3C5AC55',
     ...shadow.sm,
   },
-  openCardInner: { padding: spacing.md, gap: spacing.sm },
+  openCardInner: {
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    gap: spacing.xs,
+  },
   openCardPill: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -1194,17 +1243,22 @@ const styles = StyleSheet.create({
   completedSectionHeader: { marginBottom: spacing.sm },
   completedRow: {
     gap: spacing.sm,
+    paddingHorizontal: spacing.md, // Added horizontal padding for first/last card
     paddingBottom: spacing.sm,
     paddingRight: spacing.md,
   },
   completedCard: {
-    width: 300,
-    backgroundColor: '#EEF1F4',
+    width: 280,
+    backgroundColor: '#F0F2F5',
     borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
     borderWidth: 1,
     borderColor: '#D3C5AC2A',
-    gap: spacing.sm,
+    gap: spacing.xs,
+    marginRight: spacing.sm,
+    alignSelf: 'flex-start',
   },
   completedWhen: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
 
@@ -1225,7 +1279,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(25, 28, 30, 0.4)',
   },
   filterSheet: {
-    maxHeight: '72%',
+    maxHeight: '88%',
     minHeight: 360,
     backgroundColor: colors.surface,
     borderTopLeftRadius: 30,
@@ -1469,5 +1523,78 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: colors.primaryDark,
     fontWeight: typography.bold,
+  },
+  accordionContainer: {
+    position: 'absolute',
+    bottom: 96, // Sits directly on top of the floating tab bar (76 height + 20 bottom)
+    left: 0,
+    right: 0,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
+    zIndex: 100,
+  },
+  accordionContainerExpanded: {
+    // Container will expand to fit the fixed-height horizontal list
+  },
+  completedAccordionToggle: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+  },
+  accordionContentHorizontal: {
+    paddingBottom: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  accordionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accordionTitle: {
+    fontSize: typography.base,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  accordionCountBadge: {
+    backgroundColor: '#EEF1F4',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    marginLeft: spacing.sm,
+  },
+  accordionCountText: {
+    fontSize: typography.xs,
+    fontWeight: typography.bold,
+    color: colors.textSecondary,
+  },
+  accordionModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  accordionCloseBtn: {
+    padding: spacing.xs,
+  },
+  accordionModalTitle: {
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  accordionListContent: {
+    padding: spacing.md,
+    paddingBottom: spacing.xl * 2,
   },
 });

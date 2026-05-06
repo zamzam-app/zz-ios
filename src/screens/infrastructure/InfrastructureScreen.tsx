@@ -11,6 +11,8 @@ import {
   Image,
   Modal,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -251,30 +253,33 @@ export default function InfrastructureScreen() {
             style={styles.createModalScrim}
             onPress={() => setShowCreateModal(false)}
           />
-          <View style={styles.createSheet}>
-            <View style={styles.createSheetTop}>
-              <View style={styles.createSheetHandle} />
-              <View style={styles.createSheetHeader}>
-                <Text style={styles.createSheetTitle}>Create Outlet</Text>
-                <TouchableOpacity
-                  style={styles.createSheetClose}
-                  onPress={() => setShowCreateModal(false)}
-                >
-                  <Ionicons name="close" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.createSheet}
+            >
+              <View style={styles.createSheetTop}>
+                <View style={styles.createSheetHandle} />
+                <View style={styles.createSheetHeader}>
+                  <Text style={styles.createSheetTitle}>Create Outlet</Text>
+                  <TouchableOpacity
+                    style={styles.createSheetClose}
+                    onPress={() => setShowCreateModal(false)}
+                  >
+                    <Ionicons name="close" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
 
-            <CreateOutletContent
-              onSuccess={() => {
-                setShowCreateModal(false);
-                void refetch();
-              }}
-              bottomPadding={20}
-              fill={false}
-              backgroundColor={colors.surface}
-            />
-          </View>
+              <CreateOutletContent
+                onSuccess={() => {
+                  setShowCreateModal(false);
+                  void refetch();
+                }}
+                bottomPadding={20}
+                fill={false}
+                backgroundColor={colors.surface}
+              />
+            </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -290,33 +295,36 @@ export default function InfrastructureScreen() {
             style={styles.createModalScrim}
             onPress={() => setEditingOutlet(null)}
           />
-          <View style={styles.createSheet}>
-            <View style={styles.createSheetTop}>
-              <View style={styles.createSheetHandle} />
-              <View style={styles.createSheetHeader}>
-                <Text style={styles.createSheetTitle}>Edit Outlet</Text>
-                <TouchableOpacity
-                  style={styles.createSheetClose}
-                  onPress={() => setEditingOutlet(null)}
-                >
-                  <Ionicons name="close" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.createSheet}
+            >
+              <View style={styles.createSheetTop}>
+                <View style={styles.createSheetHandle} />
+                <View style={styles.createSheetHeader}>
+                  <Text style={styles.createSheetTitle}>Edit Outlet</Text>
+                  <TouchableOpacity
+                    style={styles.createSheetClose}
+                    onPress={() => setEditingOutlet(null)}
+                  >
+                    <Ionicons name="close" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
 
-            <CreateOutletContent
-              mode="edit"
-              outletToEdit={editingOutlet}
-              onSuccess={() => {
-                setEditingOutlet(null);
-                void refetch();
-              }}
-              submitLabel="Save Changes"
-              bottomPadding={20}
-              fill={false}
-              backgroundColor={colors.surface}
-            />
-          </View>
+              <CreateOutletContent
+                mode="edit"
+                outletToEdit={editingOutlet}
+                onSuccess={() => {
+                  setEditingOutlet(null);
+                  void refetch();
+                }}
+                submitLabel="Save Changes"
+                bottomPadding={20}
+                fill={false}
+                backgroundColor={colors.surface}
+              />
+            </KeyboardAvoidingView>
         </View>
       </Modal>
 

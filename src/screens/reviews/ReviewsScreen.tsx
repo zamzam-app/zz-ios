@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -15,9 +17,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useReviews } from '../../hooks/useReviews';
 import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
-import { Review, ComplaintStatus } from '../../api/endpoints/reviews';
+import { Review } from '../../api/endpoints/reviews';
 import { FranchiseRankingItem, MetricsHeatmapItem } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { useAuthStore } from '../../store/authStore';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import { ReviewMetricFilter } from '../../constants/reviewFilters';
 import StarRating from '../../components/StarRating';
@@ -128,18 +131,6 @@ function getReviewTags(review: Review) {
     tags.push(review.complaintReason);
   }
 
-  if (review.overallRating < 2.5) {
-    tags.push('Low Rating');
-  }
-
-  if (review.complaintStatus === 'pending') {
-    tags.push('Needs Action');
-  }
-
-  if (tags.length === 0) {
-    tags.push('Customer Feedback');
-  }
-
   return tags.slice(0, 2);
 }
 
@@ -192,10 +183,23 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
 }
 
 export default function ReviewsScreen({ route }: Props) {
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
   const navigation = useNavigation<Nav>();
   const [selectedOutletId, setSelectedOutletId] = useState('all');
   const [statusFilter, setStatusFilter] = useState<ReviewMetricFilter>('all');
-  const [allReviewsFilter, setAllReviewsFilter] = useState<'all' | 'open' | 'resolved' | 'dismissed' | 'critical' | 'concern'>('all');
+  const [allReviewsFilter, setAllReviewsFilter] = useState<
+    'all' | 'open' | 'resolved' | 'critical' | 'concern'
+  >('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim().toLowerCase());
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [searchQuery]);
 
   useEffect(() => {
     const incomingMetric = route.params?.initialReviewFilter?.metric;
@@ -306,15 +310,31 @@ export default function ReviewsScreen({ route }: Props) {
 
   const displayedAllReviews = useMemo(() => {
     return allReviews.filter(review => {
+      // Search filter
+      if (debouncedSearchQuery) {
+        const comment = review.userResponses
+          ?.map(r => (typeof r.answer === 'string' ? r.answer : ''))
+          .join(' ')
+          .toLowerCase();
+        const customer = review.customerName?.toLowerCase() || '';
+        const outlet = review.outletName?.toLowerCase() || '';
+        
+        const matches = comment.includes(debouncedSearchQuery) || 
+                       customer.includes(debouncedSearchQuery) || 
+                       outlet.includes(debouncedSearchQuery);
+        
+        if (!matches) return false;
+      }
+
+      // Status filter
       if (allReviewsFilter === 'all') return true;
       if (allReviewsFilter === 'open') return review.isComplaint && review.complaintStatus === 'pending';
       if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
-      if (allReviewsFilter === 'dismissed') return review.isComplaint && review.complaintStatus === 'dismissed';
-      if (allReviewsFilter === 'critical') return review.overallRating < 2.0;
+      if (allReviewsFilter === 'critical') return review.overallRating < 2.0 && review.complaintStatus !== 'resolved';
       if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
       return true;
     });
-  }, [allReviews, allReviewsFilter]);
+  }, [allReviews, allReviewsFilter, debouncedSearchQuery]);
 
   const heatmapRows = useMemo(() => {
     const scopedHeatmap = selectedOutletId === 'all'
@@ -409,27 +429,55 @@ export default function ReviewsScreen({ route }: Props) {
             <View style={styles.filterRow}>
               <Text style={styles.sectionEyebrow}>Outlet Filter</Text>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterPillsRow}
-            >
-              {outletOptions.map((option) => {
-                const active = option.id === selectedOutletId;
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[styles.filterPill, active && styles.filterPillActive]}
-                    onPress={() => setSelectedOutletId(option.id)}
-                    activeOpacity={0.82}
-                  >
-                    <Text style={[styles.filterPillText, active && styles.filterPillTextActive]} numberOfLines={1}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <View style={styles.outletFilterContainer}>
+              {/* Sticky All Outlets Chip */}
+              <View style={styles.stickyChipWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterPill,
+                    selectedOutletId === 'all' && styles.filterPillActive,
+                    { width: 110 }
+                  ]}
+                  onPress={() => {
+                    setSelectedOutletId('all');
+                    setStatusFilter('all');
+                    setAllReviewsFilter('all');
+                  }}
+                  activeOpacity={0.82}
+                >
+                  <Text style={[
+                    styles.filterPillText,
+                    selectedOutletId === 'all' && styles.filterPillTextActive,
+                    { textAlign: 'center' }
+                  ]}>
+                    All Outlets
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Scrollable Other Outlets */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterPillsRowScrollable}
+              >
+                {outletOptions.filter(opt => opt.id !== 'all').map((option) => {
+                  const active = option.id === selectedOutletId;
+                  return (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[styles.filterPill, active && styles.filterPillActive]}
+                      onPress={() => setSelectedOutletId(option.id)}
+                      activeOpacity={0.82}
+                    >
+                      <Text style={[styles.filterPillText, active && styles.filterPillTextActive]} numberOfLines={1}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
           </View>
 
           <View style={styles.sectionBlock}>
@@ -516,7 +564,9 @@ export default function ReviewsScreen({ route }: Props) {
                             </View>
                           </View>
                           <View style={styles.feedbackIdentityRow}>
-                            <Text style={styles.feedbackName}>{review.customerName}</Text>
+                            <Text style={styles.feedbackName}>
+                              {isAdmin ? review.customerName : 'Customer'}
+                            </Text>
                             <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
                           </View>
                         </View>
@@ -548,27 +598,61 @@ export default function ReviewsScreen({ route }: Props) {
           </View>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.filterPillsRow, { paddingHorizontal: spacing.xs, marginBottom: spacing.sm }]}
-        >
-          {(['all', 'open', 'resolved', 'dismissed', 'critical', 'concern'] as const).map((opt) => {
-            const active = opt === allReviewsFilter;
-            return (
+        <View style={styles.controlsRow}>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={styles.searchInput}
+              placeholder="Search reviews..."
+              placeholderTextColor={colors.textSecondary}
+            />
+            {searchQuery.length > 0 && (
               <TouchableOpacity
-                key={opt}
-                style={[styles.filterPill, active && styles.filterPillActive]}
-                onPress={() => setAllReviewsFilter(opt)}
-                activeOpacity={0.82}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                style={styles.searchClearBtn}
+                onPress={() => setSearchQuery('')}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.filterPillText, active && styles.filterPillTextActive]} numberOfLines={1}>
-                  {opt.charAt(0).toUpperCase() + opt.slice(1)}
-                </Text>
+                <Text style={styles.searchClearText}>x</Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            )}
+          </View>
+
+          <View style={styles.filterMenuWrap}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Open filters"
+              style={[
+                styles.filterIconBtn,
+                allReviewsFilter !== 'all' && styles.filterIconBtnActive,
+              ]}
+              onPress={() => setShowFilterModal(true)}
+              activeOpacity={0.82}
+            >
+              <Ionicons
+                name="options-outline"
+                size={18}
+                color={allReviewsFilter === 'all' ? colors.textSecondary : colors.primaryDark}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {allReviewsFilter !== 'all' && (
+          <View style={styles.metricFilterChipRow}>
+            <View style={styles.metricFilterChip}>
+              <Text style={styles.metricFilterChipText}>
+                {`Status: ${allReviewsFilter.charAt(0).toUpperCase() + allReviewsFilter.slice(1)}`}
+              </Text>
+              <TouchableOpacity onPress={() => setAllReviewsFilter('all')} style={styles.metricFilterChipClear}>
+                <Text style={styles.metricFilterChipClearText}>x</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         <View style={styles.feedbackContainer}>
           {isReviewsLoading ? (
@@ -591,7 +675,9 @@ export default function ReviewsScreen({ route }: Props) {
                 >
                   <View style={styles.feedbackTopRow}>
                     <View style={styles.feedbackMetaLeft}>
-                      <Text style={styles.feedbackName}>{review.customerName}</Text>
+                      <Text style={styles.feedbackName}>
+                        {isAdmin ? review.customerName : 'Customer'}
+                      </Text>
                       <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
                     </View>
                     <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
@@ -613,6 +699,73 @@ export default function ReviewsScreen({ route }: Props) {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.filterModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.filterModalScrim}
+            onPress={() => setShowFilterModal(false)}
+          />
+          <View style={styles.filterSheet}>
+            <View style={styles.filterSheetTop}>
+              <View style={styles.filterSheetHandle} />
+              <View style={styles.filterSheetHeader}>
+                <Text style={styles.filterSheetTitle}>Filter Reviews</Text>
+                <TouchableOpacity
+                  style={styles.filterSheetClose}
+                  onPress={() => setShowFilterModal(false)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.filterBody}>
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Status & Type</Text>
+                <View style={styles.filterOptionsGrid}>
+                  {(['all', 'open', 'resolved', 'critical', 'concern'] as const).map((opt) => {
+                    const active = opt === allReviewsFilter;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        style={[styles.filterOption, active && styles.filterOptionActive]}
+                        onPress={() => {
+                          setAllReviewsFilter(opt);
+                          setShowFilterModal(false);
+                        }}
+                      >
+                        <Text style={[styles.filterOptionText, active && styles.filterOptionTextActive]}>
+                          {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                        </Text>
+                        {active && <Ionicons name="checkmark-circle" size={16} color={colors.primary} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.filterFooter}>
+                <TouchableOpacity
+                  style={styles.filterClearBtn}
+                  onPress={() => {
+                    setAllReviewsFilter('all');
+                    setShowFilterModal(false);
+                  }}
+                >
+                  <Text style={styles.filterClearBtnText}>Reset Filters</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -835,8 +988,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   filterPillsRow: {
+    flexDirection: 'row',
     gap: spacing.sm,
     paddingHorizontal: spacing.xs,
+  },
+  filterPillsRowScrollable: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingLeft: 118, // Width of sticky chip (110) + gap (8)
+    paddingRight: spacing.md,
+    paddingVertical: 2,
+  },
+  outletFilterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  stickyChipWrapper: {
+    position: 'absolute',
+    left: 0,
+    zIndex: 10,
+    backgroundColor: colors.screenBackground,
+    paddingRight: 4,
   },
   filterPill: {
     height: 34,
@@ -994,5 +1167,201 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.textSecondary,
     fontSize: typography.sm,
+  },
+
+  // Search & Filter Styles
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  searchWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    height: 40,
+    paddingHorizontal: spacing.sm,
+  },
+  searchIcon: {
+    marginRight: 6,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: typography.sm,
+    color: colors.text,
+  },
+  searchClearBtn: {
+    padding: 4,
+  },
+  searchClearText: {
+    color: colors.textDisabled,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  filterMenuWrap: {
+    width: 40,
+    height: 40,
+  },
+  filterIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterIconBtnActive: {
+    backgroundColor: colors.primaryTint,
+    borderColor: colors.primaryTintStrong,
+  },
+
+  // Metric Filter Chip
+  metricFilterChipRow: {
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+  },
+  metricFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryTint,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: colors.primaryTintStrong,
+  },
+  metricFilterChipText: {
+    fontSize: 12,
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+  metricFilterChipClear: {
+    marginLeft: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricFilterChipClearText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginTop: -1,
+  },
+
+  // Modal Styles
+  filterModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  filterModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  filterSheet: {
+    backgroundColor: colors.screenBackground,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  filterSheetTop: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  filterSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 8,
+  },
+  filterSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: spacing.md,
+  },
+  filterSheetTitle: {
+    fontSize: typography.md,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  filterSheetClose: {
+    padding: 4,
+  },
+  filterBody: {
+    padding: spacing.md,
+  },
+  filterSection: {
+    marginBottom: spacing.lg,
+  },
+  filterSectionTitle: {
+    fontSize: typography.sm,
+    fontWeight: typography.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.md,
+  },
+  filterOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    minWidth: '47%',
+  },
+  filterOptionActive: {
+    backgroundColor: colors.primaryTint,
+    borderColor: colors.primaryTintStrong,
+  },
+  filterOptionText: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.medium,
+    flex: 1,
+  },
+  filterOptionTextActive: {
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
+  filterFooter: {
+    marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  filterClearBtn: {
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: '#F2F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterClearBtnText: {
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    color: colors.textSecondary,
   },
 });

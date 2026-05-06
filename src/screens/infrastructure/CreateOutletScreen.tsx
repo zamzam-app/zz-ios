@@ -153,7 +153,7 @@ export function CreateOutletContent({
       return Alert.alert('Permission denied', 'Only admins can create outlets.');
     }
     if (!name.trim()) return Alert.alert('Required', 'Outlet name is required.');
-    if (!description.trim()) return Alert.alert('Required', 'Description is required.');
+    // Description is now optional
     if (!outletTypeId) return Alert.alert('Required', 'Please select an outlet type.');
     if (!formId) return Alert.alert('Required', 'Please select a form.');
 
@@ -208,7 +208,7 @@ export function CreateOutletContent({
           onChangeText={setName}
         />
 
-        <Label text="Description" required />
+        <Label text="Description" />
         <TextInput
           style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
           placeholder="Describe this outlet..."

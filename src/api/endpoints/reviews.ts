@@ -8,9 +8,17 @@ export interface UserResponse {
   answer: string | string[] | number;
 }
 
+export interface ResolutionAttachments {
+  images: string[];
+  videos: string[];
+  audios: string[];
+  files: string[];
+}
+
 export interface Review {
   id: string;
   customerName: string;
+  customerPhone?: string;
   outletId: string;
   outletName: string;
   formId?: string;
@@ -23,6 +31,7 @@ export interface Review {
   resolvedBy?: string;
   resolvedByName?: string;
   resolutionNotes?: string;
+  resolutionAttachments?: ResolutionAttachments;
   createdAt: string;
 }
 
@@ -36,6 +45,10 @@ export interface ResolveComplaintPayload {
   complaintStatus: ComplaintStatus;
   resolvedBy: string;
   resolutionNotes?: string;
+  images?: string[];
+  videos?: string[];
+  audios?: string[];
+  files?: string[];
 }
 
 interface RawReview {
@@ -52,6 +65,7 @@ interface RawReview {
   resolvedAt?: string;
   resolvedBy?: string | { _id?: string; id?: string; name?: string };
   resolutionNotes?: string;
+  resolutionAttachments?: ResolutionAttachments;
   createdAt?: string;
 }
 
@@ -83,7 +97,11 @@ function mapReview(raw: RawReview): Review {
         : undefined;
 
   let customerName = 'Customer';
-  if (typeof raw.userId === 'object' && raw.userId?.name) customerName = raw.userId.name;
+  let customerPhone: string | undefined;
+  if (typeof raw.userId === 'object' && raw.userId) {
+    if (raw.userId.name) customerName = raw.userId.name;
+    if ((raw.userId as any).phoneNumber) customerPhone = (raw.userId as any).phoneNumber;
+  }
 
   let outletId = '';
   let outletName = 'Unknown Outlet';
@@ -108,6 +126,7 @@ function mapReview(raw: RawReview): Review {
   return {
     id,
     customerName,
+    customerPhone,
     outletId,
     outletName,
     formId,
@@ -120,6 +139,7 @@ function mapReview(raw: RawReview): Review {
     resolvedBy,
     resolvedByName,
     resolutionNotes: raw.resolutionNotes,
+    resolutionAttachments: raw.resolutionAttachments,
     createdAt: raw.createdAt ?? new Date().toISOString(),
   };
 }

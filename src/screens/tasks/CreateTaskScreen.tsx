@@ -16,7 +16,7 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DatePickerModal from '../../components/DatePickerModal';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -40,10 +40,11 @@ import {
 import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useManagers } from '../../hooks/useUsers';
-import { TaskPriority, TaskCategoryOption } from '../../api/endpoints/tasks';
+import { TaskPriority, TaskCategoryOption, CreateTaskPayload, Task } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
+import { enqueueTaskSubmission } from '../../api/endpoints/taskSubmissionQueue';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
 const WEEK_DAYS = [
@@ -202,6 +203,7 @@ type CreateTaskContentProps = {
   backgroundColor?: string;
   initialIsRecurring?: boolean;
   hideRecurringToggle?: boolean;
+  editTask?: Task;
 };
 
 export function CreateTaskContent({
@@ -212,23 +214,48 @@ export function CreateTaskContent({
   backgroundColor = colors.background,
   initialIsRecurring = false,
   hideRecurringToggle = false,
+  editTask,
 }: CreateTaskContentProps) {
-  const [description, setDescription] = useState('');
-  const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>();
-  const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
-  const [dueDate, setDueDate] = useState(new Date());
+  const [description, setDescription] = useState(editTask?.description ?? '');
+  const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>(editTask?.taskCategory?._id ?? editTask?.category);
+  const [priority, setPriority] = useState<TaskPriority>(editTask?.priority ?? 'MEDIUM');
+  const [dueDate, setDueDate] = useState(editTask?.dueDate ? new Date(editTask.dueDate) : new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isRecurring, setIsRecurring] = useState(initialIsRecurring);
-  const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
-  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
+  const [isRecurring, setIsRecurring] = useState(editTask?.isRecurring ?? initialIsRecurring);
+  const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>(editTask?.recurrenceType ?? 'WEEKLY');
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>(editTask?.recurrenceDays ?? []);
+
+  useEffect(() => {
+    if (!editTask) return;
+    setDescription(editTask.description);
+    setTaskCategoryId(editTask.taskCategory?._id ?? editTask.category);
+    setPriority(editTask.priority);
+    setDueDate(new Date(editTask.dueDate));
+    setIsRecurring(!!editTask.isRecurring);
+    setRecurrenceType(editTask.recurrenceType ?? 'WEEKLY');
+    setRecurrenceDays(editTask.recurrenceDays ?? []);
+    setOutletId(editTask.outlet?._id ?? editTask.outletId ?? '');
+    setAssigneeIds(editTask.assigneeIds ?? []);
+    
+    // Map existing attachments
+    const existing: AttachmentItem[] = [];
+    const atts = editTask.adminSubmission?.attachments;
+    if (atts) {
+      atts.images?.forEach(url => existing.push({ id: url, type: 'image', name: url.split('/').pop() || 'image', uri: url, status: 'uploaded', remoteUrl: url }));
+      atts.videos?.forEach(url => existing.push({ id: url, type: 'video', name: url.split('/').pop() || 'video', uri: url, status: 'uploaded', remoteUrl: url }));
+      atts.audios?.forEach(url => existing.push({ id: url, type: 'audio', name: url.split('/').pop() || 'audio', uri: url, status: 'uploaded', remoteUrl: url }));
+      atts.files?.forEach(url => existing.push({ id: url, type: 'file', name: url.split('/').pop() || 'file', uri: url, status: 'uploaded', remoteUrl: url }));
+    }
+    setAttachments(existing);
+  }, [editTask?.id]);
 
   useEffect(() => {
     setIsRecurring(initialIsRecurring);
   }, [initialIsRecurring]);
 
   const [showMonthDaysPicker, setShowMonthDaysPicker] = useState(false);
-  const [outletId, setOutletId] = useState('');
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [outletId, setOutletId] = useState(editTask?.outlet?._id ?? editTask?.outletId ?? '');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(editTask?.assigneeIds ?? []);
   const [showOutletPicker, setShowOutletPicker] = useState(false);
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -421,7 +448,8 @@ export function CreateTaskContent({
           : item
       )));
 
-      void removeUploadJob(job.id);
+      // We don't remove the job here anymore because the background submission queue needs it
+      // void removeUploadJob(job.id);
     } catch (error) {
       setAttachments((prev) => prev.map((item) => (
         item.id === attachmentId
@@ -494,6 +522,26 @@ export function CreateTaskContent({
     addAttachment(kind, picked.uri, picked.fileName ?? fallbackName);
   };
 
+  const takePhoto = async () => {
+    setShowAttachmentMenu(false);
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Camera access is required to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const picked = result.assets[0];
+    const fallbackName = `photo-${attachments.length + 1}.jpg`;
+    addAttachment('image', picked.uri, picked.fileName ?? fallbackName);
+  };
+
   const pickFile = async () => {
     setShowAttachmentMenu(false);
     const result = await DocumentPicker.getDocumentAsync({
@@ -561,6 +609,22 @@ export function CreateTaskContent({
         }
       }
       Alert.alert('Error', 'Could not stop recording. Please try again.');
+    } finally {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+      setRecordingBusy(false);
+    }
+  };
+
+  const discardAudioRecording = async () => {
+    if (recordingBusy || !isRecordingAudio) return;
+    setRecordingBusy(true);
+    try {
+      await recorder.stop();
+    } catch {
+      // Ignore errors during discard stop
     } finally {
       await setAudioModeAsync({
         allowsRecording: false,
@@ -650,54 +714,46 @@ export function CreateTaskContent({
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
     if (!taskCategoryId) return Alert.alert('Required', 'Please select a category.');
     if (!hasAssignees) return Alert.alert('Required', 'Please assign at least one manager.');
-    if (hasPendingAttachmentUploads) {
-      return Alert.alert('Uploading', 'Please wait for attachments to finish uploading.');
-    }
-    if (hasFailedAttachmentUploads) {
-      return Alert.alert('Upload failed', 'Please remove failed attachments or try selecting them again.');
-    }
-
     if (isRecurring && recurrenceDays.length === 0) {
       const typeLabel = recurrenceType === 'WEEKLY' ? 'days of the week' : 'days of the month';
       return Alert.alert('Required', `Please select at least one day for ${typeLabel}.`);
     }
 
-    const uploaded = attachments.filter((item) => item.status === 'uploaded' && item.remoteUrl);
-    const images = uploaded.filter((item) => item.type === 'image').map((item) => item.remoteUrl as string);
-    const videos = uploaded.filter((item) => item.type === 'video').map((item) => item.remoteUrl as string);
-    const audios = uploaded.filter((item) => item.type === 'audio').map((item) => item.remoteUrl as string);
-    const files = uploaded.filter((item) => item.type === 'file').map((item) => item.remoteUrl as string);
-    const hasUploadedAttachments = images.length > 0 || videos.length > 0 || audios.length > 0 || files.length > 0;
+    if (hasFailedAttachmentUploads) {
+      return Alert.alert(
+        'Upload Failed',
+        'Some attachments failed to upload. Please remove them or try again before submitting.',
+      );
+    }
 
-    createTask.mutate(
-      {
-        description: description.trim(),
-        taskCategoryId,
-        priority,
-        dueDate: dueDate.toISOString(),
-        isRecurring,
-        ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
-        ...(outletId ? { outletId } : {}),
-        assigneeIds,
-        ...(hasUploadedAttachments
-          ? {
-            adminSubmission: {
-              attachments: {
-                images,
-                videos,
-                audios,
-                files,
-              },
-            },
-          }
-          : {}),
-      },
-      {
-        onSuccess,
-        onError: (error) =>
-          Alert.alert('Error', getApiErrorMessage(error, 'Failed to create task. Please try again.')),
-      },
-    );
+    const attachmentJobs = attachments
+      .filter((a) => a.status === 'uploading' && a.uploadJobId)
+      .map((a) => ({ id: a.uploadJobId!, type: a.type }));
+
+    const existingAttachments = {
+      images: attachments.filter(a => a.type === 'image' && a.remoteUrl).map(a => a.remoteUrl!),
+      videos: attachments.filter(a => a.type === 'video' && a.remoteUrl).map(a => a.remoteUrl!),
+      audios: attachments.filter(a => a.type === 'audio' && a.remoteUrl).map(a => a.remoteUrl!),
+      files: attachments.filter(a => a.type === 'file' && a.remoteUrl).map(a => a.remoteUrl!),
+    };
+
+    const payload: CreateTaskPayload = {
+      description: description.trim(),
+      taskCategoryId,
+      priority,
+      dueDate: dueDate.toISOString(),
+      isRecurring,
+      ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
+      ...(outletId ? { outletId } : {}),
+      assigneeIds,
+      adminSubmission: {
+        text: '',
+        attachments: existingAttachments
+      }
+    };
+
+    void enqueueTaskSubmission(payload, attachmentJobs, editTask?.id);
+    onSuccess();
   };
 
   return (
@@ -753,13 +809,32 @@ export function CreateTaskContent({
                 />
               </TouchableOpacity>
               {isRecordingAudio && (
-                <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                  <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
+                  <TouchableOpacity
+                    style={styles.attachmentHeaderIconButton}
+                    onPress={() => { void discardAudioRecording(); }}
+                    activeOpacity={0.85}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           </View>
 
           {showAttachmentMenu && (
             <View style={styles.attachmentInlineDropdown}>
+              <TouchableOpacity
+                style={styles.attachmentInlineDropdownItem}
+                onPress={() => { void takePhoto(); }}
+              >
+                <View style={styles.attachmentInlineDropdownIconBox}>
+                  <MaterialCommunityIcons name="camera-outline" size={18} color={colors.primary} />
+                </View>
+                <Text style={styles.attachmentInlineDropdownText}>Camera</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void pickMedia('image'); }}
@@ -769,6 +844,7 @@ export function CreateTaskContent({
                 </View>
                 <Text style={styles.attachmentInlineDropdownText}>Image</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.attachmentInlineDropdownItem}
                 onPress={() => { void pickMedia('video'); }}
@@ -792,7 +868,15 @@ export function CreateTaskContent({
 
           {selectedPreviewAttachment && selectedPreviewAttachment.type === 'image' && (
             <View style={styles.attachmentPreviewCard}>
-              <Text style={styles.attachmentPreviewTitle}>Preview</Text>
+              <View style={styles.attachmentPreviewHeader}>
+                <Text style={styles.attachmentPreviewTitle}>Preview</Text>
+                <TouchableOpacity
+                  onPress={() => removeAttachment(selectedPreviewAttachment.id)}
+                  style={styles.attachmentPreviewDeleteBtn}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
+                </TouchableOpacity>
+              </View>
               <Image
                 source={{ uri: selectedPreviewAttachment.uri }}
                 style={styles.attachmentPreviewImage}
@@ -868,7 +952,7 @@ export function CreateTaskContent({
                               removeAttachment(item.id);
                             }}
                           >
-                            <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                            <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.error} />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -971,17 +1055,13 @@ export function CreateTaskContent({
           </View>
         )}
 
-        {showDatePicker && (
-          <DateTimePicker
-            value={dueDate}
-            mode="date"
-            minimumDate={new Date()}
-            onChange={(_, date) => {
-              setShowDatePicker(Platform.OS === 'ios');
-              if (date) setDueDate(date);
-            }}
-          />
-        )}
+        <DatePickerModal
+          visible={showDatePicker}
+          value={dueDate}
+          minimumDate={new Date()}
+          onClose={() => setShowDatePicker(false)}
+          onChange={(date) => setDueDate(date)}
+        />
 
         {isRecurring && (
           <View style={styles.recurrenceContainer}>
@@ -1241,6 +1321,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
+  attachmentInlineIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   attachmentInlineDropdownText: {
     color: colors.text,
     fontSize: typography.sm,
@@ -1358,20 +1445,29 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.background,
     padding: spacing.sm,
-    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  attachmentPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  attachmentPreviewDeleteBtn: {
+    padding: 4,
   },
   attachmentPreviewTitle: {
-    color: colors.textSecondary,
     fontSize: typography.xs,
-    fontWeight: typography.semibold,
+    fontWeight: typography.bold,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
   },
   attachmentPreviewImage: {
     width: '100%',
-    height: 160,
+    height: 200,
     borderRadius: radius.sm,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.border,
   },
   attachmentPreviewFileName: {
     color: colors.text,

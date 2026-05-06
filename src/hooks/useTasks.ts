@@ -34,6 +34,38 @@ export const useTaskCategories = () =>
     staleTime: 5 * 60 * 1000,
   });
 
+export const useCreateTaskCategory = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { name: string; description: string }) =>
+      tasksApi.createCategory(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-categories'] });
+    },
+  });
+};
+
+export const useUpdateTaskCategory = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { name?: string; description?: string } }) =>
+      tasksApi.updateCategory(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-categories'] });
+    },
+  });
+};
+
+export const useDeleteTaskCategory = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => tasksApi.deleteCategory(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-categories'] });
+    },
+  });
+};
+
 export const useCreateTask = () => {
   const qc = useQueryClient();
   return useMutation({

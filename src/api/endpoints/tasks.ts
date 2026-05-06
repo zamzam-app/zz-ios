@@ -384,6 +384,14 @@ export const tasksApi = {
       .filter((category) => category.id.length > 0 && category.name.length > 0);
   },
 
+  createCategory: (payload: { name: string; description: string }) =>
+    client.post<RawTaskCategory>('/task-category', payload).then((r) => mapTaskCategory(r.data)),
+
+  updateCategory: (id: string, payload: { name?: string; description?: string }) =>
+    client.patch<RawTaskCategory>(`/task-category/${id}`, payload).then((r) => mapTaskCategory(r.data)),
+
+  deleteCategory: (id: string) => client.delete(`/task-category/${id}`),
+
   updateStatus: (id: string, status: TaskStatus) =>
     client.patch<RawTask>(`/tasks/${id}/status`, { status }).then((r) => mapTask(r.data)),
 
