@@ -128,18 +128,6 @@ function getReviewTags(review: Review) {
     tags.push(review.complaintReason);
   }
 
-  if (review.overallRating < 2.5) {
-    tags.push('Low Rating');
-  }
-
-  if (review.complaintStatus === 'pending') {
-    tags.push('Needs Action');
-  }
-
-  if (tags.length === 0) {
-    tags.push('Customer Feedback');
-  }
-
   return tags.slice(0, 2);
 }
 
