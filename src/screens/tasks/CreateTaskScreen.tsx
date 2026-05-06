@@ -40,10 +40,11 @@ import {
 import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useManagers } from '../../hooks/useUsers';
-import { TaskPriority, TaskCategoryOption } from '../../api/endpoints/tasks';
+import { TaskPriority, TaskCategoryOption, CreateTaskPayload } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
+import { enqueueTaskSubmission } from '../../api/endpoints/taskSubmissionQueue';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
 const WEEK_DAYS = [
@@ -421,7 +422,8 @@ export function CreateTaskContent({
           : item
       )));
 
-      void removeUploadJob(job.id);
+      // We don't remove the job here anymore because the background submission queue needs it
+      // void removeUploadJob(job.id);
     } catch (error) {
       setAttachments((prev) => prev.map((item) => (
         item.id === attachmentId
@@ -570,6 +572,22 @@ export function CreateTaskContent({
     }
   };
 
+  const discardAudioRecording = async () => {
+    if (recordingBusy || !isRecordingAudio) return;
+    setRecordingBusy(true);
+    try {
+      await recorder.stop();
+    } catch {
+      // Ignore errors during discard stop
+    } finally {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+      setRecordingBusy(false);
+    }
+  };
+
   const handleAudioAttachmentPress = (item: AttachmentItem) => {
     if (activeAudioAttachmentId !== item.id) {
       const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(item.uri));
@@ -650,54 +668,32 @@ export function CreateTaskContent({
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
     if (!taskCategoryId) return Alert.alert('Required', 'Please select a category.');
     if (!hasAssignees) return Alert.alert('Required', 'Please assign at least one manager.');
-    if (hasPendingAttachmentUploads) {
-      return Alert.alert('Uploading', 'Please wait for attachments to finish uploading.');
-    }
-    if (hasFailedAttachmentUploads) {
-      return Alert.alert('Upload failed', 'Please remove failed attachments or try selecting them again.');
-    }
-
     if (isRecurring && recurrenceDays.length === 0) {
       const typeLabel = recurrenceType === 'WEEKLY' ? 'days of the week' : 'days of the month';
       return Alert.alert('Required', `Please select at least one day for ${typeLabel}.`);
     }
 
-    const uploaded = attachments.filter((item) => item.status === 'uploaded' && item.remoteUrl);
-    const images = uploaded.filter((item) => item.type === 'image').map((item) => item.remoteUrl as string);
-    const videos = uploaded.filter((item) => item.type === 'video').map((item) => item.remoteUrl as string);
-    const audios = uploaded.filter((item) => item.type === 'audio').map((item) => item.remoteUrl as string);
-    const files = uploaded.filter((item) => item.type === 'file').map((item) => item.remoteUrl as string);
-    const hasUploadedAttachments = images.length > 0 || videos.length > 0 || audios.length > 0 || files.length > 0;
+    const attachmentJobs = attachments
+      .filter(item => item.status === 'uploading' || item.status === 'uploaded')
+      .map(item => ({
+        id: item.uploadJobId!,
+        type: item.type
+      }))
+      .filter(job => !!job.id);
 
-    createTask.mutate(
-      {
-        description: description.trim(),
-        taskCategoryId,
-        priority,
-        dueDate: dueDate.toISOString(),
-        isRecurring,
-        ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
-        ...(outletId ? { outletId } : {}),
-        assigneeIds,
-        ...(hasUploadedAttachments
-          ? {
-            adminSubmission: {
-              attachments: {
-                images,
-                videos,
-                audios,
-                files,
-              },
-            },
-          }
-          : {}),
-      },
-      {
-        onSuccess,
-        onError: (error) =>
-          Alert.alert('Error', getApiErrorMessage(error, 'Failed to create task. Please try again.')),
-      },
-    );
+    const payload: CreateTaskPayload = {
+      description: description.trim(),
+      taskCategoryId,
+      priority,
+      dueDate: dueDate.toISOString(),
+      isRecurring,
+      ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
+      ...(outletId ? { outletId } : {}),
+      assigneeIds,
+    };
+
+    void enqueueTaskSubmission(payload, attachmentJobs);
+    onSuccess();
   };
 
   return (
@@ -753,7 +749,16 @@ export function CreateTaskContent({
                 />
               </TouchableOpacity>
               {isRecordingAudio && (
-                <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                  <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
+                  <TouchableOpacity
+                    style={styles.attachmentHeaderIconButton}
+                    onPress={() => { void discardAudioRecording(); }}
+                    activeOpacity={0.85}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           </View>
@@ -792,7 +797,15 @@ export function CreateTaskContent({
 
           {selectedPreviewAttachment && selectedPreviewAttachment.type === 'image' && (
             <View style={styles.attachmentPreviewCard}>
-              <Text style={styles.attachmentPreviewTitle}>Preview</Text>
+              <View style={styles.attachmentPreviewHeader}>
+                <Text style={styles.attachmentPreviewTitle}>Preview</Text>
+                <TouchableOpacity
+                  onPress={() => removeAttachment(selectedPreviewAttachment.id)}
+                  style={styles.attachmentPreviewDeleteBtn}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
+                </TouchableOpacity>
+              </View>
               <Image
                 source={{ uri: selectedPreviewAttachment.uri }}
                 style={styles.attachmentPreviewImage}
@@ -868,7 +881,7 @@ export function CreateTaskContent({
                               removeAttachment(item.id);
                             }}
                           >
-                            <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                            <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.error} />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1354,20 +1367,29 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.background,
     padding: spacing.sm,
-    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  attachmentPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  attachmentPreviewDeleteBtn: {
+    padding: 4,
   },
   attachmentPreviewTitle: {
-    color: colors.textSecondary,
     fontSize: typography.xs,
-    fontWeight: typography.semibold,
+    fontWeight: typography.bold,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
   },
   attachmentPreviewImage: {
     width: '100%',
-    height: 160,
+    height: 200,
     borderRadius: radius.sm,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.border,
   },
   attachmentPreviewFileName: {
     color: colors.text,

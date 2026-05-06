@@ -1,0 +1,138 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CreateTaskPayload, tasksApi } from './tasks';
+import { waitForUploadJob, removeUploadJob } from './uploadQueue';
+
+const TASK_QUEUE_STORAGE_KEY = 'task_submission_queue_v1';
+
+export interface TaskSubmissionJob {
+  id: string;
+  payload: CreateTaskPayload;
+  attachmentJobs: {
+    id: string;
+    type: 'image' | 'video' | 'audio' | 'file';
+  }[];
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  attempts: number;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+let taskJobs: TaskSubmissionJob[] = [];
+let isLoaded = false;
+let isProcessing = false;
+
+async function persistQueue() {
+  await AsyncStorage.setItem(TASK_QUEUE_STORAGE_KEY, JSON.stringify(taskJobs));
+}
+
+async function ensureLoaded() {
+  if (isLoaded) return;
+  try {
+    const raw = await AsyncStorage.getItem(TASK_QUEUE_STORAGE_KEY);
+    if (raw) {
+      taskJobs = JSON.parse(raw);
+      // Reset processing jobs to queued if app was killed
+      taskJobs = taskJobs.map(job => job.status === 'processing' ? { ...job, status: 'queued' } : job);
+    }
+  } catch {
+    taskJobs = [];
+  }
+  isLoaded = true;
+}
+
+async function processQueue() {
+  if (isProcessing) return;
+  await ensureLoaded();
+  
+  const nextJob = taskJobs.find(j => j.status === 'queued');
+  if (!nextJob) return;
+
+  isProcessing = true;
+  try {
+    nextJob.status = 'processing';
+    nextJob.updatedAt = new Date().toISOString();
+    await persistQueue();
+
+    // 1. Wait for all uploads
+    const attachments: any = {
+      images: [],
+      videos: [],
+      audios: [],
+      files: []
+    };
+
+    for (const jobRef of nextJob.attachmentJobs) {
+      try {
+        const remoteUrl = await waitForUploadJob(jobRef.id);
+        if (jobRef.type === 'image') attachments.images.push(remoteUrl);
+        else if (jobRef.type === 'video') attachments.videos.push(remoteUrl);
+        else if (jobRef.type === 'audio') attachments.audios.push(remoteUrl);
+        else if (jobRef.type === 'file') attachments.files.push(remoteUrl);
+      } catch (uploadError) {
+        throw new Error(`Upload failed for ${jobRef.type}: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+      }
+    }
+
+    // 2. Prepare final payload
+    const finalPayload: CreateTaskPayload = {
+      ...nextJob.payload,
+      adminSubmission: {
+        ...nextJob.payload.adminSubmission,
+        attachments: {
+          images: attachments.images.length > 0 ? attachments.images : undefined,
+          videos: attachments.videos.length > 0 ? attachments.videos : undefined,
+          audios: attachments.audios.length > 0 ? attachments.audios : undefined,
+          files: attachments.files.length > 0 ? attachments.files : undefined,
+        }
+      }
+    };
+
+    // 3. Create Task
+    await tasksApi.create(finalPayload);
+
+    // 4. Cleanup associated upload jobs
+    for (const jobRef of nextJob.attachmentJobs) {
+      void removeUploadJob(jobRef.id);
+    }
+
+    // 5. Cleanup task job
+    taskJobs = taskJobs.filter(j => j.id !== nextJob.id);
+    await persistQueue();
+  } catch (error) {
+    console.error('[TaskSubmissionQueue] Job failed', error);
+    nextJob.status = 'failed';
+    nextJob.error = error instanceof Error ? error.message : String(error);
+    nextJob.attempts += 1;
+    nextJob.updatedAt = new Date().toISOString();
+    await persistQueue();
+  } finally {
+    isProcessing = false;
+    // Process next job if any
+    void processQueue();
+  }
+}
+
+export async function enqueueTaskSubmission(
+  payload: CreateTaskPayload,
+  attachmentJobs: { id: string; type: 'image' | 'video' | 'audio' | 'file' }[]
+) {
+  await ensureLoaded();
+  const job: TaskSubmissionJob = {
+    id: `task-sub-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    payload,
+    attachmentJobs,
+    status: 'queued',
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  taskJobs.push(job);
+  await persistQueue();
+  void processQueue();
+  return job.id;
+}
+
+// Initial processing
+void ensureLoaded().then(() => void processQueue());
