@@ -24,7 +24,8 @@ export interface TaskSubmissionJob {
 
 let taskJobs: TaskSubmissionJob[] = [];
 let isLoaded = false;
-let isProcessing = false;
+let isQueueProcessing = false;
+let loadPromise: Promise<void> | null = null;
 
 async function persistQueue() {
   await AsyncStorage.setItem(TASK_QUEUE_STORAGE_KEY, JSON.stringify(taskJobs));
@@ -32,21 +33,28 @@ async function persistQueue() {
 
 async function ensureLoaded() {
   if (isLoaded) return;
-  try {
-    const raw = await AsyncStorage.getItem(TASK_QUEUE_STORAGE_KEY);
-    if (raw) {
-      taskJobs = JSON.parse(raw);
-      // Reset processing jobs to queued if app was killed
-      taskJobs = taskJobs.map(job => job.status === 'processing' ? { ...job, status: 'queued' } : job);
+  if (loadPromise) return loadPromise;
+
+  loadPromise = (async () => {
+    try {
+      const raw = await AsyncStorage.getItem(TASK_QUEUE_STORAGE_KEY);
+      if (raw) {
+        taskJobs = JSON.parse(raw);
+        // Reset processing jobs to queued if app was killed
+        taskJobs = taskJobs.map(job => job.status === 'processing' ? { ...job, status: 'queued' } : job);
+      }
+    } catch {
+      taskJobs = [];
     }
-  } catch {
-    taskJobs = [];
-  }
-  isLoaded = true;
+    isLoaded = true;
+    loadPromise = null;
+  })();
+
+  return loadPromise;
 }
 
 async function processQueue() {
-  if (isProcessing) return;
+  if (isQueueProcessing) return;
   await ensureLoaded();
   
   const now = new Date().getTime();
@@ -62,7 +70,7 @@ async function processQueue() {
 
   if (!nextJob) return;
 
-  isProcessing = true;
+  isQueueProcessing = true;
   try {
     nextJob.status = 'processing';
     nextJob.updatedAt = new Date().toISOString();
@@ -143,7 +151,7 @@ async function processQueue() {
     nextJob.updatedAt = new Date().toISOString();
     await persistQueue();
   } finally {
-    isProcessing = false;
+    isQueueProcessing = false;
     // Process next job if any
     void processQueue();
   }
@@ -182,7 +190,7 @@ export function getTaskQueueStatus() {
   return {
     pendingCount: pending.length,
     failedCount: failed.length,
-    isProcessing,
+    syncing: isQueueProcessing,
     failedJobs: failed
   };
 }
@@ -204,5 +212,5 @@ export async function clearFailedJobs() {
 
 // Periodic check for retries (every 30 seconds)
 setInterval(() => {
-  if (!isProcessing) void processQueue();
+  if (!isQueueProcessing) void processQueue();
 }, 30000);

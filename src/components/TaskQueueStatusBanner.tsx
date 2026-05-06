@@ -22,7 +22,7 @@ export default function TaskQueueStatusBanner() {
         <View style={[styles.banner, styles.pendingBanner]}>
           <ActivityIndicator size="small" color={colors.primary} style={styles.icon} />
           <Text style={styles.text}>
-            {status.isProcessing ? 'Processing' : 'Waiting for connection'}: {status.pendingCount} task{status.pendingCount > 1 ? 's' : ''} remaining...
+            {status.syncing ? 'Processing' : 'Waiting for connection'}: {status.pendingCount} task{status.pendingCount > 1 ? 's' : ''} remaining...
           </Text>
         </View>
       )}
