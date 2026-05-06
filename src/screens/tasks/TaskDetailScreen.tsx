@@ -309,10 +309,23 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const imageAttachments = task?.attachments?.images ?? task?.imageUrls ?? [];
-  const videoAttachments = task?.attachments?.videos ?? [];
-  const audioAttachments = task?.attachments?.audios ?? [];
-  const fileAttachments = task?.attachments?.files ?? [];
+  const adminAttachments = task?.adminSubmission?.attachments;
+  const imageAttachments = Array.from(new Set([
+    ...(task?.attachments?.images ?? task?.imageUrls ?? []),
+    ...(adminAttachments?.images ?? [])
+  ]));
+  const videoAttachments = Array.from(new Set([
+    ...(task?.attachments?.videos ?? []),
+    ...(adminAttachments?.videos ?? [])
+  ]));
+  const audioAttachments = Array.from(new Set([
+    ...(task?.attachments?.audios ?? []),
+    ...(adminAttachments?.audios ?? [])
+  ]));
+  const fileAttachments = Array.from(new Set([
+    ...(task?.attachments?.files ?? []),
+    ...(adminAttachments?.files ?? [])
+  ]));
   const audioAttachmentMeta = audioAttachments.map((url, index) => ({ id: `audio-${index}-${url}`, url }));
   const audioAttachmentIds = audioAttachmentMeta.map((item) => item.id);
   const audioAttachmentIdsKey = audioAttachmentIds.join('|');
@@ -819,13 +832,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 || managerAttachments.videos.length > 0
                 || managerAttachments.audios.length > 0
                 || managerAttachments.files.length > 0) && (
-                <SubmissionBlock
-                  title="Attached"
-                  text={undefined}
-                  attachments={managerAttachments}
-                  onOpenAttachment={(url) => { void openAttachment(url); }}
-                />
-              )}
+                  <SubmissionBlock
+                    title="Attached"
+                    text={undefined}
+                    attachments={managerAttachments}
+                    onOpenAttachment={(url) => { void openAttachment(url); }}
+                  />
+                )}
 
 
 
@@ -904,7 +917,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           ) : null
         )}
       </ScrollView>
-      
+
       <Modal
         visible={showEditModal}
         transparent

@@ -77,15 +77,28 @@ async function processQueue() {
     }
 
     // 2. Prepare final payload
+    const payloadAttachments = nextJob.payload.adminSubmission?.attachments;
     const finalPayload: CreateTaskPayload = {
       ...nextJob.payload,
       adminSubmission: {
         ...nextJob.payload.adminSubmission,
         attachments: {
-          images: attachments.images.length > 0 ? attachments.images : undefined,
-          videos: attachments.videos.length > 0 ? attachments.videos : undefined,
-          audios: attachments.audios.length > 0 ? attachments.audios : undefined,
-          files: attachments.files.length > 0 ? attachments.files : undefined,
+          images: [
+            ...(payloadAttachments?.images ?? []),
+            ...attachments.images
+          ].filter(Boolean),
+          videos: [
+            ...(payloadAttachments?.videos ?? []),
+            ...attachments.videos
+          ].filter(Boolean),
+          audios: [
+            ...(payloadAttachments?.audios ?? []),
+            ...attachments.audios
+          ].filter(Boolean),
+          files: [
+            ...(payloadAttachments?.files ?? []),
+            ...attachments.files
+          ].filter(Boolean),
         }
       }
     };
