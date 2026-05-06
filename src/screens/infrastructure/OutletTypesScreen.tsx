@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Modal,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -62,12 +64,8 @@ function TypeFormModal({
       setNameError(null);
     }
 
-    if (trimmedDescription.length < 5) {
-      setDescriptionError('Description must be at least 5 characters.');
-      hasError = true;
-    } else {
-      setDescriptionError(null);
-    }
+    // Description is now optional
+    setDescriptionError(null);
 
     if (hasError) return;
     onSubmit(trimmedName, trimmedDescription);
@@ -86,7 +84,10 @@ function TypeFormModal({
           style={styles.createModalScrim}
           onPress={onClose}
         />
-        <View style={styles.createSheet}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.createSheet}
+        >
           <View style={styles.createSheetTop}>
             <View style={styles.createSheetHandle} />
             <View style={styles.createSheetHeader}>
@@ -150,7 +151,7 @@ function TypeFormModal({
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
