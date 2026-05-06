@@ -409,27 +409,55 @@ export default function ReviewsScreen({ route }: Props) {
             <View style={styles.filterRow}>
               <Text style={styles.sectionEyebrow}>Outlet Filter</Text>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterPillsRow}
-            >
-              {outletOptions.map((option) => {
-                const active = option.id === selectedOutletId;
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[styles.filterPill, active && styles.filterPillActive]}
-                    onPress={() => setSelectedOutletId(option.id)}
-                    activeOpacity={0.82}
-                  >
-                    <Text style={[styles.filterPillText, active && styles.filterPillTextActive]} numberOfLines={1}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <View style={styles.outletFilterContainer}>
+              {/* Sticky All Outlets Chip */}
+              <View style={styles.stickyChipWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterPill,
+                    selectedOutletId === 'all' && styles.filterPillActive,
+                    { width: 110 }
+                  ]}
+                  onPress={() => {
+                    setSelectedOutletId('all');
+                    setStatusFilter('all');
+                    setAllReviewsFilter('all');
+                  }}
+                  activeOpacity={0.82}
+                >
+                  <Text style={[
+                    styles.filterPillText,
+                    selectedOutletId === 'all' && styles.filterPillTextActive,
+                    { textAlign: 'center' }
+                  ]}>
+                    All Outlets
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Scrollable Other Outlets */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterPillsRowScrollable}
+              >
+                {outletOptions.filter(opt => opt.id !== 'all').map((option) => {
+                  const active = option.id === selectedOutletId;
+                  return (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[styles.filterPill, active && styles.filterPillActive]}
+                      onPress={() => setSelectedOutletId(option.id)}
+                      activeOpacity={0.82}
+                    >
+                      <Text style={[styles.filterPillText, active && styles.filterPillTextActive]} numberOfLines={1}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
           </View>
 
           <View style={styles.sectionBlock}>
@@ -835,8 +863,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   filterPillsRow: {
+    flexDirection: 'row',
     gap: spacing.sm,
     paddingHorizontal: spacing.xs,
+  },
+  filterPillsRowScrollable: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingLeft: 118, // Width of sticky chip (110) + gap (8)
+    paddingRight: spacing.md,
+    paddingVertical: 2,
+  },
+  outletFilterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  stickyChipWrapper: {
+    position: 'absolute',
+    left: 0,
+    zIndex: 10,
+    backgroundColor: colors.screenBackground,
+    paddingRight: 4,
   },
   filterPill: {
     height: 34,
