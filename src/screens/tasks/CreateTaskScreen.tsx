@@ -40,7 +40,7 @@ import {
 import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useManagers } from '../../hooks/useUsers';
-import { TaskPriority, TaskCategoryOption, CreateTaskPayload } from '../../api/endpoints/tasks';
+import { TaskPriority, TaskCategoryOption, CreateTaskPayload, Task } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getApiErrorMessage } from '../../utils/errors';
@@ -203,6 +203,7 @@ type CreateTaskContentProps = {
   backgroundColor?: string;
   initialIsRecurring?: boolean;
   hideRecurringToggle?: boolean;
+  editTask?: Task;
 };
 
 export function CreateTaskContent({
@@ -213,23 +214,48 @@ export function CreateTaskContent({
   backgroundColor = colors.background,
   initialIsRecurring = false,
   hideRecurringToggle = false,
+  editTask,
 }: CreateTaskContentProps) {
-  const [description, setDescription] = useState('');
-  const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>();
-  const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
-  const [dueDate, setDueDate] = useState(new Date());
+  const [description, setDescription] = useState(editTask?.description ?? '');
+  const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>(editTask?.taskCategory?._id ?? editTask?.category);
+  const [priority, setPriority] = useState<TaskPriority>(editTask?.priority ?? 'MEDIUM');
+  const [dueDate, setDueDate] = useState(editTask?.dueDate ? new Date(editTask.dueDate) : new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isRecurring, setIsRecurring] = useState(initialIsRecurring);
-  const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
-  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
+  const [isRecurring, setIsRecurring] = useState(editTask?.isRecurring ?? initialIsRecurring);
+  const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>(editTask?.recurrenceType ?? 'WEEKLY');
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>(editTask?.recurrenceDays ?? []);
+
+  useEffect(() => {
+    if (!editTask) return;
+    setDescription(editTask.description);
+    setTaskCategoryId(editTask.taskCategory?._id ?? editTask.category);
+    setPriority(editTask.priority);
+    setDueDate(new Date(editTask.dueDate));
+    setIsRecurring(!!editTask.isRecurring);
+    setRecurrenceType(editTask.recurrenceType ?? 'WEEKLY');
+    setRecurrenceDays(editTask.recurrenceDays ?? []);
+    setOutletId(editTask.outlet?._id ?? editTask.outletId ?? '');
+    setAssigneeIds(editTask.assigneeIds ?? []);
+    
+    // Map existing attachments
+    const existing: AttachmentItem[] = [];
+    const atts = editTask.adminSubmission?.attachments;
+    if (atts) {
+      atts.images?.forEach(url => existing.push({ id: url, type: 'image', name: url.split('/').pop() || 'image', uri: url, status: 'uploaded', remoteUrl: url }));
+      atts.videos?.forEach(url => existing.push({ id: url, type: 'video', name: url.split('/').pop() || 'video', uri: url, status: 'uploaded', remoteUrl: url }));
+      atts.audios?.forEach(url => existing.push({ id: url, type: 'audio', name: url.split('/').pop() || 'audio', uri: url, status: 'uploaded', remoteUrl: url }));
+      atts.files?.forEach(url => existing.push({ id: url, type: 'file', name: url.split('/').pop() || 'file', uri: url, status: 'uploaded', remoteUrl: url }));
+    }
+    setAttachments(existing);
+  }, [editTask?.id]);
 
   useEffect(() => {
     setIsRecurring(initialIsRecurring);
   }, [initialIsRecurring]);
 
   const [showMonthDaysPicker, setShowMonthDaysPicker] = useState(false);
-  const [outletId, setOutletId] = useState('');
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [outletId, setOutletId] = useState(editTask?.outlet?._id ?? editTask?.outletId ?? '');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(editTask?.assigneeIds ?? []);
   const [showOutletPicker, setShowOutletPicker] = useState(false);
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -694,12 +720,15 @@ export function CreateTaskContent({
     }
 
     const attachmentJobs = attachments
-      .filter(item => item.status === 'uploading' || item.status === 'uploaded')
-      .map(item => ({
-        id: item.uploadJobId!,
-        type: item.type
-      }))
-      .filter(job => !!job.id);
+      .filter((a) => a.status === 'uploading' && a.uploadJobId)
+      .map((a) => ({ id: a.uploadJobId!, type: a.type }));
+
+    const existingAttachments = {
+      images: attachments.filter(a => a.type === 'image' && a.remoteUrl).map(a => a.remoteUrl!),
+      videos: attachments.filter(a => a.type === 'video' && a.remoteUrl).map(a => a.remoteUrl!),
+      audios: attachments.filter(a => a.type === 'audio' && a.remoteUrl).map(a => a.remoteUrl!),
+      files: attachments.filter(a => a.type === 'file' && a.remoteUrl).map(a => a.remoteUrl!),
+    };
 
     const payload: CreateTaskPayload = {
       description: description.trim(),
@@ -710,9 +739,13 @@ export function CreateTaskContent({
       ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
       ...(outletId ? { outletId } : {}),
       assigneeIds,
+      adminSubmission: {
+        text: '',
+        attachments: existingAttachments
+      }
     };
 
-    void enqueueTaskSubmission(payload, attachmentJobs);
+    void enqueueTaskSubmission(payload, attachmentJobs, editTask?.id);
     onSuccess();
   };
 

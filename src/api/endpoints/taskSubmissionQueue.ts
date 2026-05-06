@@ -7,7 +7,8 @@ const TASK_QUEUE_STORAGE_KEY = 'task_submission_queue_v1';
 
 export interface TaskSubmissionJob {
   id: string;
-  payload: CreateTaskPayload;
+  taskId?: string; // If present, this is an update job
+  payload: any; // Can be CreateTaskPayload or UpdateTaskPayload
   attachmentJobs: {
     id: string;
     type: 'image' | 'video' | 'audio' | 'file';
@@ -89,8 +90,12 @@ async function processQueue() {
       }
     };
 
-    // 3. Create Task
-    await tasksApi.create(finalPayload);
+    // 3. Create or Update Task
+    if (nextJob.taskId) {
+      await tasksApi.update(nextJob.taskId, finalPayload);
+    } else {
+      await tasksApi.create(finalPayload);
+    }
 
     // 4. Invalidate cache to refresh UI
     void queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -120,12 +125,14 @@ async function processQueue() {
 }
 
 export async function enqueueTaskSubmission(
-  payload: CreateTaskPayload,
-  attachmentJobs: { id: string; type: 'image' | 'video' | 'audio' | 'file' }[]
+  payload: any,
+  attachmentJobs: { id: string; type: 'image' | 'video' | 'audio' | 'file' }[],
+  taskId?: string
 ) {
   await ensureLoaded();
   const job: TaskSubmissionJob = {
     id: `task-sub-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    taskId,
     payload,
     attachmentJobs,
     status: 'queued',

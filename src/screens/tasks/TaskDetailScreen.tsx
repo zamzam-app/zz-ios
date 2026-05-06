@@ -12,6 +12,7 @@ import {
   Image,
   Linking,
   TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTask, useUpdateTaskStatus, useDeleteTask, useUpdateTask } from '../../hooks/useTasks';
-import { TaskStatus } from '../../api/endpoints/tasks';
+import { TaskStatus, Task } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
@@ -28,6 +29,7 @@ import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './
 import { uploadToCloudinary } from '../../api/endpoints/upload';
 import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
+import { CreateTaskContent } from './CreateTaskScreen';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
 
@@ -211,6 +213,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     files: string[];
   }>({ images: [], videos: [], audios: [], files: [] });
   const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const runPreviewPlayerActionSafely = useCallback((action: () => unknown): boolean => {
     try {
@@ -558,18 +561,27 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           </View>
           <View style={styles.headerActions}>
             {isAdmin && (
-              <TouchableOpacity
-                style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
-                onPress={handleDelete}
-                disabled={deleteTask.isPending}
-                activeOpacity={0.82}
-              >
-                {deleteTask.isPending ? (
-                  <ActivityIndicator color={colors.textInverse} size="small" />
-                ) : (
-                  <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
-                )}
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={[styles.iconActionBtn, styles.editActionBtn]}
+                  onPress={() => setShowEditModal(true)}
+                  activeOpacity={0.82}
+                >
+                  <Ionicons name="create-outline" size={18} color={colors.textInverse} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
+                  onPress={handleDelete}
+                  disabled={deleteTask.isPending}
+                  activeOpacity={0.82}
+                >
+                  {deleteTask.isPending ? (
+                    <ActivityIndicator color={colors.textInverse} size="small" />
+                  ) : (
+                    <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
+                  )}
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </View>
@@ -874,6 +886,45 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           ) : null
         )}
       </ScrollView>
+      
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.editModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.editModalScrim}
+            onPress={() => setShowEditModal(false)}
+          />
+          <View style={styles.editSheet}>
+            <View style={styles.editSheetTop}>
+              <View style={styles.editSheetHandle} />
+              <View style={styles.editSheetHeader}>
+                <Text style={styles.editSheetTitle}>Edit Task</Text>
+                <TouchableOpacity
+                  style={styles.editSheetClose}
+                  onPress={() => setShowEditModal(false)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <CreateTaskContent
+              onSuccess={() => {
+                setShowEditModal(false);
+              }}
+              editTask={task}
+              submitLabel="Save Changes"
+              bottomPadding={24}
+              fill
+              backgroundColor={colors.surface}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -920,8 +971,55 @@ const styles = StyleSheet.create({
   deleteActionBtn: {
     backgroundColor: colors.error,
   },
+  editActionBtn: {
+    backgroundColor: colors.primary,
+  },
   iconActionBtnDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
+  },
+  editModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  editModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  editSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '92%',
+    overflow: 'hidden',
+  },
+  editSheetTop: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  editSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 12,
+  },
+  editSheetHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  editSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  editSheetClose: {
+    padding: 4,
   },
 
   summaryCard: {
