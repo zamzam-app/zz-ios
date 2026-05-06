@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CreateTaskPayload, tasksApi } from './tasks';
 import { waitForUploadJob, removeUploadJob } from './uploadQueue';
+import { queryClient } from '../queryClient';
 
 const TASK_QUEUE_STORAGE_KEY = 'task_submission_queue_v1';
 
@@ -91,7 +92,12 @@ async function processQueue() {
     // 3. Create Task
     await tasksApi.create(finalPayload);
 
-    // 4. Cleanup associated upload jobs
+    // 4. Invalidate cache to refresh UI
+    void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    void queryClient.invalidateQueries({ queryKey: ['tasks-infinite'] });
+    void queryClient.invalidateQueries({ queryKey: ['tasks-overview'] });
+
+    // 5. Cleanup associated upload jobs
     for (const jobRef of nextJob.attachmentJobs) {
       void removeUploadJob(jobRef.id);
     }
