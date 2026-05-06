@@ -19,8 +19,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useInfiniteTasks } from '../../hooks/useTasks';
+import DatePickerModal from '../../components/DatePickerModal';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
@@ -436,9 +436,8 @@ export default function TasksScreen() {
     year: 'numeric',
   });
 
-  const onDueDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === 'android') setShowDueDatePicker(false);
-    if (selectedDate) setDueDateFilter(selectedDate);
+  const onDueDateChange = (selectedDate: Date) => {
+    setDueDateFilter(selectedDate);
   };
 
   const refetch = async () => {
@@ -729,7 +728,11 @@ export default function TasksScreen() {
                 </View>
               </View>
 
-              <View style={styles.filterContent}>
+              <ScrollView
+                style={styles.filterContent}
+                contentContainerStyle={{ paddingBottom: spacing.lg }}
+                showsVerticalScrollIndicator={false}
+              >
                 {activeFilterSection === 'priority' && (
                   <View style={styles.filterSection}>
                     <Text style={styles.filterSectionTitle}>Filter by priority</Text>
@@ -763,15 +766,17 @@ export default function TasksScreen() {
                       {dueDateFilter ? `Selected: ${formatFilterDate(dueDateFilter)}` : 'No date selected'}
                     </Text>
 
-                    <TouchableOpacity
-                      style={styles.filterActionBtn}
-                      onPress={() => setShowDueDatePicker(true)}
-                      activeOpacity={0.82}
-                    >
-                      <Text style={styles.filterActionBtnText}>{dueDateFilter ? 'Change Date' : 'Select Date'}</Text>
-                    </TouchableOpacity>
+                    {!showDueDatePicker && (
+                      <TouchableOpacity
+                        style={styles.filterActionBtn}
+                        onPress={() => setShowDueDatePicker(true)}
+                        activeOpacity={0.82}
+                      >
+                        <Text style={styles.filterActionBtnText}>{dueDateFilter ? 'Change Date' : 'Select Date'}</Text>
+                      </TouchableOpacity>
+                    )}
 
-                    {dueDateFilter && (
+                    {dueDateFilter && !showDueDatePicker && (
                       <TouchableOpacity
                         style={[styles.filterActionBtn, styles.filterActionBtnSecondary]}
                         onPress={() => setDueDateFilter(null)}
@@ -781,17 +786,15 @@ export default function TasksScreen() {
                       </TouchableOpacity>
                     )}
 
-                    {showDueDatePicker && (
-                      <DateTimePicker
-                        value={dueDateFilter ?? new Date()}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                        onChange={onDueDateChange}
-                      />
-                    )}
+                    <DatePickerModal
+                      visible={showDueDatePicker}
+                      value={dueDateFilter ?? new Date()}
+                      onClose={() => setShowDueDatePicker(false)}
+                      onChange={onDueDateChange}
+                    />
                   </View>
                 )}
-              </View>
+              </ScrollView>
             </View>
           </View>
         </View>
@@ -1274,7 +1277,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(25, 28, 30, 0.4)',
   },
   filterSheet: {
-    maxHeight: '72%',
+    maxHeight: '88%',
     minHeight: 360,
     backgroundColor: colors.surface,
     borderTopLeftRadius: 30,

@@ -16,7 +16,7 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DatePickerModal from '../../components/DatePickerModal';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -971,17 +971,13 @@ export function CreateTaskContent({
           </View>
         )}
 
-        {showDatePicker && (
-          <DateTimePicker
-            value={dueDate}
-            mode="date"
-            minimumDate={new Date()}
-            onChange={(_, date) => {
-              setShowDatePicker(Platform.OS === 'ios');
-              if (date) setDueDate(date);
-            }}
-          />
-        )}
+        <DatePickerModal
+          visible={showDatePicker}
+          value={dueDate}
+          minimumDate={new Date()}
+          onClose={() => setShowDatePicker(false)}
+          onChange={(date) => setDueDate(date)}
+        />
 
         {isRecurring && (
           <View style={styles.recurrenceContainer}>
