@@ -719,6 +719,13 @@ export function CreateTaskContent({
       return Alert.alert('Required', `Please select at least one day for ${typeLabel}.`);
     }
 
+    if (hasFailedAttachmentUploads) {
+      return Alert.alert(
+        'Upload Failed',
+        'Some attachments failed to upload. Please remove them or try again before submitting.',
+      );
+    }
+
     const attachmentJobs = attachments
       .filter((a) => a.status === 'uploading' && a.uploadJobId)
       .map((a) => ({ id: a.uploadJobId!, type: a.type }));
