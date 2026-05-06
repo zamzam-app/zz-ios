@@ -11,6 +11,8 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -22,6 +24,7 @@ import {
 import { TaskCategoryOption } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { useAuthStore } from '../../store/authStore';
+import { TasksStackParamList } from '../../navigation/TasksNavigator';
 
 function CategoryFormModal({
   visible,
@@ -165,6 +168,15 @@ export default function TaskCategoriesScreen() {
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<TaskCategoryOption | undefined>();
+  const navigation = useNavigation<NativeStackNavigationProp<TasksStackParamList>>();
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('TasksList');
+  };
 
   const handleSubmit = (name: string, description: string) => {
     if (editing) {
@@ -243,8 +255,18 @@ export default function TaskCategoriesScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.heading}>Task Categories</Text>
+        <View style={styles.headingWrap}>
+          <View style={styles.titleRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={handleBack}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.heading}>Task Categories</Text>
+          </View>
           <Text style={styles.subheading}>Manage foundational categories for your tasks</Text>
         </View>
         {isAdmin && (
@@ -296,12 +318,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  headingWrap: {
+    flex: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginLeft: -spacing.xs,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heading: {
-    fontSize: typography.xl,
+    fontSize: 34,
+    lineHeight: 40,
     fontWeight: typography.bold,
     color: colors.text,
     letterSpacing: -0.5,
+    flexShrink: 1,
   },
   subheading: {
     marginTop: 2,
