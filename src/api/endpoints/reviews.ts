@@ -8,6 +8,13 @@ export interface UserResponse {
   answer: string | string[] | number;
 }
 
+export interface ResolutionAttachments {
+  images: string[];
+  videos: string[];
+  audios: string[];
+  files: string[];
+}
+
 export interface Review {
   id: string;
   customerName: string;
@@ -23,6 +30,7 @@ export interface Review {
   resolvedBy?: string;
   resolvedByName?: string;
   resolutionNotes?: string;
+  resolutionAttachments?: ResolutionAttachments;
   createdAt: string;
 }
 
@@ -36,6 +44,10 @@ export interface ResolveComplaintPayload {
   complaintStatus: ComplaintStatus;
   resolvedBy: string;
   resolutionNotes?: string;
+  images?: string[];
+  videos?: string[];
+  audios?: string[];
+  files?: string[];
 }
 
 interface RawReview {
@@ -52,6 +64,7 @@ interface RawReview {
   resolvedAt?: string;
   resolvedBy?: string | { _id?: string; id?: string; name?: string };
   resolutionNotes?: string;
+  resolutionAttachments?: ResolutionAttachments;
   createdAt?: string;
 }
 
@@ -120,6 +133,7 @@ function mapReview(raw: RawReview): Review {
     resolvedBy,
     resolvedByName,
     resolutionNotes: raw.resolutionNotes,
+    resolutionAttachments: raw.resolutionAttachments,
     createdAt: raw.createdAt ?? new Date().toISOString(),
   };
 }

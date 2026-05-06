@@ -292,6 +292,7 @@ function CompletedTaskCard({
 }
 
 export default function TasksScreen() {
+  const [showCompletedAccordion, setShowCompletedAccordion] = useState(false);
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager';
@@ -657,56 +658,6 @@ export default function TasksScreen() {
           </>
         )}
 
-        {showCompletedSection && (
-          <View style={styles.completedSection}>
-            <View style={styles.completedSectionHeader}>
-              <View style={styles.sectionHeadingWrap}>
-                <View style={[styles.sectionDot, styles.sectionDotCompleted]} />
-                <Text style={styles.sectionTitle}>Completed Tasks</Text>
-              </View>
-            </View>
-
-            {!isLoading && completedTasks.length === 0 && (
-              <Text style={styles.completedEmpty}>{isManager ? 'No completed tasks found for you' : 'No completed tasks yet'}</Text>
-            )}
-
-            {isLoading && (
-              <View style={styles.completedLoadingWrap}>
-                <ActivityIndicator color={colors.primary} />
-              </View>
-            )}
-
-            {!isLoading && completedTasks.length > 0 && (
-              <FlatList
-                horizontal
-                data={completedTasks}
-                keyExtractor={(task) => task.id}
-                contentContainerStyle={styles.completedRow}
-                showsHorizontalScrollIndicator={false}
-                onEndReached={() => {
-                  if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
-                    void completedTasksQuery.fetchNextPage();
-                  }
-                }}
-                onEndReachedThreshold={0.4}
-                renderItem={({ item }) => (
-                  <CompletedTaskCard
-                    task={item}
-                    onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-                    onOpenAttachment={openAttachmentModal}
-                  />
-                )}
-                ListFooterComponent={
-                  completedTasksQuery.isFetchingNextPage ? (
-                    <View style={styles.completedLoadingMoreWrap}>
-                      <ActivityIndicator color={colors.primary} />
-                    </View>
-                  ) : null
-                }
-              />
-            )}
-          </View>
-        )}
       </View>
 
       <Modal
@@ -944,6 +895,80 @@ export default function TasksScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Completed Tasks Accordion Toggle */}
+      {showCompletedSection && (
+        <TouchableOpacity
+          style={styles.completedAccordionToggle}
+          onPress={() => setShowCompletedAccordion(true)}
+          activeOpacity={0.9}
+        >
+          <View style={styles.accordionHeaderLeft}>
+            <View style={[styles.sectionDot, styles.sectionDotCompleted, { marginRight: spacing.sm }]} />
+            <Text style={styles.accordionTitle}>Completed Tasks</Text>
+            <View style={styles.accordionCountBadge}>
+              <Text style={styles.accordionCountText}>{completedTasksTotal}</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-up" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      )}
+
+      {/* Completed Tasks Full Screen Modal */}
+      <Modal
+        visible={showCompletedAccordion}
+        animationType="slide"
+        onRequestClose={() => setShowCompletedAccordion(false)}
+      >
+        <SafeAreaView style={styles.root}>
+          <View style={styles.accordionModalHeader}>
+            <TouchableOpacity
+              style={styles.accordionCloseBtn}
+              onPress={() => setShowCompletedAccordion(false)}
+            >
+              <Ionicons name="chevron-down" size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <Text style={styles.accordionModalTitle}>Completed Tasks</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <FlatList
+            data={completedTasks}
+            keyExtractor={(task) => task.id}
+            contentContainerStyle={styles.accordionListContent}
+            onEndReached={() => {
+              if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
+                void completedTasksQuery.fetchNextPage();
+              }
+            }}
+            onEndReachedThreshold={0.4}
+            renderItem={({ item }) => (
+              <View style={styles.openCardWrap}>
+                <CompletedTaskCard
+                  task={item}
+                  onPress={() => {
+                    setShowCompletedAccordion(false);
+                    navigation.navigate('TaskDetail', { taskId: item.id });
+                  }}
+                  onOpenAttachment={openAttachmentModal}
+                />
+              </View>
+            )}
+            ListEmptyComponent={(
+              <View style={styles.emptyWrap}>
+                <Text style={styles.empty}>No completed tasks found</Text>
+              </View>
+            )}
+            ListFooterComponent={
+              completedTasksQuery.isFetchingNextPage ? (
+                <View style={styles.loadingMoreWrap}>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : null
+            }
+          />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1128,8 +1153,8 @@ const styles = StyleSheet.create({
   sectionsContainer: {
     flex: 1,
     paddingHorizontal: spacing.md,
-    paddingBottom: 120,
     paddingTop: spacing.xs,
+    paddingBottom: 70,
   },
   sectionHeader: {
     marginBottom: spacing.sm,
@@ -1227,13 +1252,13 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   completedCard: {
-    width: 300,
-    backgroundColor: '#EEF1F4',
+    backgroundColor: '#F0F2F5',
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: '#D3C5AC2A',
     gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   completedWhen: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
 
@@ -1498,5 +1523,68 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: colors.primaryDark,
     fontWeight: typography.bold,
+  },
+  completedAccordionToggle: {
+    position: 'absolute',
+    bottom: 95,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    height: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: spacing.lg,
+    borderTopWidth: 1.5,
+    borderTopColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 20,
+  },
+  accordionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accordionTitle: {
+    fontSize: typography.base,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  accordionCountBadge: {
+    backgroundColor: '#EEF1F4',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    marginLeft: spacing.sm,
+  },
+  accordionCountText: {
+    fontSize: typography.xs,
+    fontWeight: typography.bold,
+    color: colors.textSecondary,
+  },
+  accordionModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  accordionCloseBtn: {
+    padding: spacing.xs,
+  },
+  accordionModalTitle: {
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  accordionListContent: {
+    padding: spacing.md,
+    paddingBottom: spacing.xl * 2,
   },
 });
