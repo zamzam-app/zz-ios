@@ -260,7 +260,7 @@ function SectionHeader({ title, count }: { title: string; count?: number | strin
   );
 }
 
-export default function ReviewDetailScreen({ route }: Props) {
+export default function ReviewDetailScreen({ route, navigation }: Props) {
   const { reviewId } = route.params;
   const { data: review, isLoading } = useReview(reviewId);
   const { data: form } = useForm(review?.formId ?? '');
@@ -276,6 +276,14 @@ export default function ReviewDetailScreen({ route }: Props) {
     files: string[];
   }>({ images: [], videos: [], audios: [], files: [] });
   const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('ReviewsList');
+  };
 
   const canResolve =
     review?.isComplaint
@@ -454,6 +462,14 @@ export default function ReviewDetailScreen({ route }: Props) {
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={handleBack}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.primary} />
+          </TouchableOpacity>
           <View style={styles.headingWrap}>
             <Text style={styles.heading}>Review Details</Text>
           </View>
@@ -682,10 +698,15 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.md,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headingWrap: {
     flex: 1,
