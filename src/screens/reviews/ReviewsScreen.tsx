@@ -188,7 +188,7 @@ export default function ReviewsScreen({ route }: Props) {
   const [selectedOutletId, setSelectedOutletId] = useState('all');
   const [statusFilter, setStatusFilter] = useState<ReviewMetricFilter>('all');
   const [allReviewsFilter, setAllReviewsFilter] = useState<
-    'all' | 'open' | 'resolved' | 'dismissed' | 'critical' | 'concern'
+    'all' | 'open' | 'resolved' | 'critical' | 'concern'
   >('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -330,7 +330,6 @@ export default function ReviewsScreen({ route }: Props) {
       if (allReviewsFilter === 'all') return true;
       if (allReviewsFilter === 'open') return review.isComplaint && review.complaintStatus === 'pending';
       if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
-      if (allReviewsFilter === 'dismissed') return review.isComplaint && review.complaintStatus === 'dismissed';
       if (allReviewsFilter === 'critical') return review.overallRating < 2.0 && review.complaintStatus !== 'resolved';
       if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
       return true;
@@ -731,7 +730,7 @@ export default function ReviewsScreen({ route }: Props) {
               <View style={styles.filterSection}>
                 <Text style={styles.filterSectionTitle}>Status & Type</Text>
                 <View style={styles.filterOptionsGrid}>
-                  {(['all', 'open', 'resolved', 'dismissed', 'critical', 'concern'] as const).map((opt) => {
+                  {(['all', 'open', 'resolved', 'critical', 'concern'] as const).map((opt) => {
                     const active = opt === allReviewsFilter;
                     return (
                       <TouchableOpacity
