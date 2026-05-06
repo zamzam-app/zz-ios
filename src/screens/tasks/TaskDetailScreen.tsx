@@ -234,6 +234,14 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
   }, []);
 
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('TasksList');
+  };
+
   const handleStatusChange = () => {
     if (!task) return;
 
@@ -556,7 +564,17 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <View style={styles.headingWrap}>
-            <Text style={styles.heading} numberOfLines={1}>Task Details</Text>
+            <View style={styles.titleRow}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                onPress={handleBack}
+                style={styles.backButton}
+              >
+                <Ionicons name="arrow-back" size={24} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.heading} numberOfLines={1}>Task Details</Text>
+            </View>
             <Text style={styles.subheading}>Task #{task.id.slice(-6).toUpperCase()}</Text>
           </View>
           <View style={styles.headerActions}>
@@ -945,10 +963,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heading: {
-    fontSize: 26,
+    fontSize: 34,
+    lineHeight: 40,
     fontWeight: typography.bold,
     color: colors.text,
     letterSpacing: -0.5,
+    flexShrink: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginLeft: -spacing.xs,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   subheading: {
     marginTop: 2,
