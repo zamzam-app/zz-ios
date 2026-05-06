@@ -461,7 +461,9 @@ export default function ReviewDetailScreen({ route }: Props) {
 
         <View style={styles.summaryCard}>
           <View style={styles.topRow}>
-            <Text style={styles.summaryTitle} numberOfLines={1}>{review.customerName}</Text>
+            <Text style={styles.summaryTitle} numberOfLines={1}>
+              {isAdmin ? review.customerName : 'Customer'}
+            </Text>
             <View style={styles.ratingWrap}>
               <StarRating rating={review.overallRating} size={14} />
               <Text style={styles.ratingText}>{review.overallRating.toFixed(1)} / 5.0</Text>
@@ -469,6 +471,11 @@ export default function ReviewDetailScreen({ route }: Props) {
           </View>
 
           <Text style={styles.summaryOutlet}>{review.outletName}</Text>
+          {isAdmin && review.customerPhone && (
+            <Text style={styles.summaryPhone} onPress={() => Linking.openURL(`tel:${review.customerPhone}`)}>
+              <Ionicons name="call-outline" size={12} color={colors.textSecondary} /> {review.customerPhone}
+            </Text>
+          )}
           <Text style={styles.summaryMeta}>Submitted on {formatDate(review.createdAt)}</Text>
           <View style={styles.summaryStatusRow}>
             <Text style={styles.summaryStatusLabel}>Status:</Text>
@@ -755,6 +762,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
     color: colors.primary,
     marginBottom: 2,
+  },
+  summaryPhone: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    marginBottom: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   summaryMeta: {
     fontSize: typography.xs,

@@ -15,9 +15,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useReviews } from '../../hooks/useReviews';
 import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
-import { Review, ComplaintStatus } from '../../api/endpoints/reviews';
+import { Review } from '../../api/endpoints/reviews';
 import { FranchiseRankingItem, MetricsHeatmapItem } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { useAuthStore } from '../../store/authStore';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import { ReviewMetricFilter } from '../../constants/reviewFilters';
 import StarRating from '../../components/StarRating';
@@ -180,6 +181,7 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
 }
 
 export default function ReviewsScreen({ route }: Props) {
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
   const navigation = useNavigation<Nav>();
   const [selectedOutletId, setSelectedOutletId] = useState('all');
   const [statusFilter, setStatusFilter] = useState<ReviewMetricFilter>('all');
@@ -532,7 +534,9 @@ export default function ReviewsScreen({ route }: Props) {
                             </View>
                           </View>
                           <View style={styles.feedbackIdentityRow}>
-                            <Text style={styles.feedbackName}>{review.customerName}</Text>
+                            <Text style={styles.feedbackName}>
+                              {isAdmin ? review.customerName : 'Customer'}
+                            </Text>
                             <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
                           </View>
                         </View>
@@ -607,7 +611,9 @@ export default function ReviewsScreen({ route }: Props) {
                 >
                   <View style={styles.feedbackTopRow}>
                     <View style={styles.feedbackMetaLeft}>
-                      <Text style={styles.feedbackName}>{review.customerName}</Text>
+                      <Text style={styles.feedbackName}>
+                        {isAdmin ? review.customerName : 'Customer'}
+                      </Text>
                       <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
                     </View>
                     <Text style={styles.feedbackOutlet}>{review.outletName}</Text>

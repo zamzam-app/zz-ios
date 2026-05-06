@@ -18,6 +18,7 @@ export interface ResolutionAttachments {
 export interface Review {
   id: string;
   customerName: string;
+  customerPhone?: string;
   outletId: string;
   outletName: string;
   formId?: string;
@@ -96,7 +97,11 @@ function mapReview(raw: RawReview): Review {
         : undefined;
 
   let customerName = 'Customer';
-  if (typeof raw.userId === 'object' && raw.userId?.name) customerName = raw.userId.name;
+  let customerPhone: string | undefined;
+  if (typeof raw.userId === 'object' && raw.userId) {
+    if (raw.userId.name) customerName = raw.userId.name;
+    if ((raw.userId as any).phoneNumber) customerPhone = (raw.userId as any).phoneNumber;
+  }
 
   let outletId = '';
   let outletName = 'Unknown Outlet';
@@ -121,6 +126,7 @@ function mapReview(raw: RawReview): Review {
   return {
     id,
     customerName,
+    customerPhone,
     outletId,
     outletName,
     formId,
