@@ -300,7 +300,7 @@ export default function ReviewsScreen({ route }: Props) {
       if (allReviewsFilter === 'open') return review.isComplaint && review.complaintStatus === 'pending';
       if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
       if (allReviewsFilter === 'dismissed') return review.isComplaint && review.complaintStatus === 'dismissed';
-      if (allReviewsFilter === 'critical') return review.overallRating < 2.0;
+      if (allReviewsFilter === 'critical') return review.overallRating < 2.0 && review.complaintStatus !== 'resolved';
       if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
       return true;
     });
