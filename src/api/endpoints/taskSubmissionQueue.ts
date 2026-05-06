@@ -4,6 +4,8 @@ import { waitForUploadJob, removeUploadJob } from './uploadQueue';
 import { queryClient } from '../queryClient';
 
 const TASK_QUEUE_STORAGE_KEY = 'task_submission_queue_v1';
+const MAX_ATTEMPTS = 5;
+const RETRY_DELAY_BASE = 5000; // 5 seconds
 
 export interface TaskSubmissionJob {
   id: string;
@@ -47,7 +49,17 @@ async function processQueue() {
   if (isProcessing) return;
   await ensureLoaded();
   
-  const nextJob = taskJobs.find(j => j.status === 'queued');
+  const now = new Date().getTime();
+  const nextJob = taskJobs.find(j => {
+    if (j.status === 'queued') return true;
+    if (j.status === 'failed' && j.attempts < MAX_ATTEMPTS) {
+      const lastAttempt = new Date(j.updatedAt).getTime();
+      const delay = Math.pow(2, j.attempts) * RETRY_DELAY_BASE;
+      return now - lastAttempt > delay;
+    }
+    return false;
+  });
+
   if (!nextJob) return;
 
   isProcessing = true;
@@ -162,3 +174,35 @@ export async function enqueueTaskSubmission(
 
 // Initial processing
 void ensureLoaded().then(() => void processQueue());
+
+// Export helpers for UI
+export function getTaskQueueStatus() {
+  const failed = taskJobs.filter(j => j.status === 'failed' && j.attempts >= MAX_ATTEMPTS);
+  const pending = taskJobs.filter(j => j.status === 'queued' || j.status === 'processing' || (j.status === 'failed' && j.attempts < MAX_ATTEMPTS));
+  return {
+    pendingCount: pending.length,
+    failedCount: failed.length,
+    isProcessing,
+    failedJobs: failed
+  };
+}
+
+export async function retryFailedJobs() {
+  await ensureLoaded();
+  taskJobs = taskJobs.map(j => 
+    j.status === 'failed' ? { ...j, status: 'queued', attempts: 0, updatedAt: new Date().toISOString() } : j
+  );
+  await persistQueue();
+  void processQueue();
+}
+
+export async function clearFailedJobs() {
+  await ensureLoaded();
+  taskJobs = taskJobs.filter(j => j.status !== 'failed');
+  await persistQueue();
+}
+
+// Periodic check for retries (every 30 seconds)
+setInterval(() => {
+  if (!isProcessing) void processQueue();
+}, 30000);

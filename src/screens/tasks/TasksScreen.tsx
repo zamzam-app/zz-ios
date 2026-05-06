@@ -29,6 +29,7 @@ import { CreateTaskContent } from './CreateTaskScreen';
 import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
 import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
+import TaskQueueStatusBanner from '../../components/TaskQueueStatusBanner';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
@@ -512,6 +513,7 @@ export default function TasksScreen() {
           )}
         </View>
       </View>
+      <TaskQueueStatusBanner />
 
       <View style={styles.tabBar}>
         <TouchableOpacity
