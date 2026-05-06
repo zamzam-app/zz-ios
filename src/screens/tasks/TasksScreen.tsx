@@ -896,79 +896,64 @@ export default function TasksScreen() {
         </View>
       </Modal>
 
-      {/* Completed Tasks Accordion Toggle */}
+      {/* Persistent Sticky Completed Tasks Accordion */}
       {showCompletedSection && (
-        <TouchableOpacity
-          style={styles.completedAccordionToggle}
-          onPress={() => setShowCompletedAccordion(true)}
-          activeOpacity={0.9}
-        >
-          <View style={styles.accordionHeaderLeft}>
-            <View style={[styles.sectionDot, styles.sectionDotCompleted, { marginRight: spacing.sm }]} />
-            <Text style={styles.accordionTitle}>Completed Tasks</Text>
-            <View style={styles.accordionCountBadge}>
-              <Text style={styles.accordionCountText}>{completedTasksTotal}</Text>
+        <View style={[
+          styles.accordionContainer,
+          showCompletedAccordion && styles.accordionContainerExpanded
+        ]}>
+          <TouchableOpacity
+            style={styles.completedAccordionToggle}
+            onPress={() => setShowCompletedAccordion(!showCompletedAccordion)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.accordionHeaderLeft}>
+              <View style={[styles.sectionDot, styles.sectionDotCompleted, { marginRight: spacing.sm }]} />
+              <Text style={styles.accordionTitle}>Completed Tasks</Text>
+              <View style={styles.accordionCountBadge}>
+                <Text style={styles.accordionCountText}>{completedTasksTotal}</Text>
+              </View>
             </View>
-          </View>
-          <Ionicons name="chevron-up" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
+            <Ionicons
+              name={showCompletedAccordion ? "chevron-down" : "chevron-up"}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {showCompletedAccordion && (
+            <View style={styles.accordionContentHorizontal}>
+              <FlatList
+                horizontal
+                data={completedTasks}
+                keyExtractor={(task) => task.id}
+                contentContainerStyle={styles.completedRow}
+                showsHorizontalScrollIndicator={false}
+                onEndReached={() => {
+                  if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
+                    void completedTasksQuery.fetchNextPage();
+                  }
+                }}
+                onEndReachedThreshold={0.4}
+                renderItem={({ item }) => (
+                  <CompletedTaskCard
+                    task={item}
+                    onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+                    onOpenAttachment={openAttachmentModal}
+                  />
+                )}
+                ListFooterComponent={
+                  completedTasksQuery.isFetchingNextPage ? (
+                    <View style={styles.completedLoadingMoreWrap}>
+                      <ActivityIndicator color={colors.primary} />
+                    </View>
+                  ) : null
+                }
+              />
+            </View>
+          )}
+        </View>
       )}
-
-      {/* Completed Tasks Full Screen Modal */}
-      <Modal
-        visible={showCompletedAccordion}
-        animationType="slide"
-        onRequestClose={() => setShowCompletedAccordion(false)}
-      >
-        <SafeAreaView style={styles.root}>
-          <View style={styles.accordionModalHeader}>
-            <TouchableOpacity
-              style={styles.accordionCloseBtn}
-              onPress={() => setShowCompletedAccordion(false)}
-            >
-              <Ionicons name="chevron-down" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <Text style={styles.accordionModalTitle}>Completed Tasks</Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          <FlatList
-            data={completedTasks}
-            keyExtractor={(task) => task.id}
-            contentContainerStyle={styles.accordionListContent}
-            onEndReached={() => {
-              if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
-                void completedTasksQuery.fetchNextPage();
-              }
-            }}
-            onEndReachedThreshold={0.4}
-            renderItem={({ item }) => (
-              <View style={styles.openCardWrap}>
-                <CompletedTaskCard
-                  task={item}
-                  onPress={() => {
-                    setShowCompletedAccordion(false);
-                    navigation.navigate('TaskDetail', { taskId: item.id });
-                  }}
-                  onOpenAttachment={openAttachmentModal}
-                />
-              </View>
-            )}
-            ListEmptyComponent={(
-              <View style={styles.emptyWrap}>
-                <Text style={styles.empty}>No completed tasks found</Text>
-              </View>
-            )}
-            ListFooterComponent={
-              completedTasksQuery.isFetchingNextPage ? (
-                <View style={styles.loadingMoreWrap}>
-                  <ActivityIndicator color={colors.primary} />
-                </View>
-              ) : null
-            }
-          />
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -1154,7 +1139,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: 70,
+    paddingBottom: 170, // Padding for floating tab bar (96) + accordion toggle (56)
   },
   sectionHeader: {
     marginBottom: spacing.sm,
@@ -1195,7 +1180,12 @@ const styles = StyleSheet.create({
     borderColor: '#D3C5AC55',
     ...shadow.sm,
   },
-  openCardInner: { padding: spacing.md, gap: spacing.sm },
+  openCardInner: {
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    gap: spacing.xs,
+  },
   openCardPill: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -1248,17 +1238,22 @@ const styles = StyleSheet.create({
   completedSectionHeader: { marginBottom: spacing.sm },
   completedRow: {
     gap: spacing.sm,
+    paddingHorizontal: spacing.md, // Added horizontal padding for first/last card
     paddingBottom: spacing.sm,
     paddingRight: spacing.md,
   },
   completedCard: {
+    width: 280,
     backgroundColor: '#F0F2F5',
     borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
     borderWidth: 1,
     borderColor: '#D3C5AC2A',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
+    gap: spacing.xs,
+    marginRight: spacing.sm,
+    alignSelf: 'flex-start',
   },
   completedWhen: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
 
@@ -1524,25 +1519,35 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     fontWeight: typography.bold,
   },
-  completedAccordionToggle: {
+  accordionContainer: {
     position: 'absolute',
-    bottom: 95,
+    bottom: 96, // Sits directly on top of the floating tab bar (76 height + 20 bottom)
     left: 0,
     right: 0,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
     zIndex: 100,
-    height: 64,
+  },
+  accordionContainerExpanded: {
+    // Container will expand to fit the fixed-height horizontal list
+  },
+  completedAccordionToggle: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    borderTopWidth: 1.5,
-    borderTopColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 20,
+  },
+  accordionContentHorizontal: {
+    paddingBottom: spacing.md,
+    paddingTop: spacing.xs,
   },
   accordionHeaderLeft: {
     flexDirection: 'row',
