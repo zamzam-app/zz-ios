@@ -16,9 +16,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+} from 'expo-audio';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTask, useUpdateTaskStatus, useDeleteTask, useUpdateTask } from '../../hooks/useTasks';
 import { TaskStatus, Task } from '../../api/endpoints/tasks';
@@ -45,6 +54,9 @@ const PRIORITY_COLORS: Record<string, string> = {
   LOW: colors.priorityLow,
 };
 const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
+
+const AUDIO_FILE_WAIT_RETRIES = 25;
+const AUDIO_FILE_WAIT_DELAY_MS = 120;
 
 function isReleasedAudioPlayerError(error: unknown) {
   return (
@@ -97,6 +109,12 @@ function SubmissionBlock({
   text,
   attachments,
   onOpenAttachment,
+  onRemoveAttachment,
+  audioAttachmentMeta = [],
+  audioPlayerStatus,
+  activeAudioAttachmentId,
+  audioDurationById = {},
+  onAudioPress,
 }: {
   title: string;
   text?: string;
@@ -107,6 +125,12 @@ function SubmissionBlock({
     files?: string[];
   };
   onOpenAttachment: (url: string) => void;
+  onRemoveAttachment?: (type: 'images' | 'videos' | 'audios' | 'files', index: number) => void;
+  audioAttachmentMeta?: { id: string; url: string }[];
+  audioPlayerStatus?: any;
+  activeAudioAttachmentId?: string | null;
+  audioDurationById?: Record<string, number>;
+  onAudioPress?: (id: string, url: string) => void;
 }) {
   const imageItems = attachments?.images ?? [];
   const videoItems = attachments?.videos ?? [];
@@ -160,20 +184,70 @@ function SubmissionBlock({
         </TouchableOpacity>
       ))}
 
-      {audioItems.map((url, index) => (
-        <TouchableOpacity
-          key={`${title}-audio-${url}-${index}`}
-          style={styles.attachmentRow}
-          onPress={() => onOpenAttachment(url)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.attachmentRowLeft}>
-            <Ionicons name="mic-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
-          </View>
-          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
-        </TouchableOpacity>
-      ))}
+      {audioItems.length > 0 && (
+        <View style={styles.attachmentGroup}>
+          {audioItems.map((url, index) => {
+            const meta = audioAttachmentMeta.find((m) => m.url === url);
+            const audioId = meta?.id ?? `audio-${index}-${url}`;
+            const isActiveAudio = activeAudioAttachmentId === audioId;
+            const knownDurationMs = audioDurationById[audioId] ?? 0;
+            const liveDurationMs = isActiveAudio && audioPlayerStatus
+              ? Math.max(Math.floor(audioPlayerStatus.duration * 1000), knownDurationMs)
+              : knownDurationMs;
+            const currentMillis = isActiveAudio && audioPlayerStatus
+              ? Math.max(0, Math.floor(audioPlayerStatus.currentTime * 1000))
+              : 0;
+            const remainingMillis = Math.max(liveDurationMs - currentMillis, 0);
+            const progress = liveDurationMs > 0 ? Math.min(currentMillis / liveDurationMs, 1) : 0;
+            const activeBarCount = Math.round(progress * WAVEFORM_BARS.length);
+            const durationLabel = liveDurationMs > 0 ? formatDuration(remainingMillis) : '--:--';
+
+            return (
+              <View
+                key={`${title}-audio-${url}-${index}`}
+                style={styles.audioAttachmentCard}
+              >
+                <View style={styles.audioPreviewRow}>
+                  <View style={styles.waveformRow}>
+                    {WAVEFORM_BARS.map((barHeight, barIndex) => (
+                      <View
+                        key={`${title}-audio-wave-${url}-${barIndex}`}
+                        style={[
+                          styles.waveformBar,
+                          {
+                            height: barHeight,
+                            backgroundColor: barIndex < activeBarCount ? colors.primary : colors.border,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.audioDurationText}>{durationLabel}</Text>
+                  <TouchableOpacity
+                    style={styles.audioPlayBtn}
+                    onPress={() => onAudioPress?.(audioId, url)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={isActiveAudio && audioPlayerStatus?.playing ? 'pause' : 'play'}
+                      size={16}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+                  {onRemoveAttachment && (
+                    <TouchableOpacity
+                      style={styles.removeAudioBtn}
+                      onPress={() => onRemoveAttachment('audios', index)}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={colors.error} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       {fileItems.map((url, index) => (
         <TouchableOpacity
@@ -202,11 +276,17 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
   const previewPlayer = useAudioPlayer(null, { updateInterval: 150 });
   const previewPlayerStatus = useAudioPlayerStatus(previewPlayer);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 250);
+  const isRecordingAudio = recorderState.isRecording;
+  const recordingMillis = recorderState.durationMillis;
+
   const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
   const [pendingPlayAudioId, setPendingPlayAudioId] = useState<string | null>(null);
   const [probingAudioAttachmentId, setProbingAudioAttachmentId] = useState<string | null>(null);
   const [audioDurationById, setAudioDurationById] = useState<Record<string, number>>({});
   const [managerText, setManagerText] = useState('');
+  const [recordingBusy, setRecordingBusy] = useState(false);
   const [managerAttachments, setManagerAttachments] = useState<{
     images: string[];
     videos: string[];
@@ -319,9 +399,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     ...(task?.attachments?.videos ?? []),
     ...(adminAttachments?.videos ?? [])
   ]));
-  const audioAttachments = Array.from(new Set([
+  const savedAudioAttachments = Array.from(new Set([
     ...(task?.attachments?.audios ?? []),
     ...(adminAttachments?.audios ?? [])
+  ]));
+  const audioAttachments = Array.from(new Set([
+    ...savedAudioAttachments,
+    ...(managerAttachments.audios)
   ]));
   const fileAttachments = Array.from(new Set([
     ...(task?.attachments?.files ?? []),
@@ -332,7 +416,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const audioAttachmentIdsKey = audioAttachmentIds.join('|');
   const attachmentCount = imageAttachments.length
     + videoAttachments.length
-    + audioAttachments.length
+    + savedAudioAttachments.length
     + fileAttachments.length;
   const hasAttachments = attachmentCount > 0;
 
@@ -421,10 +505,127 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     await uploadLocalFile('files', result.assets[0].uri);
   };
 
-  const pickVoice = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', multiple: false });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    await uploadLocalFile('audios', result.assets[0].uri);
+  const normalizeLocalFileUri = (uri: string): string => {
+    const trimmed = uri.trim();
+    if (!trimmed) return trimmed;
+    if (trimmed.startsWith('file://') || trimmed.startsWith('content://')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('file:/')) {
+      const pathOnly = trimmed.replace(/^file:\/*/, '/');
+      return `file://${pathOnly}`;
+    }
+    if (trimmed.startsWith('/')) {
+      return `file://${trimmed}`;
+    }
+    return trimmed;
+  };
+
+  const waitForRecordedAudioFile = async (uri: string): Promise<number> => {
+    for (let attempt = 0; attempt < AUDIO_FILE_WAIT_RETRIES; attempt += 1) {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists && !info.isDirectory && info.size > 0) {
+        return info.size;
+      }
+      await new Promise((resolve) => setTimeout(resolve, AUDIO_FILE_WAIT_DELAY_MS));
+    }
+
+    const finalInfo = await FileSystem.getInfoAsync(uri);
+    if (finalInfo.exists && !finalInfo.isDirectory) {
+      return finalInfo.size;
+    }
+    return 0;
+  };
+
+  const stageRecordedAudioForUpload = async (uri: string): Promise<string> => {
+    const normalizedUri = normalizeLocalFileUri(uri);
+    const recordedSize = await waitForRecordedAudioFile(normalizedUri);
+    if (recordedSize <= 0) {
+      throw new Error('Recorded audio file is unavailable.');
+    }
+
+    const cacheDir = FileSystem.cacheDirectory;
+    if (!cacheDir) return normalizedUri;
+
+    const extFromUri = normalizedUri
+      .split(/[?#]/)[0]
+      .split('.')
+      .pop()
+      ?.toLowerCase();
+    const ext = extFromUri && /^[a-z0-9]+$/.test(extFromUri) ? extFromUri : 'm4a';
+    const stagedUri = `${cacheDir}task-audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    try {
+      await FileSystem.copyAsync({ from: normalizedUri, to: stagedUri });
+      return stagedUri;
+    } catch {
+      return normalizedUri;
+    }
+  };
+
+  const startAudioRecording = async () => {
+    if (recordingBusy || isRecordingAudio) return;
+    setRecordingBusy(true);
+    runPreviewPlayerActionSafely(() => previewPlayer.pause());
+    setActiveAudioAttachmentId(null);
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission needed', 'Microphone access is required to record audio.');
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch {
+      Alert.alert('Error', 'Could not start recording. Please try again.');
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
+
+  const stopAudioRecording = async () => {
+    if (recordingBusy || !isRecordingAudio) return;
+    setRecordingBusy(true);
+    try {
+      await recorder.stop();
+      const status = recorder.getStatus();
+      const uri = status.url || recorder.uri || null;
+      if (uri) {
+        const uploadUri = await stageRecordedAudioForUpload(uri);
+        await uploadLocalFile('audios', uploadUri);
+      }
+    } catch (error) {
+      console.warn('[TaskDetail] Stop recording failed', error);
+      Alert.alert('Error', 'Could not stop recording. Please try again.');
+    } finally {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+      setRecordingBusy(false);
+    }
+  };
+
+  const discardAudioRecording = async () => {
+    if (recordingBusy || !isRecordingAudio) return;
+    setRecordingBusy(true);
+    try {
+      await recorder.stop();
+    } catch {
+      // Ignore errors during discard stop
+    } finally {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+      setRecordingBusy(false);
+    }
   };
 
   const saveManagerSubmission = () => {
@@ -707,60 +908,17 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 </View>
               )}
 
-              {audioAttachments.length > 0 && (
-                <View style={styles.attachmentGroup}>
-                  <Text style={styles.attachmentGroupTitle}>Audio</Text>
-                  {audioAttachmentMeta.map(({ id: audioId, url }, index) => {
-                    const isActiveAudio = activeAudioAttachmentId === audioId;
-                    const knownDurationMs = audioDurationById[audioId] ?? 0;
-                    const liveDurationMs = isActiveAudio
-                      ? Math.max(Math.floor(previewPlayerStatus.duration * 1000), knownDurationMs)
-                      : knownDurationMs;
-                    const currentMillis = isActiveAudio
-                      ? Math.max(0, Math.floor(previewPlayerStatus.currentTime * 1000))
-                      : 0;
-                    const remainingMillis = Math.max(liveDurationMs - currentMillis, 0);
-                    const progress = liveDurationMs > 0 ? Math.min(currentMillis / liveDurationMs, 1) : 0;
-                    const activeBarCount = Math.round(progress * WAVEFORM_BARS.length);
-                    const durationLabel = liveDurationMs > 0 ? formatDuration(remainingMillis) : '--:--';
-
-                    return (
-                      <View
-                        key={`audio-${url}-${index}`}
-                        style={styles.audioAttachmentCard}
-                      >
-                        <View style={styles.audioPreviewRow}>
-                          <View style={styles.waveformRow}>
-                            {WAVEFORM_BARS.map((barHeight, barIndex) => (
-                              <View
-                                key={`audio-wave-${url}-${barIndex}`}
-                                style={[
-                                  styles.waveformBar,
-                                  {
-                                    height: barHeight,
-                                    backgroundColor: barIndex < activeBarCount ? colors.primary : colors.border,
-                                  },
-                                ]}
-                              />
-                            ))}
-                          </View>
-                          <Text style={styles.audioDurationText}>{durationLabel}</Text>
-                          <TouchableOpacity
-                            style={styles.audioPlayBtn}
-                            onPress={() => handleAudioAttachmentPress(audioId, url)}
-                            activeOpacity={0.8}
-                          >
-                            <Ionicons
-                              name={isActiveAudio && previewPlayerStatus.playing ? 'pause' : 'play'}
-                              size={16}
-                              color={colors.primary}
-                            />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
+              {savedAudioAttachments.length > 0 && (
+                <SubmissionBlock
+                  title="Audio"
+                  onOpenAttachment={openAttachment}
+                  attachments={{ audios: savedAudioAttachments }}
+                  audioAttachmentMeta={audioAttachmentMeta}
+                  audioPlayerStatus={previewPlayerStatus}
+                  activeAudioAttachmentId={activeAudioAttachmentId}
+                  audioDurationById={audioDurationById}
+                  onAudioPress={handleAudioAttachmentPress}
+                />
               )}
 
               {fileAttachments.length > 0 && (
@@ -808,28 +966,45 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 textAlignVertical="top"
               />
 
-              <View style={styles.managerActionsRow}>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void takePhoto(); }} disabled={uploadingType !== null}>
-                  <Ionicons name="camera-outline" size={15} color={colors.primaryDark} />
-                  <Text style={styles.managerActionBtnText}>Camera</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null}>
-                  <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
-                  <Text style={styles.managerActionBtnText}>Image</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVideo(); }} disabled={uploadingType !== null}>
-                  <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
-                  <Text style={styles.managerActionBtnText}>Video</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickFile(); }} disabled={uploadingType !== null}>
-                  <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
-                  <Text style={styles.managerActionBtnText}>File</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVoice(); }} disabled={uploadingType !== null}>
-                  <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
-                  <Text style={styles.managerActionBtnText}>Voice</Text>
-                </TouchableOpacity>
-              </View>
+              {isRecordingAudio ? (
+                <View style={styles.recordingRow}>
+                  <View style={styles.recordingTimerWrap}>
+                    <View style={styles.recordingDot} />
+                    <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
+                  </View>
+                  <View style={styles.recordingActions}>
+                    <TouchableOpacity style={styles.recordingActionBtn} onPress={() => { void discardAudioRecording(); }}>
+                      <Ionicons name="trash-outline" size={18} color={colors.error} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.recordingActionBtn, styles.stopRecordingBtn]} onPress={() => { void stopAudioRecording(); }}>
+                      <Ionicons name="stop" size={18} color={colors.textInverse} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.managerActionsRow}>
+                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void takePhoto(); }} disabled={uploadingType !== null || recordingBusy}>
+                    <Ionicons name="camera-outline" size={15} color={colors.primaryDark} />
+                    <Text style={styles.managerActionBtnText}>Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null || recordingBusy}>
+                    <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
+                    <Text style={styles.managerActionBtnText}>Image</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVideo(); }} disabled={uploadingType !== null || recordingBusy}>
+                    <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
+                    <Text style={styles.managerActionBtnText}>Video</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickFile(); }} disabled={uploadingType !== null || recordingBusy}>
+                    <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
+                    <Text style={styles.managerActionBtnText}>File</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void startAudioRecording(); }} disabled={uploadingType !== null || recordingBusy}>
+                    <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
+                    <Text style={styles.managerActionBtnText}>Voice</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {uploadingType && (
                 <View style={styles.uploadingRow}>
@@ -847,6 +1022,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     text={undefined}
                     attachments={managerAttachments}
                     onOpenAttachment={(url) => { void openAttachment(url); }}
+                    onRemoveAttachment={removeAttachmentUrl}
+                    audioAttachmentMeta={audioAttachmentMeta}
+                    audioPlayerStatus={previewPlayerStatus}
+                    activeAudioAttachmentId={activeAudioAttachmentId}
+                    audioDurationById={audioDurationById}
+                    onAudioPress={handleAudioAttachmentPress}
                   />
                 )}
 
@@ -869,15 +1050,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     onLongPress={() => removeAttachmentUrl('videos', index)}
                   >
                     <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
-                  </TouchableOpacity>
-                ))}
-                {managerAttachments.audios.map((url, index) => (
-                  <TouchableOpacity
-                    key={`manager-audio-${url}-${index}`}
-                    style={styles.attachmentTag}
-                    onLongPress={() => removeAttachmentUrl('audios', index)}
-                  >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
                   </TouchableOpacity>
                 ))}
                 {managerAttachments.files.map((url, index) => (
@@ -922,6 +1094,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 text={managerText}
                 attachments={managerAttachments}
                 onOpenAttachment={(url) => { void openAttachment(url); }}
+                audioAttachmentMeta={audioAttachmentMeta}
+                audioPlayerStatus={previewPlayerStatus}
+                activeAudioAttachmentId={activeAudioAttachmentId}
+                audioDurationById={audioDurationById}
+                onAudioPress={handleAudioAttachmentPress}
               />
             </>
           ) : null
@@ -1338,6 +1515,9 @@ const styles = StyleSheet.create({
     minWidth: 76,
     textAlign: 'right',
   },
+  removeAudioBtn: {
+    padding: 4,
+  },
   managerCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -1422,5 +1602,52 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     color: colors.textInverse,
     fontWeight: typography.semibold,
+  },
+  recordingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.error + '40',
+  },
+  recordingTimerWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: radius.full,
+    backgroundColor: colors.error,
+  },
+  recordingTimerText: {
+    fontSize: typography.md,
+    color: colors.error,
+    fontWeight: typography.bold,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  recordingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  recordingActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  stopRecordingBtn: {
+    backgroundColor: colors.error,
+    borderColor: colors.error,
   },
 });
