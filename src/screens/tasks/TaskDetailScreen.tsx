@@ -296,6 +296,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  useEffect(() => {
+    setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+    }).catch((err) => console.warn('[TaskDetail] Failed to set audio mode on mount', err));
+  }, []);
+
   const runPreviewPlayerActionSafely = useCallback((action: () => unknown): boolean => {
     try {
       const result = action();
