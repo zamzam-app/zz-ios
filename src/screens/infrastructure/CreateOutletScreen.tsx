@@ -164,9 +164,9 @@ export function CreateOutletContent({
           payload: {
             name: name.trim(),
             description: description.trim(),
-            address: address.trim() || undefined,
+            address: address.trim(),
             outletType: outletTypeId,
-            ...(formId ? { formId } : {}),
+            formId: formId || null,
             managerIds,
           },
         },
