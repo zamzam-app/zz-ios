@@ -33,7 +33,7 @@ const PERIODS: { label: string; value: Period }[] = [
 ];
 const FEEDBACK_VISIBLE_ROWS = 4;
 const FEEDBACK_ROW_HEIGHT = 46;
-const FEEDBACK_HEADER_HEIGHT = 40;
+const FEEDBACK_HEADER_HEIGHT = 54;
 
 type OverviewTopTab = 'reviews' | 'tasks';
 type OverviewNav = BottomTabNavigationProp<AppTabParamList, 'Overview'>;
@@ -260,7 +260,7 @@ function TrendlineChart({
   );
 }
 
-function FeedbackCard({ title, accent, items }: { title: string; accent: string; items: { name: string; value: number }[] }) {
+function FeedbackCard({ title, subtext, accent, items }: { title: string; subtext: string; accent: string; items: { name: string; value: number }[] }) {
   const headerBg = accent === colors.warning
     ? '#E6D7BC'
     : accent === colors.success
@@ -277,6 +277,7 @@ function FeedbackCard({ title, accent, items }: { title: string; accent: string;
       >
         <View style={[styles.feedbackStickyHeader, { backgroundColor: headerBg }]}>
           <Text style={[styles.feedbackTitle, { color: accent }]}>{title}</Text>
+          <Text style={styles.feedbackSubtext}>{subtext}</Text>
         </View>
         {items.map((item, i) => (
           <View key={i} style={styles.feedbackRow}>
@@ -476,16 +477,19 @@ export default function OverviewScreen() {
             <Text style={styles.sectionTitle}>Outlet Feedback</Text>
             <FeedbackCard
               title="Total Negative"
+              subtext="Complaints and critical issues"
               accent={colors.error}
               items={negativeSorted.map((i) => ({ name: i.outletName, value: i.negativeFeedbacks }))}
             />
             <FeedbackCard
               title="Total Active"
+              subtext="All responses and ratings"
               accent={colors.warning}
               items={totalSorted.map((i) => ({ name: i.outletName, value: i.totalFeedbacks }))}
             />
             <FeedbackCard
               title="Total Positive"
+              subtext="Resolved issues and positive ratings"
               accent={colors.success}
               items={resolvedSorted.map((i) => ({ name: i.outletName, value: i.resolvedFeedbacks }))}
             />
@@ -701,6 +705,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   feedbackTitle: { fontSize: typography.sm, fontWeight: typography.semibold },
+  feedbackSubtext: { fontSize: 10, marginTop: 2, color: colors.text, opacity: 0.8 },
   feedbackRow: {
     minHeight: FEEDBACK_ROW_HEIGHT,
     flexDirection: 'row',
