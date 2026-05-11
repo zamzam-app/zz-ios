@@ -52,7 +52,7 @@ function FallbackOutletImage({ name }: { name: string }) {
 function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete }: OutletCardProps) {
   const imageUri = outlet.images?.[0];
   const managerLabel = outlet.managerNames && outlet.managerNames.length > 0
-    ? `Manager: ${outlet.managerNames[0]}`
+    ? `${outlet.managerNames.length > 1 ? 'Managers' : 'Manager'}: ${outlet.managerNames.join(', ')}`
     : 'Manager unavailable';
 
   return (
