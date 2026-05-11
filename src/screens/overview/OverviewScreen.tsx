@@ -24,7 +24,7 @@ import { Period } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { AppTabParamList } from '../../navigation/AppNavigator';
 import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
-import { ReviewMetricFilter } from '../../constants/reviewFilters';
+import { ReviewMetricFilter, ReviewTypeFilter } from '../../constants/reviewFilters';
 
 const PERIODS: { label: string; value: Period }[] = [
   { label: 'Daily', value: 'daily' },
@@ -150,16 +150,27 @@ function TopSummaryPanel({
   );
 }
 
-function InsightRow({ insights }: { insights: { title: string; value: string; accent: string }[] }) {
+function InsightRow({ insights }: { insights: { title: string; value: string; accent: string; onPress?: () => void }[] }) {
   if (!insights.length) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.insightScroll}>
-      {insights.map((item, i) => (
-        <View key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}> 
-          <Text style={styles.insightTitle}>{item.title}</Text>
-          <Text style={[styles.insightValue, { color: item.accent }]}>{item.value}</Text>
-        </View>
-      ))}
+      {insights.map((item, i) => {
+        const Content = (
+          <>
+            <Text style={styles.insightTitle}>{item.title}</Text>
+            <Text style={[styles.insightValue, { color: item.accent }]}>{item.value}</Text>
+          </>
+        );
+        return item.onPress ? (
+          <TouchableOpacity key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]} onPress={item.onPress} activeOpacity={0.8}>
+            {Content}
+          </TouchableOpacity>
+        ) : (
+          <View key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}> 
+            {Content}
+          </View>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -317,6 +328,7 @@ export default function OverviewScreen() {
       title: 'Critical Focus',
       value: `${insights.data.criticalFocusArea.outletName} · ${insights.data.criticalFocusArea.criticalIssues} issue${insights.data.criticalFocusArea.criticalIssues !== 1 ? 's' : ''}`,
       accent: colors.error,
+      onPress: () => navigateToReviewsWithFilter(undefined, 'critical', 'overview_reviews_metric'),
     },
     insights.data?.mostImprovedOutlet && {
       title: 'Most Improved',
@@ -328,7 +340,7 @@ export default function OverviewScreen() {
       value: insights.data.peakIncidentTime.label,
       accent: colors.warning,
     },
-  ].filter(Boolean) as { title: string; value: string; accent: string }[];
+  ].filter(Boolean) as { title: string; value: string; accent: string; onPress?: () => void }[];
 
   const negativeSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.negativeFeedbacks - a.negativeFeedbacks);
   const totalSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.totalFeedbacks - a.totalFeedbacks);
@@ -353,12 +365,13 @@ export default function OverviewScreen() {
     });
   };
 
-  const navigateToReviewsWithFilter = (metric: ReviewMetricFilter, source: TaskFilterSource) => {
+  const navigateToReviewsWithFilter = (metric: ReviewMetricFilter | undefined, typeFilter: ReviewTypeFilter | undefined, source: TaskFilterSource) => {
     navigation.navigate('Reviews', {
       screen: 'ReviewsList',
       params: {
         initialReviewFilter: {
-          metric,
+          ...(metric ? { metric } : {}),
+          ...(typeFilter ? { typeFilter } : {}),
           source,
           nonce: Date.now(),
         },
@@ -372,14 +385,14 @@ export default function OverviewScreen() {
       label: 'Open',
       value: incidents.data?.totalOpenIncidents ?? '--',
       color: colors.warning,
-      onPress: () => navigateToReviewsWithFilter('open', 'overview_reviews_metric'),
+      onPress: () => navigateToReviewsWithFilter('open', undefined, 'overview_reviews_metric'),
     },
     {
       key: 'resolved',
       label: 'Resolved',
       value: incidents.data?.incidentsResolvedToday ?? '--',
       color: colors.success,
-      onPress: () => navigateToReviewsWithFilter('resolved', 'overview_reviews_metric'),
+      onPress: () => navigateToReviewsWithFilter('resolved', undefined, 'overview_reviews_metric'),
     },
   ];
 

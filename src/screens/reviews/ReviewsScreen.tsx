@@ -206,7 +206,11 @@ export default function ReviewsScreen({ route }: Props) {
     if (incomingMetric) {
       setStatusFilter(incomingMetric);
     }
-  }, [route.params?.initialReviewFilter?.metric, route.params?.initialReviewFilter?.nonce]);
+    const incomingTypeFilter = route.params?.initialReviewFilter?.typeFilter;
+    if (incomingTypeFilter) {
+      setAllReviewsFilter(incomingTypeFilter);
+    }
+  }, [route.params?.initialReviewFilter?.metric, route.params?.initialReviewFilter?.typeFilter, route.params?.initialReviewFilter?.nonce]);
 
   const {
     data: reviews,
