@@ -503,6 +503,18 @@ export default function ReviewsScreen({ route }: Props) {
               <ActivityIndicator color={colors.primary} style={styles.loading} />
             ) : heatmapRowsWithFallback.length === 0 ? (
               <Text style={styles.emptyText}>No heatmap metrics available.</Text>
+            ) : selectedOutletId === 'all' ? (
+              <ScrollView 
+                style={{ maxHeight: 304 }}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+              >
+                <View style={styles.heatmapList}>
+                  {heatmapRowsWithFallback.map((row) => (
+                    <HeatmapRow key={row.outletId} row={row} />
+                  ))}
+                </View>
+              </ScrollView>
             ) : (
               <View style={styles.heatmapList}>
                 {heatmapRowsWithFallback.map((row) => (
