@@ -263,6 +263,7 @@ export function CreateTaskContent({
   const [recordingBusy, setRecordingBusy] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<string | null>(null);
   const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
+  const [pendingPlayAudioId, setPendingPlayAudioId] = useState<string | null>(null);
 
   const { data: outlets } = useOutlets();
   const { data: managers } = useManagers();
@@ -344,6 +345,7 @@ export function CreateTaskContent({
     if (!stillExists) {
       runPreviewPlayerActionSafely(() => previewPlayer.pause());
       setActiveAudioAttachmentId(null);
+      setPendingPlayAudioId(null);
     }
   }, [attachments, activeAudioAttachmentId, previewPlayer, runPreviewPlayerActionSafely]);
 
@@ -352,6 +354,13 @@ export function CreateTaskContent({
       setActiveAudioAttachmentId(null);
     }
   }, [previewPlayerStatus.didJustFinish]);
+
+  // On iOS, replace() loads the source asynchronously. Play only once isLoaded is true.
+  useEffect(() => {
+    if (!pendingPlayAudioId || !previewPlayerStatus.isLoaded) return;
+    runPreviewPlayerActionSafely(() => previewPlayer.play());
+    setPendingPlayAudioId(null);
+  }, [pendingPlayAudioId, previewPlayerStatus.isLoaded, previewPlayer, runPreviewPlayerActionSafely]);
 
   const formatDuration = (ms: number) => {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -638,8 +647,9 @@ export function CreateTaskContent({
     if (activeAudioAttachmentId !== item.id) {
       const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(item.uri));
       if (!replaced) return;
-      const played = runPreviewPlayerActionSafely(() => previewPlayer.play());
-      if (!played) return;
+      // Don't call play() immediately — on iOS, replace() loads asynchronously.
+      // The pendingPlayAudioId effect will call play() once isLoaded becomes true.
+      setPendingPlayAudioId(item.id);
       setActiveAudioAttachmentId(item.id);
       setPreviewAttachmentId(item.id);
       return;
