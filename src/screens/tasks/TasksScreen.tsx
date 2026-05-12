@@ -70,33 +70,6 @@ function compareCreatedAtDesc(a: Task, b: Task) {
   return createdB - createdA;
 }
 
-function getOpenTaskGroup(task: Task, now: Date) {
-  if (task.priority === 'HIGH') return 0;
-  if (isSameCalendarDay(task.dueDate, now)) return 1;
-  return 2;
-}
-
-function compareOpenTaskOrder(a: Task, b: Task, now: Date) {
-  const groupA = getOpenTaskGroup(a, now);
-  const groupB = getOpenTaskGroup(b, now);
-  const groupDiff = groupA - groupB;
-  if (groupDiff !== 0) return groupDiff;
-
-  if (groupA === 1) {
-    const priorityDiff = (PRIORITY_SORT_ORDER[a.priority] ?? 99) - (PRIORITY_SORT_ORDER[b.priority] ?? 99);
-    if (priorityDiff !== 0) return priorityDiff;
-
-    const dueDiff = compareDueDateAsc(a, b);
-    if (dueDiff !== 0) return dueDiff;
-
-    return compareCreatedAtDesc(a, b);
-  }
-
-  const dueDiff = compareDueDateAsc(a, b);
-  if (dueDiff !== 0) return dueDiff;
-
-  return compareCreatedAtDesc(a, b);
-}
 
 function completedTaskSortValue(task: Task) {
   return toTimestamp(task.completedAt ?? task.updatedAt ?? task.createdAt) ?? 0;
@@ -420,8 +393,7 @@ export default function TasksScreen() {
   );
 
   const openTasks = useMemo(() => {
-    const now = new Date();
-    return [...openTasksFromApi].sort((a, b) => compareOpenTaskOrder(a, b, now));
+    return [...openTasksFromApi].sort(compareCreatedAtDesc);
   }, [openTasksFromApi]);
 
   const completedTasks = useMemo(
