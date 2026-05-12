@@ -13,7 +13,6 @@ import {
   Alert,
   Image,
   Linking,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -43,25 +42,11 @@ const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
   { label: 'Low', value: 'LOW' },
 ];
 
-const PRIORITY_SORT_ORDER: Record<TaskPriority, number> = {
-  HIGH: 0,
-  MEDIUM: 1,
-  LOW: 2,
-};
-
 function toTimestamp(iso?: string | null) {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   return date.getTime();
-}
-
-function dueDateSortValue(iso?: string | null) {
-  return toTimestamp(iso) ?? Number.MAX_SAFE_INTEGER;
-}
-
-function compareDueDateAsc(a: Task, b: Task) {
-  return dueDateSortValue(a.dueDate) - dueDateSortValue(b.dueDate);
 }
 
 function compareCreatedAtDesc(a: Task, b: Task) {
@@ -80,10 +65,6 @@ function compareCompletedTaskOrder(a: Task, b: Task) {
   if (completedDiff !== 0) return completedDiff;
 
   return compareCreatedAtDesc(a, b);
-}
-
-function isTaskCompleted(task: Task) {
-  return task.status.trim().toUpperCase() === 'COMPLETED';
 }
 
 type AttachmentType = 'images' | 'videos' | 'audios' | 'files';
@@ -130,16 +111,6 @@ function formatRelativeTime(iso?: string | null) {
 
   const days = Math.floor(hours / 24);
   return `Closed ${days}d ago`;
-}
-
-function isSameCalendarDay(iso: string, now = new Date()) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return false;
-  return (
-    date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate()
-  );
 }
 
 function OpenTaskCard({
