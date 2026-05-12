@@ -124,7 +124,7 @@ function SubmissionBlock({
     audios?: string[];
     files?: string[];
   };
-  onOpenAttachment: (url: string) => void;
+  onOpenAttachment: (url: string, type?: 'image' | 'video' | 'audio' | 'file') => void;
   onRemoveAttachment?: (type: 'images' | 'videos' | 'audios' | 'files', index: number) => void;
   audioAttachmentMeta?: { id: string; url: string }[];
   audioPlayerStatus?: any;
@@ -158,7 +158,7 @@ function SubmissionBlock({
             {imageItems.map((url, index) => (
               <TouchableOpacity
                 key={`${title}-image-${url}-${index}`}
-                onPress={() => onOpenAttachment(url)}
+                onPress={() => onOpenAttachment(url, 'image')}
                 style={styles.imageItem}
                 activeOpacity={0.85}
               >
@@ -173,7 +173,7 @@ function SubmissionBlock({
         <TouchableOpacity
           key={`${title}-video-${url}-${index}`}
           style={styles.attachmentRow}
-          onPress={() => onOpenAttachment(url)}
+          onPress={() => onOpenAttachment(url, 'video')}
           activeOpacity={0.8}
         >
           <View style={styles.attachmentRowLeft}>
@@ -253,7 +253,7 @@ function SubmissionBlock({
         <TouchableOpacity
           key={`${title}-file-${url}-${index}`}
           style={styles.attachmentRow}
-          onPress={() => onOpenAttachment(url)}
+          onPress={() => onOpenAttachment(url, 'file')}
           activeOpacity={0.8}
         >
           <View style={styles.attachmentRowLeft}>
@@ -295,6 +295,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   }>({ images: [], videos: [], audios: [], files: [] });
   const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setAudioModeAsync({
@@ -373,7 +374,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     ]);
   };
 
-  const openAttachment = async (url: string) => {
+  const openAttachment = async (url: string, type?: 'image' | 'video' | 'audio' | 'file') => {
+    if (type === 'image') {
+      setViewerImageUrl(url);
+      return;
+    }
+
     if (probingAudioAttachmentId) {
       setProbingAudioAttachmentId(null);
     }
@@ -882,7 +888,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     {imageAttachments.map((url, index) => (
                       <TouchableOpacity
                         key={`image-${url}-${index}`}
-                        onPress={() => { void openAttachment(url); }}
+                        onPress={() => { void openAttachment(url, 'image'); }}
                         style={styles.imageItem}
                         activeOpacity={0.85}
                       >
@@ -900,7 +906,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     <TouchableOpacity
                       key={`video-${url}-${index}`}
                       style={styles.attachmentRow}
-                      onPress={() => { void openAttachment(url); }}
+                      onPress={() => { void openAttachment(url, 'video'); }}
                       activeOpacity={0.8}
                     >
                       <View style={styles.attachmentRowLeft}>
@@ -935,7 +941,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     <TouchableOpacity
                       key={`file-${url}-${index}`}
                       style={styles.attachmentRow}
-                      onPress={() => { void openAttachment(url); }}
+                      onPress={() => { void openAttachment(url, 'file'); }}
                       activeOpacity={0.8}
                     >
                       <View style={styles.attachmentRowLeft}>
@@ -1028,7 +1034,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     title="Attached"
                     text={undefined}
                     attachments={managerAttachments}
-                    onOpenAttachment={(url) => { void openAttachment(url); }}
+                    onOpenAttachment={(url, type) => { void openAttachment(url, type); }}
                     onRemoveAttachment={removeAttachmentUrl}
                     audioAttachmentMeta={audioAttachmentMeta}
                     audioPlayerStatus={previewPlayerStatus}
@@ -1100,7 +1106,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 title="Submitted Details"
                 text={managerText}
                 attachments={managerAttachments}
-                onOpenAttachment={(url) => { void openAttachment(url); }}
+                onOpenAttachment={(url, type) => { void openAttachment(url, type); }}
                 audioAttachmentMeta={audioAttachmentMeta}
                 audioPlayerStatus={previewPlayerStatus}
                 activeAudioAttachmentId={activeAudioAttachmentId}
@@ -1148,6 +1154,30 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               backgroundColor={colors.surface}
             />
           </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!viewerImageUrl}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerImageUrl(null)}
+      >
+        <View style={styles.viewerRoot}>
+          <TouchableOpacity
+            style={styles.viewerCloseBtn}
+            onPress={() => setViewerImageUrl(null)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          {viewerImageUrl ? (
+            <Image
+              source={{ uri: viewerImageUrl }}
+              style={styles.viewerImage}
+              resizeMode="contain"
+            />
+          ) : null}
         </View>
       </Modal>
     </SafeAreaView>
@@ -1259,6 +1289,24 @@ const styles = StyleSheet.create({
   },
   editSheetClose: {
     padding: 4,
+  },
+
+  viewerRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewerCloseBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 20,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  viewerImage: {
+    width: '100%',
+    height: '100%',
   },
 
   summaryCard: {
