@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import DatePickerModal from '../../components/DatePickerModal';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import {
   RecordingPresets,
@@ -43,7 +44,6 @@ import { useManagers } from '../../hooks/useUsers';
 import { TaskPriority, TaskCategoryOption, CreateTaskPayload, Task } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
-import { getApiErrorMessage } from '../../utils/errors';
 import { enqueueTaskSubmission } from '../../api/endpoints/taskSubmissionQueue';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
@@ -677,6 +677,31 @@ export function CreateTaskContent({
     const label = item.type === 'video' ? 'video' : 'file';
     try {
       let previewUri = item.uri;
+      
+      // Handle PDF files specifically to open in-app
+      if (previewUri.toLowerCase().endsWith('.pdf') || (item.type === 'file' && item.name.toLowerCase().endsWith('.pdf'))) {
+        try {
+          let localUri = previewUri;
+          // If it's a remote URL, download it first
+          if (previewUri.startsWith('http')) {
+            const fileName = previewUri.split('/').pop()?.split('?')[0] || item.name || 'document.pdf';
+            localUri = `${FileSystem.cacheDirectory}${fileName}`;
+            const downloadRes = await FileSystem.downloadAsync(previewUri, localUri);
+            if (downloadRes.status !== 200) throw new Error('Download failed');
+            localUri = downloadRes.uri;
+          }
+
+          await Sharing.shareAsync(localUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Open PDF',
+            UTI: 'com.adobe.pdf',
+          });
+          return;
+        } catch (error) {
+          console.warn('[CreateTask] Failed to open PDF in-app', error);
+        }
+      }
+
       if (Platform.OS === 'android' && previewUri.startsWith('file://')) {
         try {
           previewUri = await FileSystem.getContentUriAsync(previewUri);

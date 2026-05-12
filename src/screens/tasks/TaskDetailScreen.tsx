@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as WebBrowser from 'expo-web-browser';
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -375,8 +376,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   };
 
   const openAttachment = async (url: string, type?: 'image' | 'video' | 'audio' | 'file') => {
+    const trimmedUrl = url.trim();
     if (type === 'image') {
-      setViewerImageUrl(url);
+      setViewerImageUrl(trimmedUrl);
       return;
     }
 
@@ -390,14 +392,24 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       }
       setActiveAudioAttachmentId(null);
     }
-
     try {
-      const canOpen = await Linking.canOpenURL(url);
+      const isHttpUrl = /^https?:\/\//i.test(trimmedUrl);
+      if (type === 'file' && isHttpUrl) {
+        const browserResult = await WebBrowser.openBrowserAsync(trimmedUrl, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          controlsColor: colors.primary,
+        });
+
+        if (browserResult.type !== 'cancel' && browserResult.type !== 'dismiss') {
+          return;
+        }
+      }
+      const canOpen = await Linking.canOpenURL(trimmedUrl);
       if (!canOpen) {
         Alert.alert('Attachment unavailable', 'Could not open this attachment.');
         return;
       }
-      await Linking.openURL(url);
+      await Linking.openURL(trimmedUrl);
     } catch {
       Alert.alert('Attachment unavailable', 'Could not open this attachment.');
     }

@@ -11,6 +11,8 @@ import {
   Image,
   Linking,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -161,7 +163,7 @@ function SubmissionBlock({
     audios?: string[];
     files?: string[];
   };
-  onOpenAttachment: (url: string) => void;
+  onOpenAttachment: (url: string, type?: 'image' | 'video' | 'audio' | 'file') => void;
 }) {
   const imageItems = attachments?.images ?? [];
   const videoItems = attachments?.videos ?? [];
@@ -189,7 +191,7 @@ function SubmissionBlock({
             {imageItems.map((url, index) => (
               <TouchableOpacity
                 key={`${title}-image-${url}-${index}`}
-                onPress={() => onOpenAttachment(url)}
+                onPress={() => onOpenAttachment(url, 'image')}
                 style={styles.imageItem}
                 activeOpacity={0.85}
               >
@@ -204,7 +206,7 @@ function SubmissionBlock({
         <TouchableOpacity
           key={`${title}-video-${url}-${index}`}
           style={styles.attachmentRow}
-          onPress={() => onOpenAttachment(url)}
+          onPress={() => onOpenAttachment(url, 'video')}
           activeOpacity={0.8}
         >
           <View style={styles.attachmentRowLeft}>
@@ -219,7 +221,7 @@ function SubmissionBlock({
         <TouchableOpacity
           key={`${title}-audio-${url}-${index}`}
           style={styles.attachmentRow}
-          onPress={() => onOpenAttachment(url)}
+          onPress={() => onOpenAttachment(url, 'audio')}
           activeOpacity={0.8}
         >
           <View style={styles.attachmentRowLeft}>
@@ -234,7 +236,7 @@ function SubmissionBlock({
         <TouchableOpacity
           key={`${title}-file-${url}-${index}`}
           style={styles.attachmentRow}
-          onPress={() => onOpenAttachment(url)}
+          onPress={() => onOpenAttachment(url, 'file')}
           activeOpacity={0.8}
         >
           <View style={styles.attachmentRowLeft}>
@@ -388,14 +390,38 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
     );
   };
 
-  const openAttachment = async (url: string) => {
+  const openAttachment = async (url: string, type?: 'image' | 'video' | 'audio' | 'file') => {
+    const trimmedUrl = url.trim();
+    // Handle PDF and other files specifically to open in-app
+    const isPdf = trimmedUrl.toLowerCase().split('?')[0].endsWith('.pdf');
+    if (isPdf || type === 'file') {
+      try {
+        const fileName = trimmedUrl.split('/').pop()?.split('?')[0] || `document-${Date.now()}`;
+        const localUri = `${FileSystem.cacheDirectory}${fileName}`;
+        
+        const downloadRes = await FileSystem.downloadAsync(trimmedUrl, localUri);
+        
+        if (downloadRes.status === 200) {
+          const sharingAvailable = await Sharing.isAvailableAsync();
+          if (sharingAvailable) {
+            await Sharing.shareAsync(downloadRes.uri, {
+              dialogTitle: isPdf ? 'Open PDF' : 'Open File',
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('[ReviewDetail] Failed to open file in-app', error);
+      }
+    }
+
     try {
-      const canOpen = await Linking.canOpenURL(url);
+      const canOpen = await Linking.canOpenURL(trimmedUrl);
       if (!canOpen) {
         Alert.alert('Attachment unavailable', 'Could not open this attachment.');
         return;
       }
-      await Linking.openURL(url);
+      await Linking.openURL(trimmedUrl);
     } catch {
       Alert.alert('Attachment unavailable', 'Could not open this attachment.');
     }

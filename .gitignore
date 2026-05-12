@@ -41,6 +41,6 @@ yarn-error.*
 /ios
 /android
 
-.codex
+/.codex
 .codex.explanation.md
 .agents

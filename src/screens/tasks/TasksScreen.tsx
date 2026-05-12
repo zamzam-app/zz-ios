@@ -19,6 +19,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteTasks } from '../../hooks/useTasks';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import DatePickerModal from '../../components/DatePickerModal';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
@@ -406,14 +408,38 @@ export default function TasksScreen() {
     setAttachmentModal({ task, type });
   };
 
-  const openExternalAttachment = async (url: string) => {
+  const openExternalAttachment = async (url: string, type?: AttachmentType) => {
+    const trimmedUrl = url.trim();
+    // Handle PDF and other files specifically to open in-app
+    const isPdf = trimmedUrl.toLowerCase().split('?')[0].endsWith('.pdf');
+    if (isPdf || type === 'files') {
+      try {
+        const fileName = trimmedUrl.split('/').pop()?.split('?')[0] || `document-${Date.now()}`;
+        const localUri = `${FileSystem.cacheDirectory}${fileName}`;
+        
+        const downloadRes = await FileSystem.downloadAsync(trimmedUrl, localUri);
+        
+        if (downloadRes.status === 200) {
+          const sharingAvailable = await Sharing.isAvailableAsync();
+          if (sharingAvailable) {
+            await Sharing.shareAsync(downloadRes.uri, {
+              dialogTitle: isPdf ? 'Open PDF' : 'Open File',
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('[Tasks] Failed to open file in-app', error);
+      }
+    }
+
     try {
-      const canOpen = await Linking.canOpenURL(url);
+      const canOpen = await Linking.canOpenURL(trimmedUrl);
       if (!canOpen) {
         Alert.alert('Attachment unavailable', 'Could not open this attachment.');
         return;
       }
-      await Linking.openURL(url);
+      await Linking.openURL(trimmedUrl);
     } catch {
       Alert.alert('Attachment unavailable', 'Could not open this attachment.');
     }
@@ -806,7 +832,7 @@ export default function TasksScreen() {
                 ? attachmentModalUrls.map((url, index) => (
                   <TouchableOpacity
                     key={`${url}-${index}`}
-                    onPress={() => { void openExternalAttachment(url); }}
+                    onPress={() => { void openExternalAttachment(url, attachmentModal?.type); }}
                     activeOpacity={0.84}
                     style={styles.attachImageItem}
                   >
@@ -817,7 +843,7 @@ export default function TasksScreen() {
                   <TouchableOpacity
                     key={`${url}-${index}`}
                     style={styles.attachRow}
-                    onPress={() => { void openExternalAttachment(url); }}
+                    onPress={() => { void openExternalAttachment(url, attachmentModal?.type); }}
                     activeOpacity={0.8}
                   >
                     <View style={styles.attachRowLeft}>
