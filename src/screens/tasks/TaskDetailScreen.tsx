@@ -66,11 +66,21 @@ function isReleasedAudioPlayerError(error: unknown) {
   );
 }
 
-function formatDate(iso?: string | null) {
+function formatDate(iso?: string | null, dueTime?: string | null) {
   if (!iso) return 'Not set';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'Not set';
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  let timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
+    const [hours, minutes] = dueTime.split(':');
+    const h = parseInt(hours, 10);
+    const m = parseInt(minutes, 10);
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${suffix}`;
+  }
+  return `${dateStr} ${timeStr}`;
 }
 
 function formatDuration(ms: number) {
@@ -874,7 +884,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          <Row label="Due Date" value={formatDate(task.dueDate)} />
+          <Row label="Due Date" value={formatDate(task.dueDate, task.dueTime)} />
           {assigneeNames.length > 0 && (
             <Row label="Assigned To" value={assigneeNames.join(', ')} />
           )}

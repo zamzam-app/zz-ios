@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getTaskQueueStatus, retryFailedJobs, clearFailedJobs } from '../api/endpoints/taskSubmissionQueue';
+import { getTaskQueueStatus, retryFailedJobs, clearFailedJobs, clearAllPendingJobs } from '../api/endpoints/taskSubmissionQueue';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export default function TaskQueueStatusBanner() {
@@ -21,9 +21,14 @@ export default function TaskQueueStatusBanner() {
       {status.pendingCount > 0 && (
         <View style={[styles.banner, styles.pendingBanner]}>
           <ActivityIndicator size="small" color={colors.primary} style={styles.icon} />
-          <Text style={styles.text}>
-            {status.syncing ? 'Processing' : 'Waiting for connection'}: {status.pendingCount} task{status.pendingCount > 1 ? 's' : ''} remaining...
-          </Text>
+          <View style={styles.pendingTextWrap}>
+            <Text style={styles.text}>
+              {status.syncing ? 'Processing' : 'Waiting for connection'}: {status.pendingCount} task{status.pendingCount > 1 ? 's' : ''} remaining...
+            </Text>
+            <TouchableOpacity onPress={clearAllPendingJobs} style={styles.actionBtn}>
+              <Text style={styles.actionText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -78,7 +83,12 @@ const styles = StyleSheet.create({
   text: {
     fontSize: typography.sm,
     color: colors.text,
+  },
+  pendingTextWrap: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   failedTextWrap: {
     flex: 1,

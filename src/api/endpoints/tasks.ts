@@ -38,6 +38,7 @@ export interface Task {
   category?: string;
   taskCategory?: { _id: string; name: string; description?: string };
   dueDate: string;
+  dueTime?: string;
   outletId?: string;
   outletName?: string;
   outlet?: { _id: string; name?: string } | null;
@@ -89,6 +90,7 @@ export interface CreateTaskPayload {
   taskCategoryId: string;
   priority: TaskPriority;
   dueDate: string;
+  dueTime: string;
   outletId?: string;
   assigneeIds?: string[];
   status?: TaskStatus;
@@ -111,6 +113,7 @@ export interface UpdateTaskPayload {
   taskCategoryId?: string;
   priority?: TaskPriority;
   dueDate?: string;
+  dueTime?: string;
   outletId?: string;
   assigneeIds?: string[];
   status?: TaskStatus;
@@ -148,6 +151,7 @@ interface RawTask {
   priority?: string;
   status?: string;
   dueDate?: string;
+  dueTime?: string;
   outletId?: string | { _id?: string; name?: string };
   outlet?: { _id?: string; name?: string };
   outletName?: string;
@@ -289,6 +293,7 @@ function mapTask(raw: RawTask): Task {
     category: raw.category ?? taskCategory?.name,
     taskCategory,
     dueDate: raw.dueDate ?? new Date().toISOString(),
+    dueTime: raw.dueTime,
     outletId,
     outletName,
     outlet: raw.outlet?._id ? { _id: String(raw.outlet._id), name: raw.outlet.name } : null,

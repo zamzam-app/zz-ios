@@ -147,7 +147,14 @@ async function processQueue() {
     console.error('[TaskSubmissionQueue] Job failed', error);
     nextJob.status = 'failed';
     nextJob.error = error instanceof Error ? error.message : String(error);
-    nextJob.attempts += 1;
+    
+    const isClientError = (error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500;
+    if (isClientError) {
+      nextJob.attempts = MAX_ATTEMPTS;
+    } else {
+      nextJob.attempts += 1;
+    }
+    
     nextJob.updatedAt = new Date().toISOString();
     await persistQueue();
   } finally {
@@ -207,6 +214,12 @@ export async function retryFailedJobs() {
 export async function clearFailedJobs() {
   await ensureLoaded();
   taskJobs = taskJobs.filter(j => j.status !== 'failed');
+  await persistQueue();
+}
+
+export async function clearAllPendingJobs() {
+  await ensureLoaded();
+  taskJobs = taskJobs.filter(j => j.status === 'failed' && j.attempts >= MAX_ATTEMPTS);
   await persistQueue();
 }
 

@@ -91,12 +91,21 @@ function getTaskAttachmentUrls(task: Task, type: AttachmentType) {
   return task.attachments?.files ?? [];
 }
 
-function formatDate(iso: string) {
+function formatDate(iso?: string | null, dueTime?: string | null) {
+  if (!iso) return 'No due date';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'No due date';
-  return date.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  });
+  const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  let timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
+    const [hours, minutes] = dueTime.split(':');
+    const h = parseInt(hours, 10);
+    const m = parseInt(minutes, 10);
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${suffix}`;
+  }
+  return `${dateStr} ${timeStr}`;
 }
 
 function formatRelativeTime(iso?: string | null) {
@@ -148,6 +157,10 @@ function OpenTaskCard({
         <Text style={styles.openMetaLine} numberOfLines={1}>
           <Text style={styles.openMetaLabel}>Assigned to: </Text>
           <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
+        </Text>
+        <Text style={styles.openMetaLine} numberOfLines={1}>
+          <Text style={styles.openMetaLabel}>Due: </Text>
+          <Text style={styles.openMetaStrong}>{formatDate(task.dueDate, task.dueTime)}</Text>
         </Text>
 
         <View style={styles.openCardDivider} />
@@ -210,6 +223,10 @@ function CompletedTaskCard({
       <Text style={styles.openMetaLine} numberOfLines={1}>
         <Text style={styles.openMetaLabel}>Assigned to: </Text>
         <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
+      </Text>
+      <Text style={styles.openMetaLine} numberOfLines={1}>
+        <Text style={styles.openMetaLabel}>Due: </Text>
+        <Text style={styles.openMetaStrong}>{formatDate(task.dueDate, task.dueTime)}</Text>
       </Text>
 
       <View style={styles.openCardDivider} />
