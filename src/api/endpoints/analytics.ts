@@ -32,6 +32,7 @@ export interface GlobalCsatResponse {
   averageOverallRating: number;
   totalRatings: number;
   totalScore: number;
+  breakdown?: { questionId: string; title: string; score: number; totalRatings: number }[];
   period?: Period;
   startDate?: string;
   endDate?: string;
