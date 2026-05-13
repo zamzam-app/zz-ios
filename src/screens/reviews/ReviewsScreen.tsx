@@ -275,7 +275,7 @@ export default function ReviewsScreen({ route }: Props) {
     });
 
     if (statusFilter === 'open') {
-      return outletFiltered.filter((review) => review.isComplaint && review.complaintStatus === 'pending');
+      return outletFiltered.filter((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus));
     }
 
     if (statusFilter === 'resolved') {
@@ -286,11 +286,11 @@ export default function ReviewsScreen({ route }: Props) {
   }, [reviews, selectedOutletId, statusFilter]);
 
   const pendingCount = useMemo(
-    () => filteredReviews.filter((review) => review.isComplaint && review.complaintStatus === 'pending').length,
+    () => filteredReviews.filter((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus)).length,
     [filteredReviews],
   );
   const hasUnresolvedComplaint = useMemo(
-    () => filteredReviews.some((review) => review.isComplaint && review.complaintStatus === 'pending'),
+    () => filteredReviews.some((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus)),
     [filteredReviews],
   );
 
@@ -298,7 +298,7 @@ export default function ReviewsScreen({ route }: Props) {
     if (!filteredReviews || filteredReviews.length === 0) return [];
 
     const filtered = filteredReviews.filter(
-      (review) => review.isComplaint && review.complaintStatus === 'pending',
+      (review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus),
     );
 
     const sorted = [...filtered].sort((a, b) => {
@@ -333,7 +333,7 @@ export default function ReviewsScreen({ route }: Props) {
 
       // Status filter
       if (allReviewsFilter === 'all') return true;
-      if (allReviewsFilter === 'open') return review.isComplaint && review.complaintStatus === 'pending';
+      if (allReviewsFilter === 'open') return review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus);
       if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
       if (allReviewsFilter === 'critical') return review.overallRating < 2.0 && review.complaintStatus !== 'resolved';
       if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;

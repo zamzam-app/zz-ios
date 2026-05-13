@@ -30,6 +30,7 @@ const PERIODS: { label: string; value: Period }[] = [
   { label: 'Daily', value: 'daily' },
   { label: 'Weekly', value: 'weekly' },
   { label: 'Monthly', value: 'monthly' },
+  { label: 'All Time', value: 'all-time' },
 ];
 const FEEDBACK_VISIBLE_ROWS = 4;
 const FEEDBACK_ROW_HEIGHT = 46;
@@ -418,7 +419,9 @@ export default function OverviewScreen() {
     ? 'Due today'
     : period === 'weekly'
       ? 'Due this week'
-      : 'Due this month';
+      : period === 'monthly'
+        ? 'Due this month'
+        : 'Due all time';
   const mainTitle = topTab === 'reviews' ? 'Overall CSAT Score' : taskDueTitle;
   const mainValue = topTab === 'reviews'
     ? (typeof csatScore === 'number' ? `${csatScore.toFixed(1)}/5` : '--')

@@ -1,6 +1,6 @@
 import client from '../client';
 
-export type Period = 'daily' | 'weekly' | 'monthly';
+export type Period = 'daily' | 'weekly' | 'monthly' | 'all-time';
 
 export interface QuickInsightsResponse {
   peakIncidentTime: {
