@@ -431,9 +431,6 @@ export default function ReviewsScreen({ route }: Props) {
           </View>
 
           <View style={styles.sectionBlock}>
-            <View style={styles.filterRow}>
-              <Text style={styles.sectionEyebrow}>Outlet Filter</Text>
-            </View>
             <View style={{ marginHorizontal: spacing.md }}>
               <TouchableOpacity
                 style={styles.outletSelectBtn}
