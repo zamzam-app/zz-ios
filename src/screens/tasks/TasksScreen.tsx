@@ -1009,7 +1009,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.sm,
   },
   searchWrap: {
     flex: 1,
@@ -1486,7 +1486,8 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
+    marginTop: 4,
+    marginBottom: spacing.xs,
     backgroundColor: '#E6E8EA',
     borderRadius: radius.md,
     padding: 2,
