@@ -710,6 +710,22 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   }, [previewPlayer, runPreviewPlayerActionSafely]);
 
   useEffect(() => {
+    return () => {
+      if (recorder.getStatus().isRecording) {
+        recorder.stop().catch((err) => {
+          console.warn('[TaskDetail] Cleanup: Failed to stop recorder', err);
+        });
+      }
+      setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch((err) => {
+        console.warn('[TaskDetail] Cleanup: Failed to reset audio mode', err);
+      });
+    };
+  }, [recorder]);
+
+  useEffect(() => {
     const durationTargetAudioId = activeAudioAttachmentId ?? probingAudioAttachmentId;
     if (!durationTargetAudioId) return;
     const durationMillis = Math.max(0, Math.floor(previewPlayerStatus.duration * 1000));
