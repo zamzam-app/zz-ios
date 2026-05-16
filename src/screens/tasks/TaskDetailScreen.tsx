@@ -203,6 +203,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const previewPlayer = useAudioPlayer(null, { updateInterval: 150 });
   const previewPlayerStatus = useAudioPlayerStatus(previewPlayer);
   const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
+  const [pendingPlayAudioId, setPendingPlayAudioId] = useState<string | null>(null);
   const [probingAudioAttachmentId, setProbingAudioAttachmentId] = useState<string | null>(null);
   const [audioDurationById, setAudioDurationById] = useState<Record<string, number>>({});
   const [managerText, setManagerText] = useState('');
@@ -510,6 +511,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     if (!audioAttachmentIds.includes(activeAudioAttachmentId)) {
       runPreviewPlayerActionSafely(() => previewPlayer.pause());
       setActiveAudioAttachmentId(null);
+      setPendingPlayAudioId(null);
     }
   }, [activeAudioAttachmentId, audioAttachmentIdsKey, previewPlayer, runPreviewPlayerActionSafely]);
 
@@ -520,6 +522,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
   }, [probingAudioAttachmentId, audioAttachmentIdsKey]);
 
+  // On iOS, replace() loads the source asynchronously. Play only once isLoaded is true.
+  useEffect(() => {
+    if (!pendingPlayAudioId || !previewPlayerStatus.isLoaded) return;
+    runPreviewPlayerActionSafely(() => previewPlayer.play());
+    setPendingPlayAudioId(null);
+  }, [pendingPlayAudioId, previewPlayerStatus.isLoaded, previewPlayer, runPreviewPlayerActionSafely]);
+
   const handleAudioAttachmentPress = (audioId: string, url: string) => {
     if (probingAudioAttachmentId) {
       setProbingAudioAttachmentId(null);
@@ -528,8 +537,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     if (activeAudioAttachmentId !== audioId) {
       const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(url));
       if (!replaced) return;
-      const played = runPreviewPlayerActionSafely(() => previewPlayer.play());
-      if (!played) return;
+      // Don't call play() immediately — on iOS, replace() loads asynchronously.
+      // The pendingPlayAudioId effect will call play() once isLoaded becomes true.
+      setPendingPlayAudioId(audioId);
       setActiveAudioAttachmentId(audioId);
       return;
     }
