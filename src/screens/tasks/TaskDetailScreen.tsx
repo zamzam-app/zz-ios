@@ -617,7 +617,14 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
       await recorder.prepareToRecordAsync();
       recorder.record();
-    } catch {
+    } catch (error) {
+      console.warn('[TaskDetail] Start recording failed', error);
+      // Reset audio mode if it fails after setAudioModeAsync
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+
       Alert.alert('Error', 'Could not start recording. Please try again.');
     } finally {
       setRecordingBusy(false);
