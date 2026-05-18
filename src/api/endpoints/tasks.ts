@@ -23,6 +23,14 @@ export interface TaskSubmission {
   updatedAt?: string;
 }
 
+export type TaskBadgeTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+
+export interface TaskBadge {
+  key: string;
+  label: string;
+  tone: TaskBadgeTone;
+}
+
 export interface TaskCategoryOption {
   id: string;
   name: string;
@@ -55,6 +63,7 @@ export interface Task {
   createdAt: string;
   updatedAt?: string;
   completedAt?: string | null;
+  badges?: TaskBadge[];
 }
 
 export interface TasksQuery {
@@ -192,6 +201,7 @@ interface RawTask {
   createdAt?: string;
   updatedAt?: string;
   completedAt?: string | null;
+  badges?: Array<{ key?: string; label?: string; tone?: TaskBadgeTone }>;
 }
 
 interface RawTaskCategory {
@@ -284,6 +294,16 @@ function mapTask(raw: RawTask): Task {
   ]);
   const hasAttachments = images.length > 0 || videos.length > 0 || audios.length > 0 || files.length > 0;
 
+  const badges = Array.isArray(raw.badges)
+    ? raw.badges
+        .filter((badge): badge is { key?: string; label?: string; tone?: TaskBadgeTone } => Boolean(badge?.label))
+        .map((badge) => ({
+          key: String(badge.key ?? badge.label ?? ''),
+          label: String(badge.label ?? ''),
+          tone: badge.tone ?? 'neutral',
+        }))
+    : undefined;
+
   return {
     id,
     description,
@@ -338,6 +358,7 @@ function mapTask(raw: RawTask): Task {
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt,
     completedAt: raw.completedAt ?? null,
+    badges,
   };
 }
 
