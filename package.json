@@ -8,7 +8,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lh": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:3000 tcp:3000 && npx expo start --localhost",
-    "test:task-badges": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/task-badges.test.ts src/screens/tasks/taskBadges.ts src/theme/theme.ts && node .tmp-tests/test/task-badges.test.js"
+    "test:task-badges": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/task-badges.test.ts src/screens/tasks/taskBadges.ts src/theme/theme.ts && node .tmp-tests/test/task-badges.test.js",
+    "test:review-badges": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/review-badges.test.ts src/navigation/reviewBadgeState.ts && node .tmp-tests/test/review-badges.test.js"
   },
   "dependencies": {
     "@expo/ngrok": "^4.0.0",

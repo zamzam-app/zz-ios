@@ -15,6 +15,12 @@ export interface ResolutionAttachments {
   files: string[];
 }
 
+export interface ReviewBadgeStatus {
+  unreadCount: number;
+  pendingCount: number;
+  hasUnread: boolean;
+}
+
 export interface Review {
   id: string;
   customerName: string;
@@ -145,6 +151,16 @@ function mapReview(raw: RawReview): Review {
 }
 
 export const reviewsApi = {
+  getBadgeStatus: (userId: string) =>
+    client
+      .get<ReviewBadgeStatus>(`/review/badge-status/${userId}`)
+      .then((r) => r.data),
+
+  markAsRead: (reviewId: string, userId: string) =>
+    client
+      .post<ReviewBadgeStatus>(`/review/${reviewId}/mark-read`, { userId })
+      .then((r) => r.data),
+
   list: (query?: ReviewsQuery) =>
     client
       .get<{ data: RawReview[]; meta?: unknown } | RawReview[]>('/review', { params: query })

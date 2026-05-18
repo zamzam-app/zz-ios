@@ -8,7 +8,9 @@ import OverviewScreen from '../screens/overview/OverviewScreen';
 import TasksNavigator, { TasksStackParamList } from './TasksNavigator';
 import ReviewsNavigator, { ReviewsStackParamList } from './ReviewsNavigator';
 import MoreNavigator from './MoreNavigator';
-import { useReviews } from '../hooks/useReviews';
+import { useReviewBadgeStatus } from '../hooks/useReviews';
+import { useAuthStore } from '../store/authStore';
+import { getReviewTabBadgeModel } from './reviewBadgeState';
 
 export type AppTabParamList = {
   Overview: undefined;
@@ -37,16 +39,16 @@ const TAB_LABELS: Record<TabRouteName, string> = {
 };
 
 function ReviewsTabIcon({ color, focused }: { color: string; focused: boolean }) {
-  const { data: reviews } = useReviews({ limit: 100 });
-  const pendingCount =
-    reviews?.filter((r) => r.isComplaint && r.complaintStatus === 'pending').length ?? 0;
+  const userId = useAuthStore((state) => state.user?.id ?? state.user?._id);
+  const { data: reviewBadgeStatus } = useReviewBadgeStatus(userId);
+  const reviewBadge = getReviewTabBadgeModel(reviewBadgeStatus);
   const icons = TAB_ICONS.Reviews;
   return (
     <View>
       <Ionicons name={focused ? icons.filled : icons.outline} size={22} color={color} />
-      {pendingCount > 0 && (
+      {reviewBadge.visible && (
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>{pendingCount > 99 ? '99+' : pendingCount}</Text>
+          <Text style={styles.badgeText}>{reviewBadge.count > 99 ? '99+' : reviewBadge.count}</Text>
         </View>
       )}
     </View>
