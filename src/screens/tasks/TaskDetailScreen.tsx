@@ -71,16 +71,16 @@ function formatDate(iso?: string | null, dueTime?: string | null) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'Not set';
   const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  let timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
     const [hours, minutes] = dueTime.split(':');
     const h = parseInt(hours, 10);
     const m = parseInt(minutes, 10);
     const suffix = h >= 12 ? 'PM' : 'AM';
     const displayH = h % 12 || 12;
-    timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${suffix}`;
+    const timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${suffix}`;
+    return `${dateStr} ${timeStr}`;
   }
-  return `${dateStr} ${timeStr}`;
+  return dateStr;
 }
 
 function formatDuration(ms: number) {
