@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -291,6 +291,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const recorderState = useAudioRecorderState(recorder, 250);
   const isRecordingAudio = recorderState.isRecording;
   const recordingMillis = recorderState.durationMillis;
+  const isRecordingRef = useRef(false);
+  isRecordingRef.current = isRecordingAudio;
 
   const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
   const [pendingPlayAudioId, setPendingPlayAudioId] = useState<string | null>(null);
@@ -718,15 +720,16 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     return () => {
-      try {
-        if (recorder.getStatus().isRecording) {
-          recorder.stop().catch((err) => {
-            console.warn('[TaskDetail] Cleanup: Failed to stop recorder', err);
-          });
+      if (isRecordingRef.current) {
+        try {
+          if (recorder.getStatus().isRecording) {
+            recorder.stop().catch((err) => {
+              console.warn('[TaskDetail] Cleanup: Failed to stop recorder', err);
+            });
+          }
+        } catch (err) {
+          // Catch silently if the native Shared Object has already been released by unmounting
         }
-      } catch (err) {
-        // Catch errors if the native AudioRecorder shared object has already been released by useAudioRecorder unmount
-        console.warn('[TaskDetail] Cleanup: Recorder already released or failed to get status', err);
       }
       setAudioModeAsync({
         allowsRecording: false,
