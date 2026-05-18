@@ -718,10 +718,15 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     return () => {
-      if (recorder.getStatus().isRecording) {
-        recorder.stop().catch((err) => {
-          console.warn('[TaskDetail] Cleanup: Failed to stop recorder', err);
-        });
+      try {
+        if (recorder.getStatus().isRecording) {
+          recorder.stop().catch((err) => {
+            console.warn('[TaskDetail] Cleanup: Failed to stop recorder', err);
+          });
+        }
+      } catch (err) {
+        // Catch errors if the native AudioRecorder shared object has already been released by useAudioRecorder unmount
+        console.warn('[TaskDetail] Cleanup: Recorder already released or failed to get status', err);
       }
       setAudioModeAsync({
         allowsRecording: false,

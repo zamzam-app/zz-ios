@@ -219,7 +219,33 @@ export async function clearFailedJobs() {
 
 export async function clearAllPendingJobs() {
   await ensureLoaded();
-  taskJobs = taskJobs.filter(j => j.status === 'failed' && j.attempts >= MAX_ATTEMPTS);
+
+  // 1. Mark retryable failed jobs as permanently failed (attempts = MAX_ATTEMPTS)
+  // so they stop retrying and move to the "failed" section of the banner,
+  // providing feedback to the user rather than silently discarding them.
+  taskJobs = taskJobs.map(j => {
+    if (j.status === 'failed' && j.attempts < MAX_ATTEMPTS) {
+      return {
+        ...j,
+        attempts: MAX_ATTEMPTS,
+        updatedAt: new Date().toISOString(),
+        error: j.error || 'Cancelled by user while retrying'
+      };
+    }
+    return j;
+  });
+
+  // 2. Clean up associated upload jobs for discarded 'queued' or 'processing' tasks
+  const discardedJobs = taskJobs.filter(j => j.status === 'queued' || j.status === 'processing');
+  for (const job of discardedJobs) {
+    for (const jobRef of job.attachmentJobs) {
+      void removeUploadJob(jobRef.id);
+    }
+  }
+
+  // 3. Keep all failed jobs while removing queued and processing jobs
+  taskJobs = taskJobs.filter(j => j.status === 'failed');
+
   await persistQueue();
 }
 
