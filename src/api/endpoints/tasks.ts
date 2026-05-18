@@ -90,7 +90,7 @@ export interface CreateTaskPayload {
   taskCategoryId: string;
   priority: TaskPriority;
   dueDate: string;
-  dueTime: string;
+  dueTime?: string;
   outletId?: string;
   assigneeIds?: string[];
   status?: TaskStatus;

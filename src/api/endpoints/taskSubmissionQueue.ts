@@ -148,8 +148,11 @@ async function processQueue() {
     nextJob.status = 'failed';
     nextJob.error = error instanceof Error ? error.message : String(error);
     
-    const isClientError = (error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500;
-    if (isClientError) {
+    // Treat certain 4xx errors as permanent failures (no point retrying bad payloads).
+    // Exclude 401 (token expiry — retry after re-auth) and 429 (rate-limited — let backoff handle it).
+    const responseStatus = (error as any)?.response?.status;
+    const isPermanentClientError = [400, 403, 404, 409, 410, 422].includes(responseStatus);
+    if (isPermanentClientError) {
       nextJob.attempts = MAX_ATTEMPTS;
     } else {
       nextJob.attempts += 1;

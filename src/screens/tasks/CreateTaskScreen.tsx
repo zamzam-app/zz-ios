@@ -222,6 +222,7 @@ export function CreateTaskContent({
   const [dueDate, setDueDate] = useState(editTask?.dueDate ? new Date(editTask.dueDate) : new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [userPickedTime, setUserPickedTime] = useState(!!editTask?.dueTime);
   const [isRecurring, setIsRecurring] = useState(editTask?.isRecurring ?? initialIsRecurring);
   const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>(editTask?.recurrenceType ?? 'WEEKLY');
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>(editTask?.recurrenceDays ?? []);
@@ -232,6 +233,7 @@ export function CreateTaskContent({
     setTaskCategoryId(editTask.taskCategory?._id ?? editTask.category);
     setPriority(editTask.priority);
     setDueDate(new Date(editTask.dueDate));
+    setUserPickedTime(!!editTask.dueTime);
     setIsRecurring(!!editTask.isRecurring);
     setRecurrenceType(editTask.recurrenceType ?? 'WEEKLY');
     setRecurrenceDays(editTask.recurrenceDays ?? []);
@@ -778,7 +780,7 @@ export function CreateTaskContent({
       taskCategoryId,
       priority,
       dueDate: dueDate.toISOString(),
-      dueTime: `${dueDate.getHours().toString().padStart(2, '0')}:${dueDate.getMinutes().toString().padStart(2, '0')}`,
+      ...(userPickedTime ? { dueTime: `${dueDate.getHours().toString().padStart(2, '0')}:${dueDate.getMinutes().toString().padStart(2, '0')}` } : {}),
       isRecurring,
       ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
       ...(outletId ? { outletId } : {}),
@@ -1120,6 +1122,7 @@ export function CreateTaskContent({
             const newDate = new Date(dueDate);
             newDate.setHours(date.getHours(), date.getMinutes(), 0, 0);
             setDueDate(newDate);
+            setUserPickedTime(true);
           }}
         />
 
