@@ -407,14 +407,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     try {
       const isHttpUrl = /^https?:\/\//i.test(trimmedUrl);
       if (type === 'file' && isHttpUrl) {
-        const browserResult = await WebBrowser.openBrowserAsync(trimmedUrl, {
+        await WebBrowser.openBrowserAsync(trimmedUrl, {
           presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
           controlsColor: colors.primary,
         });
-
-        if (browserResult.type !== 'cancel' && browserResult.type !== 'dismiss') {
-          return;
-        }
+        return;
       }
       const canOpen = await Linking.canOpenURL(trimmedUrl);
       if (!canOpen) {
