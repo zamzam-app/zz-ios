@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -24,16 +26,17 @@ import { Period } from '../../api/endpoints/analytics';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { AppTabParamList } from '../../navigation/AppNavigator';
 import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
-import { ReviewMetricFilter } from '../../constants/reviewFilters';
+import { ReviewMetricFilter, ReviewTypeFilter } from '../../constants/reviewFilters';
 
 const PERIODS: { label: string; value: Period }[] = [
   { label: 'Daily', value: 'daily' },
   { label: 'Weekly', value: 'weekly' },
   { label: 'Monthly', value: 'monthly' },
+  { label: 'All Time', value: 'all-time' },
 ];
 const FEEDBACK_VISIBLE_ROWS = 4;
 const FEEDBACK_ROW_HEIGHT = 46;
-const FEEDBACK_HEADER_HEIGHT = 40;
+const FEEDBACK_HEADER_HEIGHT = 54;
 
 type OverviewTopTab = 'reviews' | 'tasks';
 type OverviewNav = BottomTabNavigationProp<AppTabParamList, 'Overview'>;
@@ -45,6 +48,20 @@ type SummaryMetricItem = {
   color: string;
   onPress?: () => void;
 };
+
+type CsatBreakdownItem = {
+  questionId: string;
+  title: string;
+  score: number;
+  totalRatings: number;
+};
+
+type CsatBreakdown = {
+  score: string;
+  ratings: string;
+  items: CsatBreakdownItem[];
+};
+
 
 function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Period) => void }) {
   return (
@@ -66,6 +83,108 @@ function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Pe
   );
 }
 
+
+function CsatFlipCard({ breakdown }: { breakdown: CsatBreakdown }) {
+  const [flipped, setFlipped] = useState(false);
+  const flipAnim = useRef(new Animated.Value(0)).current;
+  const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearInactivityTimeout = () => {
+    if (inactivityTimeoutRef.current) {
+      clearTimeout(inactivityTimeoutRef.current);
+      inactivityTimeoutRef.current = null;
+    }
+  };
+
+  const animateTo = (toValue: 0 | 1) => {
+    Animated.timing(flipAnim, {
+      toValue,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const scheduleAutoFlipBack = () => {
+    clearInactivityTimeout();
+    inactivityTimeoutRef.current = setTimeout(() => {
+      setFlipped(false);
+      animateTo(0);
+    }, 60_000);
+  };
+
+  const onPress = () => {
+    if (flipped) {
+      clearInactivityTimeout();
+      setFlipped(false);
+      animateTo(0);
+      return;
+    }
+
+    setFlipped(true);
+    animateTo(1);
+    scheduleAutoFlipBack();
+  };
+
+  useEffect(() => {
+    return () => {
+      clearInactivityTimeout();
+    };
+  }, []);
+
+  const frontRotate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  const backRotate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['180deg', '360deg'],
+  });
+
+  return (
+    <TouchableOpacity style={styles.mainStatCard} activeOpacity={0.9} onPress={onPress}>
+      <View style={styles.flipCardInner}>
+        <Animated.View
+          style={[
+            styles.flipFace,
+            { transform: [{ perspective: 1000 }, { rotateY: frontRotate }] },
+          ]}
+        >
+          <Text style={styles.mainStatLabel}>Overall CSAT Score</Text>
+          <Text style={styles.mainStatValue}>{breakdown.score}</Text>
+          <Text style={styles.mainStatSub}>{breakdown.ratings} ratings this period</Text>
+        </Animated.View>
+
+        <Animated.View
+          style={[
+            styles.flipFace,
+            styles.flipFaceBack,
+            { transform: [{ perspective: 1000 }, { rotateY: backRotate }] },
+          ]}
+        >
+          <Text style={styles.flipBackTitle}>CSAT Breakdown</Text>
+          {breakdown.items.length ? (
+            <ScrollView
+              style={{ width: '100%' }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
+              {breakdown.items.map((item) => (
+                <View key={item.questionId} style={styles.flipRow}>
+                  <Text style={styles.flipKey} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.flipValue}>{item.score.toFixed(1)}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.flipEmpty}>No breakdown available</Text>
+          )}
+        </Animated.View>
+      </View>
+    </TouchableOpacity>
+  );
+}
 function TopSummaryPanel({
   period,
   onPeriodChange,
@@ -75,6 +194,7 @@ function TopSummaryPanel({
   mainValue,
   mainSub,
   metrics,
+  csatBreakdown,
 }: {
   period: Period;
   onPeriodChange: (period: Period) => void;
@@ -84,6 +204,7 @@ function TopSummaryPanel({
   mainValue: string;
   mainSub?: string;
   metrics: SummaryMetricItem[];
+  csatBreakdown: CsatBreakdown;
 }) {
   return (
     <View style={styles.topPanel}>
@@ -107,11 +228,15 @@ function TopSummaryPanel({
       </View>
 
       <View style={styles.topContentRow}>
-        <View style={styles.mainStatCard}>
-          <Text style={styles.mainStatLabel}>{mainTitle}</Text>
-          <Text style={styles.mainStatValue}>{mainValue}</Text>
-          {mainSub ? <Text style={styles.mainStatSub}>{mainSub}</Text> : null}
-        </View>
+        {topTab === 'reviews' ? (
+          <CsatFlipCard breakdown={csatBreakdown} />
+        ) : (
+          <View style={styles.mainStatCard}>
+            <Text style={styles.mainStatLabel}>{mainTitle}</Text>
+            <Text style={styles.mainStatValue}>{mainValue}</Text>
+            {mainSub ? <Text style={styles.mainStatSub}>{mainSub}</Text> : null}
+          </View>
+        )}
 
         <View style={styles.metricStackCol}>
           {metrics.map((metric) => {
@@ -150,16 +275,27 @@ function TopSummaryPanel({
   );
 }
 
-function InsightRow({ insights }: { insights: { title: string; value: string; accent: string }[] }) {
+function InsightRow({ insights }: { insights: { title: string; value: string; accent: string; onPress?: () => void }[] }) {
   if (!insights.length) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.insightScroll}>
-      {insights.map((item, i) => (
-        <View key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}> 
-          <Text style={styles.insightTitle}>{item.title}</Text>
-          <Text style={[styles.insightValue, { color: item.accent }]}>{item.value}</Text>
-        </View>
-      ))}
+      {insights.map((item, i) => {
+        const Content = (
+          <>
+            <Text style={styles.insightTitle}>{item.title}</Text>
+            <Text style={[styles.insightValue, { color: item.accent }]}>{item.value}</Text>
+          </>
+        );
+        return item.onPress ? (
+          <TouchableOpacity key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]} onPress={item.onPress} activeOpacity={0.8}>
+            {Content}
+          </TouchableOpacity>
+        ) : (
+          <View key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}> 
+            {Content}
+          </View>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -249,7 +385,7 @@ function TrendlineChart({
   );
 }
 
-function FeedbackCard({ title, accent, items }: { title: string; accent: string; items: { name: string; value: number }[] }) {
+function FeedbackCard({ title, subtext, accent, items }: { title: string; subtext: string; accent: string; items: { name: string; value: number }[] }) {
   const headerBg = accent === colors.warning
     ? '#E6D7BC'
     : accent === colors.success
@@ -266,6 +402,7 @@ function FeedbackCard({ title, accent, items }: { title: string; accent: string;
       >
         <View style={[styles.feedbackStickyHeader, { backgroundColor: headerBg }]}>
           <Text style={[styles.feedbackTitle, { color: accent }]}>{title}</Text>
+          <Text style={styles.feedbackSubtext}>{subtext}</Text>
         </View>
         {items.map((item, i) => (
           <View key={i} style={styles.feedbackRow}>
@@ -311,12 +448,33 @@ export default function OverviewScreen() {
 
   const csatScore = csat.data?.globalCsatScore;
   const totalRatings = csat.data?.totalRatings ?? 0;
+  const seenTitles = new Set<string>();
+  const csatBreakdownItems: CsatBreakdownItem[] = (csat.data?.breakdown ?? [])
+    .filter((i) => {
+      if (typeof i?.score !== 'number') return false;
+      if (seenTitles.has(i.title)) return false;
+      seenTitles.add(i.title);
+      return true;
+    })
+    .map((i) => ({
+      questionId: i.questionId,
+      title: i.title,
+      score: i.score,
+      totalRatings: i.totalRatings,
+    }));
+
+  const csatBreakdown: CsatBreakdown = {
+    score: typeof csatScore === 'number' ? String(csatScore.toFixed(1)) + '/5' : '--',
+    ratings: String(totalRatings),
+    items: csatBreakdownItems,
+  };
 
   const insightItems = [
     insights.data?.criticalFocusArea && {
       title: 'Critical Focus',
       value: `${insights.data.criticalFocusArea.outletName} · ${insights.data.criticalFocusArea.criticalIssues} issue${insights.data.criticalFocusArea.criticalIssues !== 1 ? 's' : ''}`,
       accent: colors.error,
+      onPress: () => navigateToReviewsWithFilter(undefined, 'critical', 'overview_reviews_metric'),
     },
     insights.data?.mostImprovedOutlet && {
       title: 'Most Improved',
@@ -328,7 +486,7 @@ export default function OverviewScreen() {
       value: insights.data.peakIncidentTime.label,
       accent: colors.warning,
     },
-  ].filter(Boolean) as { title: string; value: string; accent: string }[];
+  ].filter(Boolean) as { title: string; value: string; accent: string; onPress?: () => void }[];
 
   const negativeSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.negativeFeedbacks - a.negativeFeedbacks);
   const totalSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.totalFeedbacks - a.totalFeedbacks);
@@ -353,12 +511,13 @@ export default function OverviewScreen() {
     });
   };
 
-  const navigateToReviewsWithFilter = (metric: ReviewMetricFilter, source: TaskFilterSource) => {
+  const navigateToReviewsWithFilter = (metric: ReviewMetricFilter | undefined, typeFilter: ReviewTypeFilter | undefined, source: TaskFilterSource) => {
     navigation.navigate('Reviews', {
       screen: 'ReviewsList',
       params: {
         initialReviewFilter: {
-          metric,
+          ...(metric ? { metric } : {}),
+          ...(typeFilter ? { typeFilter } : {}),
           source,
           nonce: Date.now(),
         },
@@ -372,14 +531,14 @@ export default function OverviewScreen() {
       label: 'Open',
       value: incidents.data?.totalOpenIncidents ?? '--',
       color: colors.warning,
-      onPress: () => navigateToReviewsWithFilter('open', 'overview_reviews_metric'),
+      onPress: () => navigateToReviewsWithFilter('open', undefined, 'overview_reviews_metric'),
     },
     {
       key: 'resolved',
       label: 'Resolved',
       value: incidents.data?.incidentsResolvedToday ?? '--',
       color: colors.success,
-      onPress: () => navigateToReviewsWithFilter('resolved', 'overview_reviews_metric'),
+      onPress: () => navigateToReviewsWithFilter('resolved', undefined, 'overview_reviews_metric'),
     },
   ];
 
@@ -404,7 +563,9 @@ export default function OverviewScreen() {
     ? 'Due today'
     : period === 'weekly'
       ? 'Due this week'
-      : 'Due this month';
+      : period === 'monthly'
+        ? 'Due this month'
+        : 'Due all time';
   const mainTitle = topTab === 'reviews' ? 'Overall CSAT Score' : taskDueTitle;
   const mainValue = topTab === 'reviews'
     ? (typeof csatScore === 'number' ? `${csatScore.toFixed(1)}/5` : '--')
@@ -434,6 +595,7 @@ export default function OverviewScreen() {
           mainValue={mainValue}
           mainSub={mainSub}
           metrics={topTab === 'reviews' ? reviewMetrics : taskMetrics}
+          csatBreakdown={csatBreakdown}
         />
 
         {isLoading ? (
@@ -463,16 +625,19 @@ export default function OverviewScreen() {
             <Text style={styles.sectionTitle}>Outlet Feedback</Text>
             <FeedbackCard
               title="Total Negative"
+              subtext="Complaints and critical issues"
               accent={colors.error}
               items={negativeSorted.map((i) => ({ name: i.outletName, value: i.negativeFeedbacks }))}
             />
             <FeedbackCard
               title="Total Active"
+              subtext="All responses and ratings"
               accent={colors.warning}
               items={totalSorted.map((i) => ({ name: i.outletName, value: i.totalFeedbacks }))}
             />
             <FeedbackCard
               title="Total Positive"
+              subtext="Resolved issues and positive ratings"
               accent={colors.success}
               items={resolvedSorted.map((i) => ({ name: i.outletName, value: i.resolvedFeedbacks }))}
             />
@@ -604,6 +769,58 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  flipCardInner: {
+    width: '100%',
+    minHeight: 132,
+    justifyContent: 'center',
+  },
+  flipFace: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backfaceVisibility: 'hidden',
+  },
+  flipFaceBack: {
+    paddingHorizontal: spacing.sm,
+  },
+  flipBackTitle: {
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: spacing.sm,
+  },
+  flipRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  flipKey: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  flipValue: {
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    color: colors.text,
+  },
+  flipHint: {
+    marginTop: spacing.xs,
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  flipEmpty: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
   metricStackCol: {
     width: 110,
     gap: spacing.xs,
@@ -688,6 +905,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   feedbackTitle: { fontSize: typography.sm, fontWeight: typography.semibold },
+  feedbackSubtext: { fontSize: 10, marginTop: 2, color: colors.text, opacity: 0.8 },
   feedbackRow: {
     minHeight: FEEDBACK_ROW_HEIGHT,
     flexDirection: 'row',

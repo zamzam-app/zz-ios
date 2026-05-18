@@ -20,6 +20,7 @@ const MENU_ITEMS: MenuItem[] = [
   { label: 'Profile & Settings', screen: 'Settings', icon: '👤' },
   { label: 'Managers', screen: 'Managers', icon: '👥', adminOnly: true },
   { label: 'Studio', screen: 'Studio', icon: '🛍️' },
+  { label: 'Outlets', screen: 'Infrastructure', icon: '🏪' },
   { label: 'Form Builder', screen: 'FormBuilder', icon: '📋', adminOnly: true },
 ];
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getTaskQueueStatus, retryFailedJobs, clearFailedJobs } from '../api/endpoints/taskSubmissionQueue';
+import { getTaskQueueStatus, retryFailedJobs, clearFailedJobs, clearAllPendingJobs } from '../api/endpoints/taskSubmissionQueue';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export default function TaskQueueStatusBanner() {
@@ -14,6 +14,47 @@ export default function TaskQueueStatusBanner() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleCancelAll = () => {
+    Alert.alert(
+      'Cancel Submissions',
+      'Are you sure you want to cancel all pending task submissions? Unsubmitted tasks will be stopped.',
+      [
+        { text: 'Keep Submitting', style: 'cancel' },
+        { 
+          text: 'Yes, Cancel', 
+          style: 'destructive',
+          onPress: async () => {
+            await clearAllPendingJobs();
+            setStatus(getTaskQueueStatus());
+          }
+        }
+      ]
+    );
+  };
+
+  const handleClearFailed = () => {
+    Alert.alert(
+      'Clear Failed Tasks',
+      'Are you sure you want to permanently clear all failed task submissions? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Clear All', 
+          style: 'destructive',
+          onPress: async () => {
+            await clearFailedJobs();
+            setStatus(getTaskQueueStatus());
+          }
+        }
+      ]
+    );
+  };
+
+  const handleRetryAll = async () => {
+    await retryFailedJobs();
+    setStatus(getTaskQueueStatus());
+  };
+
   if (status.pendingCount === 0 && status.failedCount === 0) return null;
 
   return (
@@ -21,9 +62,14 @@ export default function TaskQueueStatusBanner() {
       {status.pendingCount > 0 && (
         <View style={[styles.banner, styles.pendingBanner]}>
           <ActivityIndicator size="small" color={colors.primary} style={styles.icon} />
-          <Text style={styles.text}>
-            {status.syncing ? 'Processing' : 'Waiting for connection'}: {status.pendingCount} task{status.pendingCount > 1 ? 's' : ''} remaining...
-          </Text>
+          <View style={styles.pendingTextWrap}>
+            <Text style={styles.text}>
+              {status.syncing ? 'Processing' : 'Waiting for connection'}: {status.pendingCount} task{status.pendingCount > 1 ? 's' : ''} remaining...
+            </Text>
+            <TouchableOpacity onPress={handleCancelAll} style={styles.actionBtn}>
+              <Text style={styles.actionText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -35,11 +81,11 @@ export default function TaskQueueStatusBanner() {
               {status.failedCount} task{status.failedCount > 1 ? 's' : ''} failed to upload.
             </Text>
             <View style={styles.actions}>
-              <TouchableOpacity onPress={retryFailedJobs} style={styles.actionBtn}>
+              <TouchableOpacity onPress={handleRetryAll} style={styles.actionBtn}>
                 <Text style={styles.actionText}>Retry All</Text>
               </TouchableOpacity>
               <View style={styles.divider} />
-              <TouchableOpacity onPress={clearFailedJobs} style={styles.actionBtn}>
+              <TouchableOpacity onPress={handleClearFailed} style={styles.actionBtn}>
                 <Text style={styles.actionText}>Clear</Text>
               </TouchableOpacity>
             </View>
@@ -78,7 +124,12 @@ const styles = StyleSheet.create({
   text: {
     fontSize: typography.sm,
     color: colors.text,
+  },
+  pendingTextWrap: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   failedTextWrap: {
     flex: 1,

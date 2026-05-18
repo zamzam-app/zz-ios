@@ -377,18 +377,98 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
 
 function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: UploadedCakeImage) => void }) {
   const { data: uploadedImages, isLoading } = useUploadedCakes();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [minAgeText, setMinAgeText] = useState('');
+  const [maxAgeText, setMaxAgeText] = useState('');
+  const [showAgeFilterModal, setShowAgeFilterModal] = useState(false);
+
+  const minAge = minAgeText.trim().length > 0 ? Number(minAgeText) : undefined;
+  const maxAge = maxAgeText.trim().length > 0 ? Number(maxAgeText) : undefined;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredUploads = useMemo(() => {
+    const base = uploadedImages ?? [];
+    return base.filter((item) => {
+      const matchesSearch = !normalizedSearch
+        || (item.name ?? '').toLowerCase().includes(normalizedSearch)
+        || (item.description ?? '').toLowerCase().includes(normalizedSearch);
+      if (!matchesSearch) return false;
+
+      if (minAge === undefined && maxAge === undefined) return true;
+      if (!item.dob) return false;
+
+      const dob = new Date(item.dob);
+      if (Number.isNaN(dob.getTime())) return false;
+      const now = new Date();
+      let age = now.getFullYear() - dob.getFullYear();
+      const monthDiff = now.getMonth() - dob.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) age -= 1;
+
+      if (minAge !== undefined && age < minAge) return false;
+      if (maxAge !== undefined && age > maxAge) return false;
+      return true;
+    });
+  }, [uploadedImages, normalizedSearch, minAge, maxAge]);
 
   return (
     <View style={styles.uploadsTabRoot}>
       <ScrollView contentContainerStyle={aiStyles.container} keyboardShouldPersistTaps="handled">
         <Text style={aiStyles.sectionTitle}>User Uploaded Images</Text>
+
+        <View style={aiStyles.filtersWrap}>
+          <View style={aiStyles.searchRow}>
+            <TextInput
+              style={aiStyles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search user or description"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <TouchableOpacity
+              style={[
+                aiStyles.filterIconBtn,
+                (minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) && aiStyles.filterIconBtnActive,
+              ]}
+              onPress={() => setShowAgeFilterModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="options-outline"
+                size={18}
+                color={minAgeText.trim().length > 0 || maxAgeText.trim().length > 0 ? colors.primaryDark : colors.textSecondary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={aiStyles.clearBtn}
+              onPress={() => {
+                setSearchQuery('');
+                setMinAgeText('');
+                setMaxAgeText('');
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={aiStyles.clearBtnText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+          {(minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) && (
+            <View style={aiStyles.ageChipRow}>
+              <View style={aiStyles.ageChip}>
+                <Text style={aiStyles.ageChipText}>{`Age: ${minAgeText || 'Any'} - ${maxAgeText || 'Any'}`}</Text>
+                <TouchableOpacity onPress={() => { setMinAgeText(''); setMaxAgeText(''); }} style={aiStyles.ageChipClear}>
+                  <Text style={aiStyles.ageChipClearText}>x</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
-        ) : !uploadedImages?.length ? (
+        ) : !filteredUploads.length ? (
           <Text style={aiStyles.empty}>No uploaded images yet</Text>
         ) : (
           <View style={styles.uploadGrid}>
-            {uploadedImages.map((item) => (
+            {filteredUploads.map((item) => (
               <TouchableOpacity
                 key={item.id}
                 style={styles.uploadCard}
@@ -425,6 +505,58 @@ function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: 
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={showAgeFilterModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAgeFilterModal(false)}
+      >
+        <View style={aiStyles.filterModalRoot}>
+          <TouchableOpacity
+            style={aiStyles.filterModalScrim}
+            activeOpacity={1}
+            onPress={() => setShowAgeFilterModal(false)}
+          />
+          <View style={aiStyles.filterSheet}>
+            <View style={aiStyles.filterSheetTop}>
+              <View style={aiStyles.filterSheetHandle} />
+              <View style={aiStyles.filterSheetHeader}>
+                <Text style={aiStyles.filterSheetTitle}>Age Filter</Text>
+                <TouchableOpacity
+                  onPress={() => setShowAgeFilterModal(false)}
+                  style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F4F6' }}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={aiStyles.filterSheetBody}>
+              <Text style={aiStyles.filterLabel}>Age group range</Text>
+              <View style={aiStyles.ageRow}>
+                <TextInput
+                  style={aiStyles.ageInput}
+                  value={minAgeText}
+                  onChangeText={(text) => setMinAgeText(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  placeholder="Min age"
+                  placeholderTextColor={colors.textSecondary}
+                />
+                <Text style={aiStyles.ageDivider}>to</Text>
+                <TextInput
+                  style={aiStyles.ageInput}
+                  value={maxAgeText}
+                  onChangeText={(text) => setMaxAgeText(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  placeholder="Max age"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -522,11 +654,23 @@ export default function StudioScreen() {
   const [showCategoryManagerModal, setShowCategoryManagerModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>();
   const [editingCategory, setEditingCategory] = useState<Category | undefined>();
+  const [catalogueSearchQuery, setCatalogueSearchQuery] = useState('');
+
+  const normalizedCatalogueSearch = useMemo(() => catalogueSearchQuery.trim().toLowerCase(), [catalogueSearchQuery]);
 
   const categoryNameById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category.name])),
     [categories],
   );
+
+  const filteredProducts = useMemo(() => {
+    const base = products ?? [];
+    if (!normalizedCatalogueSearch) return base;
+    return base.filter((p) =>
+      p.name.toLowerCase().includes(normalizedCatalogueSearch) ||
+      (p.description ?? '').toLowerCase().includes(normalizedCatalogueSearch),
+    );
+  }, [products, normalizedCatalogueSearch]);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -703,36 +847,58 @@ export default function StudioScreen() {
           productsLoading ? (
             <ActivityIndicator color={colors.primary} style={styles.loader} />
           ) : (
-            <FlatList
-              style={styles.catalogueList}
-              data={products ?? []}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.list}
-              onRefresh={refetchProducts}
-              refreshing={productsFetching && !productsLoading}
-              renderItem={({ item }) => {
-                const categoryNames = (item.categoryList ?? [])
-                  .map((id) => categoryNameById.get(id))
-                  .filter((name): name is string => Boolean(name))
-                  .slice(0, 2);
-
-                return (
-                  <CakeRow
-                    item={item}
-                    categoryNames={categoryNames}
-                    isMutating={isProductMutating}
-                    isAdmin={isAdmin}
-                    onToggleActive={(next) => updateProduct.mutate({ id: item.id, payload: { isActive: next } })}
-                    onEdit={() => {
-                      setEditingProduct(item);
-                      setShowProductModal(true);
-                    }}
-                    onDelete={() => handleDeleteProduct(item)}
+            <>
+              <View style={[aiStyles.filtersWrap, { marginTop: spacing.md, marginBottom: 0 }]}>
+                <View style={aiStyles.searchRow}>
+                  <TextInput
+                    style={aiStyles.searchInput}
+                    value={catalogueSearchQuery}
+                    onChangeText={setCatalogueSearchQuery}
+                    placeholder="Search title or description"
+                    placeholderTextColor={colors.textSecondary}
                   />
-                );
-              }}
-              ListEmptyComponent={<Text style={styles.empty}>No cakes available yet.</Text>}
-            />
+                  {catalogueSearchQuery.length > 0 && (
+                    <TouchableOpacity
+                      style={aiStyles.clearBtn}
+                      onPress={() => setCatalogueSearchQuery('')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={aiStyles.clearBtnText}>Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+              <FlatList
+                style={styles.catalogueList}
+                data={filteredProducts}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.list}
+                onRefresh={refetchProducts}
+                refreshing={productsFetching && !productsLoading}
+                renderItem={({ item }) => {
+                  const categoryNames = (item.categoryList ?? [])
+                    .map((id) => categoryNameById.get(id))
+                    .filter((name): name is string => Boolean(name))
+                    .slice(0, 2);
+
+                  return (
+                    <CakeRow
+                      item={item}
+                      categoryNames={categoryNames}
+                      isMutating={isProductMutating}
+                      isAdmin={isAdmin}
+                      onToggleActive={(next) => updateProduct.mutate({ id: item.id, payload: { isActive: next } })}
+                      onEdit={() => {
+                        setEditingProduct(item);
+                        setShowProductModal(true);
+                      }}
+                      onDelete={() => handleDeleteProduct(item)}
+                    />
+                  );
+                }}
+                ListEmptyComponent={<Text style={styles.empty}>No cakes available yet.</Text>}
+              />
+            </>
           )
         )}
       </View>

@@ -126,9 +126,11 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                     <View style={styles.qTypePill}>
                       <Text style={styles.qTypeText}>{getQuestionTypeLabel(q)}</Text>
                     </View>
-                    <TouchableOpacity onPress={() => removeQuestion(index)}>
-                      <Text style={styles.deleteText}>Remove</Text>
-                    </TouchableOpacity>
+                    {!q.isDefault && (
+                      <TouchableOpacity onPress={() => removeQuestion(index)}>
+                        <Text style={styles.deleteText}>Remove</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   {q.type === 'unsupported' ? (
                     <View style={styles.unsupportedCard}>
@@ -139,8 +141,9 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                   ) : (
                     <>
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input, q.isDefault && { opacity: 0.7, backgroundColor: colors.background }]}
                         value={q.title}
+                        editable={!q.isDefault}
                         onChangeText={(v) => updateQuestion(index, { title: v })}
                         placeholder="Question text..."
                         placeholderTextColor={colors.textDisabled}
@@ -150,8 +153,9 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                           {(q.options ?? []).map((opt, oi) => (
                             <View key={oi} style={styles.optionRow}>
                               <TextInput
-                                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                                style={[styles.input, { flex: 1, marginBottom: 0 }, q.isDefault && { opacity: 0.7, backgroundColor: colors.background }]}
                                 value={opt.text}
+                                editable={!q.isDefault}
                                 onChangeText={(v) => {
                                   const newOptions = [...(q.options ?? [])];
                                   newOptions[oi] = { ...newOptions[oi], text: v };
@@ -160,24 +164,33 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                                 placeholder={`Option ${oi + 1}`}
                                 placeholderTextColor={colors.textDisabled}
                               />
-                              <TouchableOpacity onPress={() => {
-                                const newOptions = (q.options ?? []).filter((_, i) => i !== oi);
-                                updateQuestion(index, { options: newOptions });
-                              }}>
-                                <Text style={styles.deleteText}>✕</Text>
-                              </TouchableOpacity>
+                              {!q.isDefault && (
+                                <TouchableOpacity onPress={() => {
+                                  const newOptions = (q.options ?? []).filter((_, i) => i !== oi);
+                                  updateQuestion(index, { options: newOptions });
+                                }}>
+                                  <Text style={styles.deleteText}>✕</Text>
+                                </TouchableOpacity>
+                              )}
                             </View>
                           ))}
-                          <TouchableOpacity onPress={() => updateQuestion(index, { options: [...(q.options ?? []), { text: '' }] })}>
-                            <Text style={{ color: colors.primary, fontSize: typography.sm }}>+ Add option</Text>
-                          </TouchableOpacity>
+                          {!q.isDefault && (
+                            <TouchableOpacity onPress={() => updateQuestion(index, { options: [...(q.options ?? []), { text: '' }] })}>
+                              <Text style={{ color: colors.primary, fontSize: typography.sm }}>+ Add option</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       )}
                       {q.type === 'rating' && (
                         <View style={styles.ratingRow}>
                           <Text style={styles.label}>Max stars:</Text>
                           {[3, 5, 10].map((n) => (
-                            <TouchableOpacity key={n} style={[styles.chip, q.maxRatings === n && styles.chipActive]} onPress={() => updateQuestion(index, { maxRatings: n })}>
+                            <TouchableOpacity 
+                              key={n} 
+                              style={[styles.chip, q.maxRatings === n && styles.chipActive, q.isDefault && { opacity: 0.7 }]} 
+                              disabled={q.isDefault}
+                              onPress={() => updateQuestion(index, { maxRatings: n })}
+                            >
                               <Text style={[styles.chipText, q.maxRatings === n && styles.chipTextActive]}>{n}</Text>
                             </TouchableOpacity>
                           ))}
@@ -185,12 +198,13 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                       )}
                       <TouchableOpacity
                         style={styles.requiredRow}
+                        disabled={q.isDefault}
                         onPress={() => updateQuestion(index, { isRequired: !q.isRequired })}
                       >
-                        <View style={[styles.checkbox, q.isRequired && styles.checkboxChecked]}>
+                        <View style={[styles.checkbox, q.isRequired && styles.checkboxChecked, q.isDefault && { opacity: 0.7 }]}>
                           {q.isRequired && <Text style={{ color: colors.textInverse, fontSize: 10 }}>✓</Text>}
                         </View>
-                        <Text style={styles.requiredLabel}>Required</Text>
+                        <Text style={[styles.requiredLabel, q.isDefault && { opacity: 0.7 }]}>Required</Text>
                       </TouchableOpacity>
                     </>
                   )}

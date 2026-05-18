@@ -193,6 +193,7 @@ export default function ReviewsScreen({ route }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showOutletModal, setShowOutletModal] = useState(false);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -206,7 +207,11 @@ export default function ReviewsScreen({ route }: Props) {
     if (incomingMetric) {
       setStatusFilter(incomingMetric);
     }
-  }, [route.params?.initialReviewFilter?.metric, route.params?.initialReviewFilter?.nonce]);
+    const incomingTypeFilter = route.params?.initialReviewFilter?.typeFilter;
+    if (incomingTypeFilter) {
+      setAllReviewsFilter(incomingTypeFilter);
+    }
+  }, [route.params?.initialReviewFilter?.metric, route.params?.initialReviewFilter?.typeFilter, route.params?.initialReviewFilter?.nonce]);
 
   const {
     data: reviews,
@@ -270,7 +275,7 @@ export default function ReviewsScreen({ route }: Props) {
     });
 
     if (statusFilter === 'open') {
-      return outletFiltered.filter((review) => review.isComplaint && review.complaintStatus === 'pending');
+      return outletFiltered.filter((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus));
     }
 
     if (statusFilter === 'resolved') {
@@ -281,11 +286,11 @@ export default function ReviewsScreen({ route }: Props) {
   }, [reviews, selectedOutletId, statusFilter]);
 
   const pendingCount = useMemo(
-    () => filteredReviews.filter((review) => review.isComplaint && review.complaintStatus === 'pending').length,
+    () => filteredReviews.filter((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus)).length,
     [filteredReviews],
   );
   const hasUnresolvedComplaint = useMemo(
-    () => filteredReviews.some((review) => review.isComplaint && review.complaintStatus === 'pending'),
+    () => filteredReviews.some((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus)),
     [filteredReviews],
   );
 
@@ -293,7 +298,7 @@ export default function ReviewsScreen({ route }: Props) {
     if (!filteredReviews || filteredReviews.length === 0) return [];
 
     const filtered = filteredReviews.filter(
-      (review) => review.isComplaint && review.complaintStatus === 'pending',
+      (review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus),
     );
 
     const sorted = [...filtered].sort((a, b) => {
@@ -328,7 +333,7 @@ export default function ReviewsScreen({ route }: Props) {
 
       // Status filter
       if (allReviewsFilter === 'all') return true;
-      if (allReviewsFilter === 'open') return review.isComplaint && review.complaintStatus === 'pending';
+      if (allReviewsFilter === 'open') return review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus);
       if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
       if (allReviewsFilter === 'critical') return review.overallRating < 2.0 && review.complaintStatus !== 'resolved';
       if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
@@ -426,57 +431,17 @@ export default function ReviewsScreen({ route }: Props) {
           </View>
 
           <View style={styles.sectionBlock}>
-            <View style={styles.filterRow}>
-              <Text style={styles.sectionEyebrow}>Outlet Filter</Text>
-            </View>
-            <View style={styles.outletFilterContainer}>
-              {/* Sticky All Outlets Chip */}
-              <View style={styles.stickyChipWrapper}>
-                <TouchableOpacity
-                  style={[
-                    styles.filterPill,
-                    selectedOutletId === 'all' && styles.filterPillActive,
-                    { width: 110 }
-                  ]}
-                  onPress={() => {
-                    setSelectedOutletId('all');
-                    setStatusFilter('all');
-                    setAllReviewsFilter('all');
-                  }}
-                  activeOpacity={0.82}
-                >
-                  <Text style={[
-                    styles.filterPillText,
-                    selectedOutletId === 'all' && styles.filterPillTextActive,
-                    { textAlign: 'center' }
-                  ]}>
-                    All Outlets
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Scrollable Other Outlets */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filterPillsRowScrollable}
+            <View style={{ marginHorizontal: spacing.md }}>
+              <TouchableOpacity
+                style={styles.outletSelectBtn}
+                onPress={() => setShowOutletModal(true)}
+                activeOpacity={0.8}
               >
-                {outletOptions.filter(opt => opt.id !== 'all').map((option) => {
-                  const active = option.id === selectedOutletId;
-                  return (
-                    <TouchableOpacity
-                      key={option.id}
-                      style={[styles.filterPill, active && styles.filterPillActive]}
-                      onPress={() => setSelectedOutletId(option.id)}
-                      activeOpacity={0.82}
-                    >
-                      <Text style={[styles.filterPillText, active && styles.filterPillTextActive]} numberOfLines={1}>
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                <Text style={styles.outletSelectBtnText} numberOfLines={1}>
+                  {outletOptions.find(opt => opt.id === selectedOutletId)?.label || 'All Outlets'}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -503,6 +468,18 @@ export default function ReviewsScreen({ route }: Props) {
               <ActivityIndicator color={colors.primary} style={styles.loading} />
             ) : heatmapRowsWithFallback.length === 0 ? (
               <Text style={styles.emptyText}>No heatmap metrics available.</Text>
+            ) : selectedOutletId === 'all' ? (
+              <ScrollView 
+                style={{ maxHeight: 304 }}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+              >
+                <View style={styles.heatmapList}>
+                  {heatmapRowsWithFallback.map((row) => (
+                    <HeatmapRow key={row.outletId} row={row} />
+                  ))}
+                </View>
+              </ScrollView>
             ) : (
               <View style={styles.heatmapList}>
                 {heatmapRowsWithFallback.map((row) => (
@@ -762,6 +739,64 @@ export default function ReviewsScreen({ route }: Props) {
                   <Text style={styles.filterClearBtnText}>Reset Filters</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showOutletModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOutletModal(false)}
+      >
+        <View style={styles.filterModalRoot}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.filterModalScrim}
+            onPress={() => setShowOutletModal(false)}
+          />
+          <View style={styles.filterSheet}>
+            <View style={styles.filterSheetTop}>
+              <View style={styles.filterSheetHandle} />
+              <View style={styles.filterSheetHeader}>
+                <Text style={styles.filterSheetTitle}>Select Outlet</Text>
+                <TouchableOpacity
+                  style={styles.filterSheetClose}
+                  onPress={() => setShowOutletModal(false)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={[styles.filterBody, { maxHeight: 400, paddingBottom: 0 }]}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
+                <View style={styles.filterOptionsGrid}>
+                  {outletOptions.map((opt) => {
+                    const active = opt.id === selectedOutletId;
+                    return (
+                      <TouchableOpacity
+                        key={opt.id}
+                        style={[styles.filterOption, active && styles.filterOptionActive, { minWidth: '100%' }]}
+                        onPress={() => {
+                          setSelectedOutletId(opt.id);
+                          if (opt.id === 'all') {
+                            setStatusFilter('all');
+                            setAllReviewsFilter('all');
+                          }
+                          setShowOutletModal(false);
+                        }}
+                      >
+                        <Text style={[styles.filterOptionText, active && styles.filterOptionTextActive]}>
+                          {opt.label}
+                        </Text>
+                        {active && <Ionicons name="checkmark-circle" size={16} color={colors.primary} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
             </View>
           </View>
         </View>
@@ -1363,5 +1398,22 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     fontWeight: typography.semibold,
     color: colors.textSecondary,
+  },
+  outletSelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+  },
+  outletSelectBtnText: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.medium,
+    flex: 1,
   },
 });

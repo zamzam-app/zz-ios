@@ -16,6 +16,7 @@ interface DatePickerModalProps {
   onClose: () => void;
   onChange: (date: Date) => void;
   minimumDate?: Date;
+  mode?: 'date' | 'time' | 'datetime';
 }
 
 export default function DatePickerModal({
@@ -24,6 +25,7 @@ export default function DatePickerModal({
   onClose,
   onChange,
   minimumDate,
+  mode = 'date',
 }: DatePickerModalProps) {
   const [tempDate, setTempDate] = useState(value);
 
@@ -49,7 +51,7 @@ export default function DatePickerModal({
     return (
       <DateTimePicker
         value={value}
-        mode="date"
+        mode={mode}
         display="default"
         minimumDate={minimumDate}
         onChange={(event, date) => {
@@ -63,12 +65,17 @@ export default function DatePickerModal({
   }
 
   // Formatting for the header
-  const year = tempDate.getFullYear();
-  const formattedDate = tempDate.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+  const isTimeMode = mode === 'time';
+  const headerSub = isTimeMode 
+    ? 'Time' 
+    : tempDate.getFullYear().toString();
+  const headerMain = isTimeMode
+    ? tempDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : tempDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
 
   return (
     <Modal
@@ -86,16 +93,16 @@ export default function DatePickerModal({
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerYear}>{year}</Text>
-            <Text style={styles.headerDate}>{formattedDate}</Text>
+            <Text style={styles.headerYear}>{headerSub}</Text>
+            <Text style={styles.headerDate}>{headerMain}</Text>
           </View>
 
           {/* Body (Calendar) */}
           <View style={styles.body}>
             <DateTimePicker
               value={tempDate}
-              mode="date"
-              display="inline"
+              mode={mode}
+              display={mode === 'time' ? 'spinner' : 'inline'}
               minimumDate={minimumDate}
               onChange={handleDateChange}
               themeVariant="light"

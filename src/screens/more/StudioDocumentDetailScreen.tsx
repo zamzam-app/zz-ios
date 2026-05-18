@@ -36,8 +36,7 @@ function renderCustomCakeBody(item: CustomCake) {
   return (
     <View style={styles.block}>
       <DetailRow label="Document Type" value="Custom Cake" />
-      <DetailRow label="ID" value={item.id} />
-      <DetailRow label="Customer" value={item.customerName ?? 'Unknown'} />
+      <DetailRow label="Customer" value={item.customerName || 'Unknown'} />
       <DetailRow label="DOB" value={formatDate(item.customerDob)} />
       <DetailRow label="Created" value={formatDate(item.createdAt)} />
 
@@ -51,7 +50,6 @@ function renderUploadedCakeBody(item: UploadedCakeImage) {
   return (
     <View style={styles.block}>
       <DetailRow label="Document Type" value="Uploaded Cake" />
-      <DetailRow label="ID" value={item.id} />
       <DetailRow label="Customer" value={item.name || 'Unknown'} />
       <DetailRow label="Phone" value={item.phone || '—'} />
       <DetailRow label="DOB" value={formatDate(item.dob)} />

@@ -155,7 +155,6 @@ export function CreateOutletContent({
     if (!name.trim()) return Alert.alert('Required', 'Outlet name is required.');
     // Description is now optional
     if (!outletTypeId) return Alert.alert('Required', 'Please select an outlet type.');
-    if (!formId) return Alert.alert('Required', 'Please select a form.');
 
     if (mode === 'edit') {
       if (!outletToEdit) return;
@@ -165,9 +164,9 @@ export function CreateOutletContent({
           payload: {
             name: name.trim(),
             description: description.trim(),
-            address: address.trim() || undefined,
+            address: address.trim(),
             outletType: outletTypeId,
-            formId,
+            formId: formId || null,
             managerIds,
           },
         },
@@ -186,7 +185,7 @@ export function CreateOutletContent({
         images: [],
         address: address.trim() || undefined,
         outletType: outletTypeId,
-        formId,
+        ...(formId ? { formId } : {}),
         ...(managerIds.length > 0 ? { managerIds } : {}),
       },
       {
@@ -262,7 +261,7 @@ export function CreateOutletContent({
           </Text>
         </TouchableOpacity>
 
-        <Label text="Form" required />
+        <Label text="Form" />
         <TouchableOpacity style={styles.input} onPress={() => setShowFormPicker(true)}>
           <Text style={{ color: selectedForm ? colors.text : colors.textDisabled }}>
             {selectedForm?.title ?? 'Select form...'}

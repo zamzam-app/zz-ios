@@ -6,6 +6,7 @@ import ManagersScreen from '../screens/more/ManagersScreen';
 import StudioScreen from '../screens/more/StudioScreen';
 import FormBuilderScreen from '../screens/more/FormBuilderScreen';
 import StudioDocumentDetailScreen from '../screens/more/StudioDocumentDetailScreen';
+import InfrastructureNavigator from './InfrastructureNavigator';
 import { CustomCake, UploadedCakeImage } from '../api/endpoints/upload';
 import { colors, typography } from '../theme/theme';
 
@@ -19,6 +20,7 @@ export type MoreStackParamList = {
     item: CustomCake | UploadedCakeImage;
   };
   FormBuilder: undefined;
+  Infrastructure: undefined;
 };
 
 const Stack = createNativeStackNavigator<MoreStackParamList>();
@@ -38,6 +40,7 @@ export default function MoreNavigator() {
       <Stack.Screen name="Studio" component={StudioScreen} options={{ headerShown: false }} />
       <Stack.Screen name="StudioDocumentDetail" component={StudioDocumentDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="FormBuilder" component={FormBuilderScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Infrastructure" component={InfrastructureNavigator} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

@@ -1,6 +1,6 @@
 import client from '../client';
 
-export type Period = 'daily' | 'weekly' | 'monthly';
+export type Period = 'daily' | 'weekly' | 'monthly' | 'all-time';
 
 export interface QuickInsightsResponse {
   peakIncidentTime: {
@@ -32,6 +32,7 @@ export interface GlobalCsatResponse {
   averageOverallRating: number;
   totalRatings: number;
   totalScore: number;
+  breakdown?: { questionId: string; title: string; score: number; totalRatings: number }[];
   period?: Period;
   startDate?: string;
   endDate?: string;

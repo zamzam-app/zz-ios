@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import DatePickerModal from '../../components/DatePickerModal';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import {
   RecordingPresets,
@@ -43,7 +44,6 @@ import { useManagers } from '../../hooks/useUsers';
 import { TaskPriority, TaskCategoryOption, CreateTaskPayload, Task } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
-import { getApiErrorMessage } from '../../utils/errors';
 import { enqueueTaskSubmission } from '../../api/endpoints/taskSubmissionQueue';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
@@ -221,6 +221,8 @@ export function CreateTaskContent({
   const [priority, setPriority] = useState<TaskPriority>(editTask?.priority ?? 'MEDIUM');
   const [dueDate, setDueDate] = useState(editTask?.dueDate ? new Date(editTask.dueDate) : new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [userPickedTime, setUserPickedTime] = useState(!!editTask?.dueTime);
   const [isRecurring, setIsRecurring] = useState(editTask?.isRecurring ?? initialIsRecurring);
   const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>(editTask?.recurrenceType ?? 'WEEKLY');
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>(editTask?.recurrenceDays ?? []);
@@ -231,6 +233,7 @@ export function CreateTaskContent({
     setTaskCategoryId(editTask.taskCategory?._id ?? editTask.category);
     setPriority(editTask.priority);
     setDueDate(new Date(editTask.dueDate));
+    setUserPickedTime(!!editTask.dueTime);
     setIsRecurring(!!editTask.isRecurring);
     setRecurrenceType(editTask.recurrenceType ?? 'WEEKLY');
     setRecurrenceDays(editTask.recurrenceDays ?? []);
@@ -677,6 +680,31 @@ export function CreateTaskContent({
     const label = item.type === 'video' ? 'video' : 'file';
     try {
       let previewUri = item.uri;
+      
+      // Handle PDF files specifically to open in-app
+      if (previewUri.toLowerCase().endsWith('.pdf') || (item.type === 'file' && item.name.toLowerCase().endsWith('.pdf'))) {
+        try {
+          let localUri = previewUri;
+          // If it's a remote URL, download it first
+          if (previewUri.startsWith('http')) {
+            const fileName = previewUri.split('/').pop()?.split('?')[0] || item.name || 'document.pdf';
+            localUri = `${FileSystem.cacheDirectory}${fileName}`;
+            const downloadRes = await FileSystem.downloadAsync(previewUri, localUri);
+            if (downloadRes.status !== 200) throw new Error('Download failed');
+            localUri = downloadRes.uri;
+          }
+
+          await Sharing.shareAsync(localUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Open PDF',
+            UTI: 'com.adobe.pdf',
+          });
+          return;
+        } catch (error) {
+          console.warn('[CreateTask] Failed to open PDF in-app', error);
+        }
+      }
+
       if (Platform.OS === 'android' && previewUri.startsWith('file://')) {
         try {
           previewUri = await FileSystem.getContentUriAsync(previewUri);
@@ -752,6 +780,7 @@ export function CreateTaskContent({
       taskCategoryId,
       priority,
       dueDate: dueDate.toISOString(),
+      ...(userPickedTime ? { dueTime: `${dueDate.getHours().toString().padStart(2, '0')}:${dueDate.getMinutes().toString().padStart(2, '0')}` } : {}),
       isRecurring,
       ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
       ...(outletId ? { outletId } : {}),
@@ -1048,11 +1077,18 @@ export function CreateTaskContent({
         <ChipGroup options={PRIORITIES} value={priority} onChange={setPriority} />
 
         <Label text="Due Date" required />
-        <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
-          <Text style={styles.inputValue}>
-            {dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <TouchableOpacity style={[styles.input, { flex: 1 }]} onPress={() => setShowDatePicker(true)}>
+            <Text style={styles.inputValue}>
+              {dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.input, { flex: 1 }]} onPress={() => setShowTimePicker(true)}>
+            <Text style={styles.inputValue}>
+              {dueDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </Text>
+          </TouchableOpacity>
+        </View>
         {!hideRecurringToggle && (
           <View style={styles.recurrenceRow}>
             <Text style={[styles.label, { marginTop: 0 }]}>Recurring Task</Text>
@@ -1070,7 +1106,24 @@ export function CreateTaskContent({
           value={dueDate}
           minimumDate={new Date()}
           onClose={() => setShowDatePicker(false)}
-          onChange={(date) => setDueDate(date)}
+          onChange={(date) => {
+            const newDate = new Date(date);
+            newDate.setHours(dueDate.getHours(), dueDate.getMinutes(), 0, 0);
+            setDueDate(newDate);
+          }}
+        />
+
+        <DatePickerModal
+          visible={showTimePicker}
+          value={dueDate}
+          mode="time"
+          onClose={() => setShowTimePicker(false)}
+          onChange={(date) => {
+            const newDate = new Date(dueDate);
+            newDate.setHours(date.getHours(), date.getMinutes(), 0, 0);
+            setDueDate(newDate);
+            setUserPickedTime(true);
+          }}
         />
 
         {isRecurring && (

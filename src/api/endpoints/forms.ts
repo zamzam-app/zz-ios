@@ -22,6 +22,7 @@ interface BaseQuestion {
   _id: string;
   title: string;
   isRequired: boolean;
+  isDefault?: boolean;
   hint?: string;
   options?: Option[];
   maxRatings?: number;
@@ -62,6 +63,7 @@ interface RawQuestion {
   type?: unknown;
   title?: unknown;
   isRequired?: unknown;
+  isDefault?: unknown;
   hint?: unknown;
   options?: unknown;
   maxRatings?: unknown;
@@ -72,6 +74,7 @@ interface UpdateQuestionPayload {
   type: string;
   title: string;
   isRequired: boolean;
+  isDefault?: boolean;
   hint?: string;
   options?: Option[];
   maxRatings?: number;
@@ -102,6 +105,7 @@ function mapQuestion(raw: RawQuestion, index: number): Question {
     _id: String(raw._id ?? raw.id ?? `q_${index}`),
     title: typeof raw.title === 'string' ? raw.title : '',
     isRequired: typeof raw.isRequired === 'boolean' ? raw.isRequired : false,
+    ...(typeof raw.isDefault === 'boolean' ? { isDefault: raw.isDefault } : {}),
     ...(typeof raw.hint === 'string' ? { hint: raw.hint } : {}),
     ...(Array.isArray(raw.options)
       ? {
@@ -137,6 +141,7 @@ function toUpdateQuestionPayload(question: Question): UpdateQuestionPayload {
     type,
     title: question.title,
     isRequired: question.isRequired,
+    ...(typeof question.isDefault === 'boolean' ? { isDefault: question.isDefault } : {}),
     ...(typeof question.hint === 'string' ? { hint: question.hint } : {}),
     ...(Array.isArray(question.options)
       ? {

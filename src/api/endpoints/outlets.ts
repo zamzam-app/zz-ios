@@ -31,7 +31,7 @@ export interface UpdateOutletPayload {
   name?: string;
   description?: string;
   address?: string;
-  formId?: string;
+  formId?: string | null;
   outletType?: string;
   managerIds?: string[];
   images?: string[];

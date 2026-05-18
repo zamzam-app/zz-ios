@@ -147,7 +147,17 @@ async function processQueue() {
     console.error('[TaskSubmissionQueue] Job failed', error);
     nextJob.status = 'failed';
     nextJob.error = error instanceof Error ? error.message : String(error);
-    nextJob.attempts += 1;
+    
+    // Treat certain 4xx errors as permanent failures (no point retrying bad payloads).
+    // Exclude 401 (token expiry — retry after re-auth) and 429 (rate-limited — let backoff handle it).
+    const responseStatus = (error as any)?.response?.status;
+    const isPermanentClientError = [400, 403, 404, 409, 410, 422].includes(responseStatus);
+    if (isPermanentClientError) {
+      nextJob.attempts = MAX_ATTEMPTS;
+    } else {
+      nextJob.attempts += 1;
+    }
+    
     nextJob.updatedAt = new Date().toISOString();
     await persistQueue();
   } finally {
@@ -207,6 +217,38 @@ export async function retryFailedJobs() {
 export async function clearFailedJobs() {
   await ensureLoaded();
   taskJobs = taskJobs.filter(j => j.status !== 'failed');
+  await persistQueue();
+}
+
+export async function clearAllPendingJobs() {
+  await ensureLoaded();
+
+  // 1. Mark retryable failed jobs as permanently failed (attempts = MAX_ATTEMPTS)
+  // so they stop retrying and move to the "failed" section of the banner,
+  // providing feedback to the user rather than silently discarding them.
+  taskJobs = taskJobs.map(j => {
+    if (j.status === 'failed' && j.attempts < MAX_ATTEMPTS) {
+      return {
+        ...j,
+        attempts: MAX_ATTEMPTS,
+        updatedAt: new Date().toISOString(),
+        error: j.error || 'Cancelled by user while retrying'
+      };
+    }
+    return j;
+  });
+
+  // 2. Clean up associated upload jobs ONLY for tasks that are actually being discarded (i.e. 'queued' tasks)
+  const discardedJobs = taskJobs.filter(j => j.status === 'queued');
+  for (const job of discardedJobs) {
+    for (const jobRef of job.attachmentJobs) {
+      void removeUploadJob(jobRef.id);
+    }
+  }
+
+  // 3. Keep all failed jobs AND the active 'processing' job, while discarding queued ones
+  taskJobs = taskJobs.filter(j => j.status === 'failed' || j.status === 'processing');
+
   await persistQueue();
 }
 

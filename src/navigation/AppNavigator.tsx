@@ -7,7 +7,6 @@ import { colors, typography, shadow } from '../theme/theme';
 import OverviewScreen from '../screens/overview/OverviewScreen';
 import TasksNavigator, { TasksStackParamList } from './TasksNavigator';
 import ReviewsNavigator, { ReviewsStackParamList } from './ReviewsNavigator';
-import InfrastructureNavigator from './InfrastructureNavigator';
 import MoreNavigator from './MoreNavigator';
 import { useReviews } from '../hooks/useReviews';
 
@@ -15,7 +14,6 @@ export type AppTabParamList = {
   Overview: undefined;
   Tasks: NavigatorScreenParams<TasksStackParamList> | undefined;
   Reviews: NavigatorScreenParams<ReviewsStackParamList> | undefined;
-  Infrastructure: undefined;
   More: undefined;
 };
 
@@ -28,7 +26,6 @@ const TAB_ICONS: Record<TabRouteName, { outline: IoniconName; filled: IoniconNam
   Overview: { outline: 'speedometer-outline',       filled: 'speedometer' },
   Tasks: { outline: 'document-text-outline',      filled: 'document-text' },
   Reviews: { outline: 'chatbubble-ellipses-outline', filled: 'chatbubble-ellipses' },
-  Infrastructure: { outline: 'storefront-outline',       filled: 'storefront' },
   More: { outline: 'menu-outline',             filled: 'menu' },
 };
 
@@ -36,7 +33,6 @@ const TAB_LABELS: Record<TabRouteName, string> = {
   Overview: 'Dashboard',
   Tasks: 'Tasks',
   Reviews: 'Reviews',
-  Infrastructure: 'Outlets',
   More: 'Menu',
 };
 
@@ -104,7 +100,6 @@ export default function AppNavigator() {
       <Tab.Screen name="Overview" component={OverviewScreen} />
       <Tab.Screen name="Tasks" component={TasksNavigator} />
       <Tab.Screen name="Reviews" component={ReviewsNavigator} />
-      <Tab.Screen name="Infrastructure" component={InfrastructureNavigator} />
       <Tab.Screen name="More" component={MoreNavigator} />
     </Tab.Navigator>
   );

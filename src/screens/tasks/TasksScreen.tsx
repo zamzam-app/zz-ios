@@ -13,13 +13,14 @@ import {
   Alert,
   Image,
   Linking,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteTasks } from '../../hooks/useTasks';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import DatePickerModal from '../../components/DatePickerModal';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
@@ -43,25 +44,11 @@ const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
   { label: 'Low', value: 'LOW' },
 ];
 
-const PRIORITY_SORT_ORDER: Record<TaskPriority, number> = {
-  HIGH: 0,
-  MEDIUM: 1,
-  LOW: 2,
-};
-
 function toTimestamp(iso?: string | null) {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   return date.getTime();
-}
-
-function dueDateSortValue(iso?: string | null) {
-  return toTimestamp(iso) ?? Number.MAX_SAFE_INTEGER;
-}
-
-function compareDueDateAsc(a: Task, b: Task) {
-  return dueDateSortValue(a.dueDate) - dueDateSortValue(b.dueDate);
 }
 
 function compareCreatedAtDesc(a: Task, b: Task) {
@@ -70,33 +57,6 @@ function compareCreatedAtDesc(a: Task, b: Task) {
   return createdB - createdA;
 }
 
-function getOpenTaskGroup(task: Task, now: Date) {
-  if (task.priority === 'HIGH') return 0;
-  if (isSameCalendarDay(task.dueDate, now)) return 1;
-  return 2;
-}
-
-function compareOpenTaskOrder(a: Task, b: Task, now: Date) {
-  const groupA = getOpenTaskGroup(a, now);
-  const groupB = getOpenTaskGroup(b, now);
-  const groupDiff = groupA - groupB;
-  if (groupDiff !== 0) return groupDiff;
-
-  if (groupA === 1) {
-    const priorityDiff = (PRIORITY_SORT_ORDER[a.priority] ?? 99) - (PRIORITY_SORT_ORDER[b.priority] ?? 99);
-    if (priorityDiff !== 0) return priorityDiff;
-
-    const dueDiff = compareDueDateAsc(a, b);
-    if (dueDiff !== 0) return dueDiff;
-
-    return compareCreatedAtDesc(a, b);
-  }
-
-  const dueDiff = compareDueDateAsc(a, b);
-  if (dueDiff !== 0) return dueDiff;
-
-  return compareCreatedAtDesc(a, b);
-}
 
 function completedTaskSortValue(task: Task) {
   return toTimestamp(task.completedAt ?? task.updatedAt ?? task.createdAt) ?? 0;
@@ -107,10 +67,6 @@ function compareCompletedTaskOrder(a: Task, b: Task) {
   if (completedDiff !== 0) return completedDiff;
 
   return compareCreatedAtDesc(a, b);
-}
-
-function isTaskCompleted(task: Task) {
-  return task.status.trim().toUpperCase() === 'COMPLETED';
 }
 
 type AttachmentType = 'images' | 'videos' | 'audios' | 'files';
@@ -135,12 +91,21 @@ function getTaskAttachmentUrls(task: Task, type: AttachmentType) {
   return task.attachments?.files ?? [];
 }
 
-function formatDate(iso: string) {
+function formatDate(iso?: string | null, dueTime?: string | null) {
+  if (!iso) return 'No due date';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'No due date';
-  return date.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  });
+  const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
+    const [hours, minutes] = dueTime.split(':');
+    const h = parseInt(hours, 10);
+    const m = parseInt(minutes, 10);
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    const timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${suffix}`;
+    return `${dateStr} ${timeStr}`;
+  }
+  return dateStr;
 }
 
 function formatRelativeTime(iso?: string | null) {
@@ -157,16 +122,6 @@ function formatRelativeTime(iso?: string | null) {
 
   const days = Math.floor(hours / 24);
   return `Closed ${days}d ago`;
-}
-
-function isSameCalendarDay(iso: string, now = new Date()) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return false;
-  return (
-    date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate()
-  );
 }
 
 function OpenTaskCard({
@@ -202,6 +157,10 @@ function OpenTaskCard({
         <Text style={styles.openMetaLine} numberOfLines={1}>
           <Text style={styles.openMetaLabel}>Assigned to: </Text>
           <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
+        </Text>
+        <Text style={styles.openMetaLine} numberOfLines={1}>
+          <Text style={styles.openMetaLabel}>Due: </Text>
+          <Text style={styles.openMetaStrong}>{formatDate(task.dueDate, task.dueTime)}</Text>
         </Text>
 
         <View style={styles.openCardDivider} />
@@ -264,6 +223,10 @@ function CompletedTaskCard({
       <Text style={styles.openMetaLine} numberOfLines={1}>
         <Text style={styles.openMetaLabel}>Assigned to: </Text>
         <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
+      </Text>
+      <Text style={styles.openMetaLine} numberOfLines={1}>
+        <Text style={styles.openMetaLabel}>Due: </Text>
+        <Text style={styles.openMetaStrong}>{formatDate(task.dueDate, task.dueTime)}</Text>
       </Text>
 
       <View style={styles.openCardDivider} />
@@ -420,8 +383,7 @@ export default function TasksScreen() {
   );
 
   const openTasks = useMemo(() => {
-    const now = new Date();
-    return [...openTasksFromApi].sort((a, b) => compareOpenTaskOrder(a, b, now));
+    return [...openTasksFromApi].sort(compareCreatedAtDesc);
   }, [openTasksFromApi]);
 
   const completedTasks = useMemo(
@@ -463,14 +425,38 @@ export default function TasksScreen() {
     setAttachmentModal({ task, type });
   };
 
-  const openExternalAttachment = async (url: string) => {
+  const openExternalAttachment = async (url: string, type?: AttachmentType) => {
+    const trimmedUrl = url.trim();
+    // Handle PDF and other files specifically to open in-app
+    const isPdf = trimmedUrl.toLowerCase().split('?')[0].endsWith('.pdf');
+    if (isPdf || type === 'files') {
+      try {
+        const fileName = trimmedUrl.split('/').pop()?.split('?')[0] || `document-${Date.now()}`;
+        const localUri = `${FileSystem.cacheDirectory}${fileName}`;
+        
+        const downloadRes = await FileSystem.downloadAsync(trimmedUrl, localUri);
+        
+        if (downloadRes.status === 200) {
+          const sharingAvailable = await Sharing.isAvailableAsync();
+          if (sharingAvailable) {
+            await Sharing.shareAsync(downloadRes.uri, {
+              dialogTitle: isPdf ? 'Open PDF' : 'Open File',
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('[Tasks] Failed to open file in-app', error);
+      }
+    }
+
     try {
-      const canOpen = await Linking.canOpenURL(url);
+      const canOpen = await Linking.canOpenURL(trimmedUrl);
       if (!canOpen) {
         Alert.alert('Attachment unavailable', 'Could not open this attachment.');
         return;
       }
-      await Linking.openURL(url);
+      await Linking.openURL(trimmedUrl);
     } catch {
       Alert.alert('Attachment unavailable', 'Could not open this attachment.');
     }
@@ -863,7 +849,7 @@ export default function TasksScreen() {
                 ? attachmentModalUrls.map((url, index) => (
                   <TouchableOpacity
                     key={`${url}-${index}`}
-                    onPress={() => { void openExternalAttachment(url); }}
+                    onPress={() => { void openExternalAttachment(url, attachmentModal?.type); }}
                     activeOpacity={0.84}
                     style={styles.attachImageItem}
                   >
@@ -874,7 +860,7 @@ export default function TasksScreen() {
                   <TouchableOpacity
                     key={`${url}-${index}`}
                     style={styles.attachRow}
-                    onPress={() => { void openExternalAttachment(url); }}
+                    onPress={() => { void openExternalAttachment(url, attachmentModal?.type); }}
                     activeOpacity={0.8}
                   >
                     <View style={styles.attachRowLeft}>
@@ -1023,7 +1009,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.sm,
   },
   searchWrap: {
     flex: 1,
@@ -1500,7 +1486,8 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
+    marginTop: 4,
+    marginBottom: spacing.xs,
     backgroundColor: '#E6E8EA',
     borderRadius: radius.md,
     padding: 2,
