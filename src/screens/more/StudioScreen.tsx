@@ -101,11 +101,19 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
   initial?: Product;
   categories: Category[];
   onClose: () => void;
-  onSubmit: (name: string, price: string, description: string, categoryList: string[], images: string[]) => void;
+  onSubmit: (
+    name: string,
+    pricing: Array<{ quantityValue: string; amount: string }>,
+    description: string,
+    categoryList: string[],
+    images: string[]
+  ) => void;
   submitting: boolean;
 }) {
   const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
+  const [pricing, setPricing] = useState<Array<{ quantityValue: string; amount: string }>>([
+    { quantityValue: '', amount: '' }
+  ]);
   const [description, setDescription] = useState('');
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState<string>('');
@@ -114,7 +122,16 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
   React.useEffect(() => {
     if (visible) {
       setName(initial?.name ?? '');
-      setPrice(initial?.price?.toString() ?? '');
+      if (initial?.pricing && initial.pricing.length > 0) {
+        setPricing(
+          initial.pricing.map((p) => ({
+            quantityValue: p.quantityValue.toString(),
+            amount: p.amount.toString(),
+          }))
+        );
+      } else {
+        setPricing([{ quantityValue: '', amount: '' }]);
+      }
       setDescription(initial?.description ?? '');
       setSelectedCats(initial?.categoryList ?? []);
       setImageUrl(initial?.images?.[0] ?? '');
@@ -135,7 +152,7 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
             </TouchableOpacity>
             <Text style={styles.modalTitle}>{initial ? 'Edit Cake' : 'New Cake'}</Text>
             <TouchableOpacity
-              onPress={() => onSubmit(name, price, description, selectedCats, imageUrl ? [imageUrl] : [])}
+              onPress={() => onSubmit(name, pricing, description, selectedCats, imageUrl ? [imageUrl] : [])}
               disabled={submitting || imageUploading}
             >
               {(submitting || imageUploading)
@@ -164,15 +181,83 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
               placeholderTextColor={colors.textDisabled}
             />
 
-            <Text style={styles.label}>Price *</Text>
-            <TextInput
-              style={styles.input}
-              value={price}
-              onChangeText={setPrice}
-              placeholder="0.00"
-              placeholderTextColor={colors.textDisabled}
-              keyboardType="decimal-pad"
-            />
+            <View style={styles.pricingSection}>
+              <View style={styles.pricingHeader}>
+                <Text style={styles.label}>Pricing Options *</Text>
+                <TouchableOpacity
+                  style={styles.addPricingBtn}
+                  onPress={() => setPricing((prev) => [...prev, { quantityValue: '', amount: '' }])}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                  <Text style={styles.addPricingBtnText}>Add Option</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.pricingTableContainer}>
+                {/* Unified Table Header */}
+                <View style={styles.pricingTableHeader}>
+                  <Text style={[styles.subLabel, { flex: 1.2 }]}>Qty *</Text>
+                  <Text style={[styles.subLabel, { flex: 1.5 }]}>Amount *</Text>
+                  {pricing.length > 1 && <View style={{ width: 48 }} />}
+                </View>
+
+                {/* Unified Table Rows */}
+                {pricing.map((row, index) => (
+                  <View key={index} style={styles.pricingTableRow}>
+                    {/* Quantity Column */}
+                    <View style={{ flex: 1.2 }}>
+                      <View style={styles.inputContainer}>
+                        <TextInput
+                          style={styles.pricingInput}
+                          value={row.quantityValue}
+                          onChangeText={(val) => {
+                            const newPricing = [...pricing];
+                            newPricing[index].quantityValue = val;
+                            setPricing(newPricing);
+                          }}
+                          placeholder="0.00"
+                          placeholderTextColor={colors.textDisabled}
+                          keyboardType="decimal-pad"
+                        />
+                        <Text style={styles.inputSuffix}>kg</Text>
+                      </View>
+                    </View>
+
+                    {/* Amount Column */}
+                    <View style={{ flex: 1.5 }}>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.inputPrefix}>₹</Text>
+                        <TextInput
+                          style={styles.pricingInput}
+                          value={row.amount}
+                          onChangeText={(val) => {
+                            const newPricing = [...pricing];
+                            newPricing[index].amount = val;
+                            setPricing(newPricing);
+                          }}
+                          placeholder="0.00"
+                          placeholderTextColor={colors.textDisabled}
+                          keyboardType="decimal-pad"
+                        />
+                        <Text style={styles.inputSuffix}>INR</Text>
+                      </View>
+                    </View>
+
+                    {/* Remove Button Column */}
+                    {pricing.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.removeRowBtn}
+                        onPress={() => setPricing((prev) => prev.filter((_, i) => i !== index))}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="trash-outline" size={18} color={colors.error} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+              </View>
+            </View>
 
             <Text style={styles.label}>Description</Text>
             <TextInput
@@ -578,6 +663,18 @@ function CakeRow({
   isMutating: boolean;
   isAdmin: boolean;
 }) {
+  // Pricing display logic
+  let displayPrice = 'N/A';
+  if (item.pricing && item.pricing.length > 0) {
+    const validAmounts = item.pricing
+      .map((p) => p.amount)
+      .filter((a) => typeof a === 'number' && !isNaN(a));
+    if (validAmounts.length > 0) {
+      const minAmount = Math.min(...validAmounts);
+      displayPrice = `Starts at ₹${minAmount.toFixed(2)} / kg`;
+    }
+  }
+
   return (
     <View style={styles.card}>
       <View style={styles.cardMainRow}>
@@ -594,7 +691,7 @@ function CakeRow({
         <View style={styles.cardContent}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.price}>₹{item.price.toFixed(2)}</Text>
+            <Text style={styles.price}>{displayPrice}</Text>
           </View>
 
           {item.description ? <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text> : null}
@@ -682,14 +779,35 @@ export default function StudioScreen() {
 
   const handleProductSubmit = (
     name: string,
-    price: string,
+    pricingState: Array<{ quantityValue: string; amount: string }>,
     description: string,
     categoryList: string[],
     images: string[],
   ) => {
     if (!name.trim()) return Alert.alert('Required', 'Cake name is required.');
-    const parsedPrice = parseFloat(price);
-    if (Number.isNaN(parsedPrice)) return Alert.alert('Invalid', 'Please enter a valid price.');
+
+    // Filter out rows that are incomplete (any row with a missing or non-numeric quantity/amount)
+    const pricingPayload = pricingState
+      .map((row) => {
+        const quantityValue = parseFloat(row.quantityValue);
+        const amount = parseFloat(row.amount);
+        return { quantityValue, amount };
+      })
+      .filter((row) => !isNaN(row.quantityValue) && !isNaN(row.amount));
+
+    // Validate pricing
+    if (pricingPayload.length === 0) {
+      return Alert.alert('Required', 'At least one valid pricing option is required.');
+    }
+
+    for (const row of pricingPayload) {
+      if (row.quantityValue <= 0) {
+        return Alert.alert('Invalid Input', 'Quantity must be greater than 0 kg.');
+      }
+      if (row.amount < 0) {
+        return Alert.alert('Invalid Input', 'Amount must be greater than or equal to ₹0.');
+      }
+    }
 
     if (editingProduct) {
       updateProduct.mutate(
@@ -697,7 +815,7 @@ export default function StudioScreen() {
           id: editingProduct.id,
           payload: {
             name: name.trim(),
-            price: parsedPrice,
+            pricing: pricingPayload,
             description: description.trim(),
             categoryList,
             images,
@@ -712,7 +830,13 @@ export default function StudioScreen() {
     }
 
     createProduct.mutate(
-      { name: name.trim(), price: parsedPrice, description: description.trim(), categoryList, images },
+      {
+        name: name.trim(),
+        pricing: pricingPayload,
+        description: description.trim(),
+        categoryList,
+        images,
+      },
       {
         onSuccess: () => setShowProductModal(false),
         onError: () => Alert.alert('Error', 'Failed to create cake.'),
@@ -1349,6 +1473,86 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: typography.sm,
     color: colors.textSecondary,
+  },
+
+  pricingSection: {
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  pricingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  addPricingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addPricingBtnText: {
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    color: colors.primary,
+  },
+  pricingTableContainer: {
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  pricingTableHeader: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  pricingTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  subLabel: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 10,
+    height: 48,
+  },
+  pricingInput: {
+    flex: 1,
+    fontSize: typography.base,
+    color: colors.text,
+    padding: 0,
+    margin: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+  },
+  inputPrefix: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.semibold,
+    marginRight: 4,
+  },
+  inputSuffix: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.semibold,
+    marginLeft: 4,
+  },
+  removeRowBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: '#FFEBEE',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

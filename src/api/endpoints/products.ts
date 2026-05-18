@@ -35,6 +35,7 @@ interface RawProduct {
   _id?: string;
   id?: string;
   name?: string;
+  price?: any; // TEMPORARY MIGRATION SUPPORT
   pricing?: Array<{
     quantityValue?: any;
     quantityUnit?: any;
@@ -59,7 +60,19 @@ function mapProduct(raw: RawProduct): Product {
   const rawPricing = raw.pricing;
   const pricingList: ProductPricing[] = [];
 
-  if (Array.isArray(rawPricing)) {
+  // TEMPORARY MIGRATION SUPPORT: Detect legacy products that only contain a "price" field and no "pricing" options list.
+  // This adapter converts a single price into a 1kg INR pricing option.
+  // This can be safely removed once all items in the database have been migrated to the new pricing options schema.
+  if (!rawPricing && raw.price !== undefined && raw.price !== null) {
+    const legacyPrice = Number(raw.price);
+    const amount = !isNaN(legacyPrice) ? legacyPrice : 0;
+    pricingList.push({
+      quantityValue: 1,
+      quantityUnit: 'kg',
+      amount,
+      currency: 'INR',
+    });
+  } else if (Array.isArray(rawPricing)) {
     for (const item of rawPricing) {
       if (item && typeof item === 'object') {
         const rawQVal = Number(item.quantityValue);
