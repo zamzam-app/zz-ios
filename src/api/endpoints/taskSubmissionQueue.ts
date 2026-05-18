@@ -235,16 +235,16 @@ export async function clearAllPendingJobs() {
     return j;
   });
 
-  // 2. Clean up associated upload jobs for discarded 'queued' or 'processing' tasks
-  const discardedJobs = taskJobs.filter(j => j.status === 'queued' || j.status === 'processing');
+  // 2. Clean up associated upload jobs ONLY for tasks that are actually being discarded (i.e. 'queued' tasks)
+  const discardedJobs = taskJobs.filter(j => j.status === 'queued');
   for (const job of discardedJobs) {
     for (const jobRef of job.attachmentJobs) {
       void removeUploadJob(jobRef.id);
     }
   }
 
-  // 3. Keep all failed jobs while removing queued and processing jobs
-  taskJobs = taskJobs.filter(j => j.status === 'failed');
+  // 3. Keep all failed jobs AND the active 'processing' job, while discarding queued ones
+  taskJobs = taskJobs.filter(j => j.status === 'failed' || j.status === 'processing');
 
   await persistQueue();
 }
