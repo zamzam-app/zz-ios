@@ -22,9 +22,9 @@ const BADGE_TONE_STYLES = {
         textColor: '#1C7A52',
     },
     warning: {
-        backgroundColor: '#FFF1DE',
-        borderColor: '#F7C992',
-        textColor: '#B45309',
+        backgroundColor: '#FEE2E2',
+        borderColor: '#F5B5B5',
+        textColor: '#B91C1C',
     },
     danger: {
         backgroundColor: '#FEE2E2',
