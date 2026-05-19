@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.zamzam.adminapp",
+      "bundleIdentifier": "com.zz.adminapp",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationUsageDescription": "Receive alerts for new tasks and complaints."
