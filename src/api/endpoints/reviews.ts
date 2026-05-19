@@ -1,5 +1,6 @@
 import client from '../client';
 import { mapListSafely } from './mapListSafely';
+import { buildCriticalReviewsQuery, filterOpenCriticalReviews } from '../../utils/reviewCritical';
 
 export type ComplaintStatus = 'pending' | 'resolved' | 'dismissed';
 
@@ -45,6 +46,11 @@ export interface ReviewsQuery {
   page?: number;
   limit?: number;
   outletId?: string;
+  isComplaint?: boolean;
+  complaintStatus?: ComplaintStatus | 'open';
+  severity?: 'critical' | 'concern';
+  unresolvedOnly?: boolean;
+  excludeResolved?: boolean;
 }
 
 export interface ResolveComplaintPayload {
@@ -168,6 +174,15 @@ export const reviewsApi = {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawReview[] }).data ?? [];
         return mapListSafely(raw, 'reviews', mapReview);
       }),
+
+  listCriticalOpen: (query?: ReviewsQuery) =>
+    reviewsApi.list(buildCriticalReviewsQuery(query)).then((reviews) => {
+      const filtered = filterOpenCriticalReviews(reviews);
+      if (filtered.length !== reviews.length) {
+        console.warn('[reviewsApi.listCriticalOpen] Backend returned resolved or non-critical reviews; filtering client-side safeguard applied.');
+      }
+      return filtered;
+    }),
 
   getById: (id: string) =>
     client

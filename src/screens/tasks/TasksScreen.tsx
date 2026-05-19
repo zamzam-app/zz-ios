@@ -33,6 +33,7 @@ import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/tas
 import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
 import TaskQueueStatusBanner from '../../components/TaskQueueStatusBanner';
+import { buildTaskCardFooterModel } from './taskAssignedTime';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
@@ -141,6 +142,7 @@ function OpenTaskCard({
   const videoCount = getTaskAttachmentUrls(task, 'videos').length;
   const audioCount = getTaskAttachmentUrls(task, 'audios').length;
   const fileCount = getTaskAttachmentUrls(task, 'files').length;
+  const footerModel = buildTaskCardFooterModel(task);
 
   return (
     <TouchableOpacity style={styles.openCard} onPress={onPress} activeOpacity={0.82}>
@@ -183,6 +185,11 @@ function OpenTaskCard({
               {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
             </TouchableOpacity>
           </View>
+          {footerModel.assignedTimeLabel ? (
+            <Text style={styles.openCardAssignedTime} numberOfLines={1}>
+              {footerModel.assignedTimeLabel}
+            </Text>
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -204,6 +211,7 @@ function CompletedTaskCard({
   const videoCount = getTaskAttachmentUrls(task, 'videos').length;
   const audioCount = getTaskAttachmentUrls(task, 'audios').length;
   const fileCount = getTaskAttachmentUrls(task, 'files').length;
+  const footerModel = buildTaskCardFooterModel(task);
 
   return (
     <TouchableOpacity style={styles.completedCard} onPress={onPress} activeOpacity={0.78}>
@@ -246,6 +254,11 @@ function CompletedTaskCard({
             {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
           </TouchableOpacity>
         </View>
+        {footerModel.assignedTimeLabel ? (
+          <Text style={styles.openCardAssignedTime} numberOfLines={1}>
+            {footerModel.assignedTimeLabel}
+          </Text>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -1203,9 +1216,17 @@ const styles = StyleSheet.create({
   openMetaStrong: { color: colors.text, fontWeight: typography.bold },
   openCardDivider: { borderBottomWidth: 1, borderBottomColor: '#D3C5AC55' },
   openCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  openCardAttachmentActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  openCardAttachmentActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
   openCardIconBtn: { minWidth: 18, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 2 },
   openCardIconCount: { fontSize: 10, color: colors.textSecondary, fontWeight: typography.semibold },
+  openCardAssignedTime: {
+    marginLeft: spacing.sm,
+    flexShrink: 1,
+    textAlign: 'right',
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
 
   completedSection: {
     marginTop: spacing.md,

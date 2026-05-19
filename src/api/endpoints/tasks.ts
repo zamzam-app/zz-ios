@@ -60,6 +60,7 @@ export interface Task {
   isRecurring?: boolean;
   recurrenceType?: TaskRecurrenceType;
   recurrenceDays?: number[];
+  assignedAt?: string;
   createdAt: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -198,7 +199,10 @@ interface RawTask {
   isRecurring?: boolean;
   recurrenceType?: string;
   recurrenceDays?: number[];
+  assignedAt?: string;
+  assigned_at?: string;
   createdAt?: string;
+  created_at?: string;
   updatedAt?: string;
   completedAt?: string | null;
   badges?: Array<{ key?: string; label?: string; tone?: TaskBadgeTone }>;
@@ -304,6 +308,9 @@ function mapTask(raw: RawTask): Task {
         }))
     : undefined;
 
+  const assignedAt = raw.assignedAt ?? raw.assigned_at ?? raw.createdAt ?? raw.created_at;
+  const createdAt = raw.createdAt ?? raw.created_at ?? assignedAt ?? new Date().toISOString();
+
   return {
     id,
     description,
@@ -355,7 +362,8 @@ function mapTask(raw: RawTask): Task {
     isRecurring: !!raw.isRecurring,
     recurrenceType: raw.recurrenceType as TaskRecurrenceType | undefined,
     recurrenceDays: raw.recurrenceDays ?? [],
-    createdAt: raw.createdAt ?? new Date().toISOString(),
+    assignedAt,
+    createdAt,
     updatedAt: raw.updatedAt,
     completedAt: raw.completedAt ?? null,
     badges,

@@ -27,6 +27,10 @@ import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { AppTabParamList } from '../../navigation/AppNavigator';
 import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
 import { ReviewMetricFilter, ReviewTypeFilter } from '../../constants/reviewFilters';
+import {
+  buildOpenReviewOverviewModel,
+  getOpenReviewsEmptyStateMessage,
+} from './reviewOverview';
 
 const PERIODS: { label: string; value: Period }[] = [
   { label: 'Daily', value: 'daily' },
@@ -468,13 +472,19 @@ export default function OverviewScreen() {
     ratings: String(totalRatings),
     items: csatBreakdownItems,
   };
+  const quickInsightsCriticalFocus = insights.data?.criticalFocusArea;
 
   const insightItems = [
-    insights.data?.criticalFocusArea && {
+    quickInsightsCriticalFocus && quickInsightsCriticalFocus.outletId && quickInsightsCriticalFocus.criticalIssues > 0 && {
       title: 'Critical Focus',
-      value: `${insights.data.criticalFocusArea.outletName} · ${insights.data.criticalFocusArea.criticalIssues} issue${insights.data.criticalFocusArea.criticalIssues !== 1 ? 's' : ''}`,
+      value: `${quickInsightsCriticalFocus.outletName} · ${quickInsightsCriticalFocus.criticalIssues} issue${quickInsightsCriticalFocus.criticalIssues !== 1 ? 's' : ''}`,
       accent: colors.error,
-      onPress: () => navigateToReviewsWithFilter(undefined, 'critical', 'overview_reviews_metric'),
+      onPress: () => navigateToReviewsWithFilter(
+        undefined,
+        'critical',
+        'overview_reviews_metric',
+        quickInsightsCriticalFocus.outletId ?? undefined,
+      ),
     },
     insights.data?.mostImprovedOutlet && {
       title: 'Most Improved',
@@ -488,9 +498,7 @@ export default function OverviewScreen() {
     },
   ].filter(Boolean) as { title: string; value: string; accent: string; onPress?: () => void }[];
 
-  const negativeSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.negativeFeedbacks - a.negativeFeedbacks);
-  const totalSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.totalFeedbacks - a.totalFeedbacks);
-  const resolvedSorted = [...(feedback.data?.items ?? [])].sort((a, b) => b.resolvedFeedbacks - a.resolvedFeedbacks);
+  const openReviewOverview = buildOpenReviewOverviewModel(feedback.data?.items);
 
   const taskOpenCount = tasksOverview.data?.totalOpenTasks;
   const taskCriticalCount = tasksOverview.data?.criticalOpenTasks;
@@ -511,13 +519,19 @@ export default function OverviewScreen() {
     });
   };
 
-  const navigateToReviewsWithFilter = (metric: ReviewMetricFilter | undefined, typeFilter: ReviewTypeFilter | undefined, source: TaskFilterSource) => {
+  const navigateToReviewsWithFilter = (
+    metric: ReviewMetricFilter | undefined,
+    typeFilter: ReviewTypeFilter | undefined,
+    source: TaskFilterSource,
+    outletId?: string,
+  ) => {
     navigation.navigate('Reviews', {
       screen: 'ReviewsList',
       params: {
         initialReviewFilter: {
           ...(metric ? { metric } : {}),
           ...(typeFilter ? { typeFilter } : {}),
+          ...(outletId ? { outletId } : {}),
           source,
           nonce: Date.now(),
         },
@@ -535,10 +549,10 @@ export default function OverviewScreen() {
     },
     {
       key: 'resolved',
-      label: 'Resolved',
-      value: incidents.data?.incidentsResolvedToday ?? '--',
-      color: colors.success,
-      onPress: () => navigateToReviewsWithFilter('resolved', undefined, 'overview_reviews_metric'),
+      label: 'Critical',
+      value: incidents.data?.criticalIssues ?? '--',
+      color: colors.error,
+      onPress: () => navigateToReviewsWithFilter(undefined, 'critical', 'overview_reviews_metric'),
     },
   ];
 
@@ -623,24 +637,26 @@ export default function OverviewScreen() {
             </View>
 
             <Text style={styles.sectionTitle}>Outlet Feedback</Text>
-            <FeedbackCard
-              title="Total Negative"
-              subtext="Complaints and critical issues"
-              accent={colors.error}
-              items={negativeSorted.map((i) => ({ name: i.outletName, value: i.negativeFeedbacks }))}
-            />
-            <FeedbackCard
-              title="Total Active"
-              subtext="All responses and ratings"
-              accent={colors.warning}
-              items={totalSorted.map((i) => ({ name: i.outletName, value: i.totalFeedbacks }))}
-            />
-            <FeedbackCard
-              title="Total Positive"
-              subtext="Resolved issues and positive ratings"
-              accent={colors.success}
-              items={resolvedSorted.map((i) => ({ name: i.outletName, value: i.resolvedFeedbacks }))}
-            />
+            {openReviewOverview.hasOpenReviews ? (
+              <>
+                <FeedbackCard
+                  title="Open Critical"
+                  subtext="Unresolved critical reviews"
+                  accent={colors.error}
+                  items={openReviewOverview.criticalItems}
+                />
+                <FeedbackCard
+                  title="Open Reviews"
+                  subtext="Unresolved reviews in this period"
+                  accent={colors.warning}
+                  items={openReviewOverview.openItems}
+                />
+              </>
+            ) : (
+              <View style={styles.chartCard}>
+                <Text style={styles.empty}>{getOpenReviewsEmptyStateMessage()}</Text>
+              </View>
+            )}
           </>
         )}
       </ScrollView>

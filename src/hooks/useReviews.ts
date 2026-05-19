@@ -11,6 +11,12 @@ export const useReviews = (query?: ReviewsQuery) =>
     queryFn: () => reviewsApi.list(query),
   });
 
+export const useCriticalReviews = (query?: ReviewsQuery) =>
+  useQuery({
+    queryKey: ['reviews', 'critical-open', query],
+    queryFn: () => reviewsApi.listCriticalOpen(query),
+  });
+
 export const useReview = (id: string) =>
   useQuery({
     queryKey: ['review', id],
