@@ -45,8 +45,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "a53bd63f-67c3-4a5a-98da-d030d05f010d"
+        "projectId": "8dbf9f6e-3d33-40a3-a1bf-f4a2f5a1f8de"
       }
-    }
+    },
+    "owner": "lplusdevelopers"
   }
 }
