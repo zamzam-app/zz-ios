@@ -1,0 +1,106 @@
+"use strict";
+/**
+ * Theme — single source of truth for all visual tokens.
+ * Change brand colors, spacing, or typography here and it propagates everywhere.
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.shadow = exports.typography = exports.radius = exports.spacing = exports.colors = void 0;
+exports.colors = {
+    // Brand — Bakery Caramel
+    primary: '#92400E',
+    primaryLight: '#B45309',
+    primaryDark: '#78350F',
+    primaryTint: '#FDF4E7', // warm amber surface
+    primaryTintStrong: '#FAEBD0', // deeper tint for pressed/active states
+    // Backgrounds
+    background: '#FAF7F2', // warm cream
+    screenBackground: '#F7F9FB', // app screen base
+    surface: '#FFFFFF',
+    surfaceElevated: '#F5EFE6', // warm off-white
+    surfaceOverlay: '#F7F9FBD9', // elevated/translucent sheet cap
+    // Text
+    text: '#1C1917', // warm near-black
+    textSecondary: '#78716C', // warm gray
+    textDisabled: '#D6D3D1',
+    textInverse: '#FFFFFF',
+    // Borders
+    border: '#E7E0D5', // warm border
+    borderFocused: '#92400E',
+    // Semantic
+    error: '#DC2626',
+    errorLight: '#FEE2E2',
+    success: '#15803D',
+    successLight: '#DCFCE7',
+    warning: '#D97706',
+    warningLight: '#FEF3C7',
+    info: '#0369A1',
+    infoLight: '#E0F2FE',
+    // Component-specific
+    buttonPrimaryBg: '#785A00',
+    buttonDarkBg: '#1A202C',
+    buttonLightBg: '#FFFFFF',
+    tabBarBg: '#1A202C',
+    // Task status
+    statusOpen: '#78716C',
+    statusAssigned: '#0369A1',
+    statusInProgress: '#D97706',
+    statusReadyForReview: '#7C3AED',
+    statusCompleted: '#15803D',
+    // Priority
+    priorityLow: '#15803D',
+    priorityMedium: '#D97706',
+    priorityHigh: '#DC2626',
+};
+exports.spacing = {
+    xs: 4,
+    sm: 8,
+    md: 16,
+    lg: 24,
+    xl: 32,
+    xxl: 48,
+};
+exports.radius = {
+    sm: 8,
+    md: 14,
+    lg: 24,
+    xl: 32,
+    full: 9999,
+};
+exports.typography = {
+    xs: 11,
+    sm: 13,
+    base: 15,
+    md: 17,
+    lg: 20,
+    xl: 28,
+    xxl: 36,
+    regular: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
+};
+exports.shadow = {
+    sm: {
+        shadowColor: '#92400E',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    md: {
+        shadowColor: '#92400E',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 4,
+    },
+    lg: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.14,
+        shadowRadius: 24,
+        elevation: 10,
+    },
+};
+const theme = { colors: exports.colors, spacing: exports.spacing, radius: exports.radius, typography: exports.typography, shadow: exports.shadow };
+exports.default = theme;
