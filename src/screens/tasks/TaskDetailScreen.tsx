@@ -979,9 +979,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     if (!source) return null;
 
     const isOverdue = source.status !== 'COMPLETED' && new Date(source.dueDate) < new Date();
-    const outletName = getTaskOutletName(source);
-    const categoryName = getTaskCategoryName(source);
-    const assigneeNames = getTaskAssigneeNames(source);
+    const outletName = getTaskOutletName(source, legacyTask);
+    const categoryName = getTaskCategoryName(source, legacyTask);
+    const assigneeNames = getTaskAssigneeNames(source, legacyTask, [
+      ...(taskDetail?.timeline?.data ?? []),
+      ...filteredEvents,
+    ]);
     const isNotCompleted = source.status !== 'COMPLETED' && !isAdmin;
 
 
@@ -1010,12 +1013,16 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           </View>
 
           <Row label="Due Date" value={formatDate(source.dueDate, source.dueTime)} />
-          {assigneeNames.length > 0 && (
-            <Row label="Assigned To" value={assigneeNames.join(', ')} />
-          )}
           <Row label="Created" value={formatDate(source.createdAt)} />
           {(source as any).completedAt && (
             <Row label="Completed" value={formatDate((source as any).completedAt)} />
+          )}
+
+          {assigneeNames.length > 0 && (
+            <>
+              <Text style={styles.ownerDescriptionLabel}>Assigned Managers</Text>
+              <Text style={styles.description}>{assigneeNames.join(', ')}</Text>
+            </>
           )}
 
           <Text style={styles.ownerDescriptionLabel}>Description</Text>
@@ -1155,7 +1162,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     );
   }, [
     source,
-    filteredEvents.length,
+    legacyTask,
+    taskDetail,
+    filteredEvents,
     sourceAttachments,
     managerText,
     managerAttachments,
