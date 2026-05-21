@@ -374,6 +374,68 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }, [taskId]),
   );
 
+  // ─── Effect: Log screen entry and data loading/errors ──────────────────
+  useEffect(() => {
+    console.log('[TaskDetailScreen] Navigated to TaskDetailScreen. taskId:', taskId);
+  }, [taskId]);
+
+  useEffect(() => {
+    if (taskDetail) {
+      console.log('[TaskDetailScreen] Fetched taskDetail successfully for taskId:', taskId, {
+        summary: taskDetail.summary,
+        timelinePage: taskDetail.timeline,
+      });
+    }
+  }, [taskDetail, taskId]);
+
+  useEffect(() => {
+    if (legacyTask) {
+      console.log('[TaskDetailScreen] Fetched legacyTask successfully for taskId:', taskId, legacyTask);
+    }
+  }, [legacyTask, taskId]);
+
+  useEffect(() => {
+    if (detailError) {
+      const err = detailError as any;
+      console.error('[TaskDetailScreen] Error fetching task detail for taskId:', taskId, {
+        message: err.message,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        responseData: err.response?.data,
+        url: err.config?.url,
+        method: err.config?.method,
+        error: err,
+      });
+    }
+  }, [detailError, taskId]);
+
+  useEffect(() => {
+    if (timelineQuery.error) {
+      const err = timelineQuery.error as any;
+      console.error('[TaskDetailScreen] Error fetching timeline for taskId:', taskId, {
+        message: err.message,
+        status: err.response?.status,
+        responseData: err.response?.data,
+        url: err.config?.url,
+        method: err.config?.method,
+      });
+    }
+  }, [timelineQuery.error, taskId]);
+
+  useEffect(() => {
+    if (eventTypeCountsQuery.error) {
+      const err = eventTypeCountsQuery.error as any;
+      console.error('[TaskDetailScreen] Error fetching event type counts for taskId:', taskId, {
+        message: err.message,
+        status: err.response?.status,
+        responseData: err.response?.data,
+        url: err.config?.url,
+        method: err.config?.method,
+      });
+    }
+  }, [eventTypeCountsQuery.error, taskId]);
+
+
   // ─── Audio mode setup ─────────────────────────────────────────────────────
   useEffect(() => {
     setAudioModeAsync({
@@ -528,13 +590,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   };
 
   const sourceAttachments = useMemo(
-    () => getSourceAttachments(taskDetail?.summary),
-    [taskDetail?.summary, managerAttachments.audios],
+    () => getSourceAttachments(source),
+    [source, managerAttachments.audios],
   );
 
   // ─── Manager submission setup ────────────────────────────────────────────
   useEffect(() => {
-    const source = taskDetail?.summary;
     if (!source) return;
     setManagerText((source as any).managerSubmission?.text ?? '');
     setManagerAttachments({
@@ -543,7 +604,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       audios: (source as any).managerSubmission?.attachments?.audios ?? [],
       files: (source as any).managerSubmission?.attachments?.files ?? [],
     });
-  }, [(taskDetail?.summary as any)?._id]);
+  }, [source]);
 
   const addAttachmentUrl = (type: 'images' | 'videos' | 'audios' | 'files', url: string) => {
     setManagerAttachments((prev) => ({
@@ -707,7 +768,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   };
 
   const saveManagerSubmission = () => {
-    const source = taskDetail?.summary;
     if (!source) return;
 
     Alert.alert(
@@ -886,7 +946,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   // ─── Render: List Header (summary + manager submission) ──────────────────
   const renderListHeader = useCallback(() => {
-    const source = taskDetail?.summary;
     if (!source) return null;
 
     const isOverdue = source.status !== 'COMPLETED' && new Date(source.dueDate) < new Date();
@@ -950,11 +1009,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         )}
 
         {/* Active delegation banner */}
-        {source.activeDelegation && (
+        {(source as any).activeDelegation && (
           <DelegationBanner
-            delegatedTo={source.activeDelegation.delegatedTo}
-            delegatedBy={source.activeDelegation.delegatedBy}
-            delegatedAt={source.activeDelegation.delegatedAt}
+            delegatedTo={(source as any).activeDelegation.delegatedTo}
+            delegatedBy={(source as any).activeDelegation.delegatedBy}
+            delegatedAt={(source as any).activeDelegation.delegatedAt}
             onRevoke={() => clearDelegation.mutate(taskId)}
             isRevoking={clearDelegation.isPending}
           />
@@ -1239,7 +1298,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       </View>
     );
   }, [
-    taskDetail,
+    source,
     activeEventFilter,
     filteredEvents.length,
     sourceAttachments,
@@ -1282,7 +1341,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  if (detailError || (!source && !timelineQuery.isLoading)) {
+  if ((detailError && !legacyTask) || (!source && !timelineQuery.isLoading)) {
     return (
       <View style={styles.center}>
         <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
