@@ -94,8 +94,14 @@ export default function DelegationSheet({
   const filteredUsers = useMemo(() => {
     if (!users) return [];
     
+    // Filter to only include manager / admin
+    let result = users.filter(
+      (u) =>
+        u.role?.toLowerCase() === 'manager' ||
+        u.role?.toLowerCase() === 'admin'
+    );
+    
     // Filter out already attached people & current user
-    let result = users;
     if (excludeUserIds && excludeUserIds.length > 0) {
       result = result.filter((u) => !excludeUserIds.includes(u.id));
     }
