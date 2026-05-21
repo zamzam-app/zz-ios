@@ -14,11 +14,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUsers } from '../hooks/useUsers';
-import { useDelegateTask, useReassignTask } from '../hooks/useTaskDelegation';
+import { useDelegateTask } from '../hooks/useTaskDelegation';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 import type { User } from '../api/endpoints/users';
-
-type Mode = 'delegate' | 'reassign';
 
 interface DelegationSheetProps {
   visible: boolean;
@@ -26,8 +24,8 @@ interface DelegationSheetProps {
   taskId: string;
   /** Description of the task, shown in the sheet header for context */
   taskDescription?: string;
-  /** Current owner name, shown for context */
-  currentOwnerName?: string;
+  /** User IDs to exclude from the list (already attached / current user) */
+  excludeUserIds?: string[];
 }
 
 function UserRow({
@@ -73,9 +71,8 @@ export default function DelegationSheet({
   onClose,
   taskId,
   taskDescription,
-  currentOwnerName,
+  excludeUserIds,
 }: DelegationSheetProps) {
-  const [mode, setMode] = useState<Mode>('delegate');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -85,46 +82,42 @@ export default function DelegationSheet({
     setSearchQuery('');
     setSelectedUserId(null);
     setNote('');
-    setMode('delegate');
     onClose();
   }, [onClose]);
 
   const { data: users, isLoading: usersLoading } = useUsers();
   const delegateMutation = useDelegateTask();
-  const reassignMutation = useReassignTask();
 
-  const isPending =
-    mode === 'delegate' ? delegateMutation.isPending : reassignMutation.isPending;
-  const mutationError =
-    mode === 'delegate' ? delegateMutation.error : reassignMutation.error;
+  const isPending = delegateMutation.isPending;
+  const mutationError = delegateMutation.error;
 
   const filteredUsers = useMemo(() => {
     if (!users) return [];
+    
+    // Filter out already attached people & current user
+    let result = users;
+    if (excludeUserIds && excludeUserIds.length > 0) {
+      result = result.filter((u) => !excludeUserIds.includes(u.id));
+    }
+
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return users;
-    return users.filter(
+    if (!query) return result;
+    return result.filter(
       (user) =>
         user.name.toLowerCase().includes(query) ||
         user.email?.toLowerCase().includes(query) ||
         user.role?.toLowerCase().includes(query),
     );
-  }, [users, searchQuery]);
+  }, [users, searchQuery, excludeUserIds]);
 
   const handleConfirm = useCallback(() => {
     if (!selectedUserId) return;
 
-    if (mode === 'delegate') {
-      delegateMutation.mutate(
-        { taskId, payload: { delegatedTo: selectedUserId, note: note.trim() || undefined } },
-        { onSuccess: handleClose },
-      );
-    } else {
-      reassignMutation.mutate(
-        { taskId, payload: { newOwnerId: selectedUserId, reason: note.trim() || undefined } },
-        { onSuccess: handleClose },
-      );
-    }
-  }, [selectedUserId, mode, note, taskId, delegateMutation, reassignMutation, handleClose]);
+    delegateMutation.mutate(
+      { taskId, payload: { delegatedTo: selectedUserId, note: note.trim() || undefined } },
+      { onSuccess: handleClose },
+    );
+  }, [selectedUserId, note, taskId, delegateMutation, handleClose]);
 
   const renderUserItem = useCallback(
     ({ item }: { item: User }) => (
@@ -171,7 +164,7 @@ export default function DelegationSheet({
           {/* ── Header ──────────────────────────────────────────────────── */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>
-              {mode === 'delegate' ? 'Delegate Task' : 'Reassign Task'}
+              Delegate Task
             </Text>
             <TouchableOpacity
               style={styles.closeBtn}
@@ -189,61 +182,7 @@ export default function DelegationSheet({
             </Text>
           )}
 
-          <ScrollView
-            style={styles.scrollBody}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* ── Mode Toggle ───────────────────────────────────────────── */}
-            <View style={styles.modeToggle}>
-              <TouchableOpacity
-                style={[styles.modeBtn, mode === 'delegate' && styles.modeBtnActive]}
-                onPress={() => setMode('delegate')}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="arrow-forward"
-                  size={14}
-                  color={mode === 'delegate' ? colors.textInverse : colors.textSecondary}
-                />
-                <Text
-                  style={[styles.modeBtnText, mode === 'delegate' && styles.modeBtnTextActive]}
-                >
-                  Delegate
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modeBtn, mode === 'reassign' && styles.modeBtnActive]}
-                onPress={() => setMode('reassign')}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="swap-horizontal"
-                  size={14}
-                  color={mode === 'reassign' ? colors.textInverse : colors.textSecondary}
-                />
-                <Text
-                  style={[styles.modeBtnText, mode === 'reassign' && styles.modeBtnTextActive]}
-                >
-                  Reassign
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* ── Mode Description ──────────────────────────────────────── */}
-            <Text style={styles.modeDescription}>
-              {mode === 'delegate'
-                ? 'Temporarily hand off this task to another user. You can revoke this later.'
-                : 'Permanently transfer ownership of this task to another user.'}
-            </Text>
-
-            {currentOwnerName && mode === 'reassign' && (
-              <Text style={styles.currentOwner}>
-                Current owner: <Text style={styles.currentOwnerName}>{currentOwnerName}</Text>
-              </Text>
-            )}
-
+          <View style={styles.scrollContent}>
             {/* ── Search Input ──────────────────────────────────────────── */}
             <View style={styles.searchWrap}>
               <Ionicons name="search" size={16} color={colors.textSecondary} />
@@ -287,7 +226,9 @@ export default function DelegationSheet({
                   data={filteredUsers}
                   keyExtractor={userKeyExtractor}
                   renderItem={renderUserItem}
-                  scrollEnabled={false}
+                  scrollEnabled={true}
+                  nestedScrollEnabled={true}
+                  showsVerticalScrollIndicator={true}
                   ItemSeparatorComponent={() => <View style={styles.separator} />}
                 />
               </View>
@@ -296,15 +237,11 @@ export default function DelegationSheet({
             {/* ── Note / Reason Input ────────────────────────────────────── */}
             <View style={styles.noteSection}>
               <Text style={styles.noteLabel}>
-                {mode === 'delegate' ? 'Note (optional)' : 'Reason (optional)'}
+                Note (optional)
               </Text>
               <TextInput
                 style={styles.noteInput}
-                placeholder={
-                  mode === 'delegate'
-                    ? 'Add a note about this delegation...'
-                    : 'Explain why this task is being reassigned...'
-                }
+                placeholder="Add a note about this delegation..."
                 placeholderTextColor={colors.textDisabled}
                 value={note}
                 onChangeText={setNote}
@@ -331,19 +268,17 @@ export default function DelegationSheet({
               disabled={!selectedUserId || isPending}
               activeOpacity={0.82}
               accessibilityRole="button"
-              accessibilityLabel={
-                mode === 'delegate' ? 'Confirm delegation' : 'Confirm reassignment'
-              }
+              accessibilityLabel="Confirm delegation"
             >
               {isPending ? (
                 <ActivityIndicator size="small" color={colors.textInverse} />
               ) : (
                 <Text style={styles.confirmBtnText}>
-                  {mode === 'delegate' ? 'Delegate' : 'Reassign'}
+                  Delegate
                 </Text>
               )}
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -405,65 +340,19 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // ── Scroll Body ─────────────────────────────────────────────────────
-  scrollBody: {
-    flexGrow: 0,
-  },
+
   scrollContent: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? spacing.xl + 16 : spacing.xl,
     gap: spacing.md,
   },
-
-  // ── Mode Toggle ─────────────────────────────────────────────────────
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  modeBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    backgroundColor: colors.surface,
-  },
-  modeBtnActive: {
-    backgroundColor: colors.primary,
-  },
-  modeBtnText: {
-    fontSize: typography.sm,
-    fontWeight: typography.semibold,
-    color: colors.textSecondary,
-  },
-  modeBtnTextActive: {
-    color: colors.textInverse,
-  },
-
-  // ── Info text ───────────────────────────────────────────────────────
   modeDescription: {
     fontSize: typography.xs,
     color: colors.textSecondary,
     lineHeight: 16,
     paddingHorizontal: 2,
   },
-  currentOwner: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    paddingHorizontal: 2,
-  },
-  currentOwnerName: {
-    fontWeight: typography.semibold,
-    color: colors.text,
-  },
-
-  // ── Search ──────────────────────────────────────────────────────────
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -485,13 +374,13 @@ const styles = StyleSheet.create({
     padding: 2,
   },
 
-  // ── User List ───────────────────────────────────────────────────────
   userListWrap: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
+    height: 200,
   },
   userRow: {
     flexDirection: 'row',

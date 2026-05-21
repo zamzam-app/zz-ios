@@ -1625,7 +1625,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         onClose={() => setShowDelegationSheet(false)}
         taskId={taskId}
         taskDescription={source?.description}
-        currentOwnerName={(source as any).activeOwner?.name}
+        excludeUserIds={[
+          ...(source?.assigneeIds ?? []),
+          ...(user?.id ? [user.id] : []),
+          ...(user?._id ? [user._id] : []),
+        ]}
       />
     </SafeAreaView>
   );
