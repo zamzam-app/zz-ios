@@ -1250,7 +1250,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             </TouchableOpacity>
             <Text style={styles.heading} numberOfLines={1}>Task Details</Text>
           </View>
-          <Text style={styles.subheading}>Task #{((source as any)._id ?? (source as any).id ?? '').toString().slice(-6).toUpperCase()}</Text>
         </View>
 
       </View>
