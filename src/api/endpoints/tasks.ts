@@ -1,5 +1,25 @@
 import client from '../client';
 import { mapListSafely } from './mapListSafely';
+import type {
+  SerializedTimelineEvent,
+  TaskDetailTimelineResponse,
+  EventTypeCounts,
+  UnreadTaskCount,
+  AggregatedUnread,
+  RecentlyViewedTask,
+  CreateDelegationPayload,
+  CreateReassignmentPayload,
+  TaskDelegationRecord,
+  ActiveDelegation,
+  DelegationEventResponse,
+  AddAttachmentPayload,
+  TaskAttachment,
+  RemoveAttachmentPayload,
+  TimelineQuery,
+  AttachmentQuery,
+  RecentlyViewedQuery,
+  PaginatedResponse,
+} from '../../types/task';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -431,4 +451,119 @@ export const tasksApi = {
 
   delete: (id: string) =>
     client.delete(`/tasks/${id}`),
+
+  // ─── Thread / Detail ──────────────────────────────────────────────────────
+
+  getTaskDetail: (id: string, initialTimelineLimit?: number) =>
+    client
+      .get<TaskDetailTimelineResponse>(`/tasks/${id}/detail`, {
+        params: initialTimelineLimit ? { limit: initialTimelineLimit } : undefined,
+      })
+      .then((r) => r.data),
+
+  getTimeline: (id: string, query?: TimelineQuery) =>
+    client
+      .get<PaginatedResponse<SerializedTimelineEvent>>(`/tasks/${id}/timeline`, {
+        params: query,
+      })
+      .then((r) => r.data),
+
+  getEventTypeCounts: (id: string) =>
+    client
+      .get<EventTypeCounts>(`/tasks/${id}/events/type-counts`)
+      .then((r) => r.data),
+
+  // ─── View Tracking ────────────────────────────────────────────────────────
+
+  markTaskViewed: (id: string) =>
+    client.post<void>(`/tasks/${id}/view`).then(() => undefined),
+
+  markMultipleTasksViewed: (taskIds: string[]) =>
+    client.post<void>('/tasks/view-all', { taskIds }).then(() => undefined),
+
+  // ─── Unread ───────────────────────────────────────────────────────────────
+
+  getUnreadCount: (limit?: number) =>
+    client
+      .get<UnreadTaskCount[]>('/tasks/unread-count', {
+        params: limit ? { limit } : undefined,
+      })
+      .then((r) => r.data),
+
+  getUnreadAggregated: () =>
+    client
+      .get<AggregatedUnread>('/tasks/unread-aggregated')
+      .then((r) => r.data),
+
+  getUnreadIds: () =>
+    client
+      .get<string[]>('/tasks/unread-ids')
+      .then((r) => r.data),
+
+  getRecentlyViewed: (query?: RecentlyViewedQuery) =>
+    client
+      .get<PaginatedResponse<RecentlyViewedTask>>('/tasks/recently-viewed', {
+        params: query,
+      })
+      .then((r) => r.data),
+
+  // ─── Delegation ───────────────────────────────────────────────────────────
+
+  delegateTask: (id: string, payload: CreateDelegationPayload) =>
+    client
+      .post<DelegationEventResponse>(`/tasks/${id}/delegate`, payload)
+      .then((r) => r.data),
+
+  reassignTask: (id: string, payload: CreateReassignmentPayload) =>
+    client
+      .post<DelegationEventResponse>(`/tasks/${id}/reassign`, payload)
+      .then((r) => r.data),
+
+  clearDelegation: (id: string) =>
+    client
+      .delete<DelegationEventResponse>(`/tasks/${id}/delegation`)
+      .then((r) => r.data),
+
+  getDelegationHistory: (id: string, query?: { limit?: number; skip?: number }) =>
+    client
+      .get<TaskDelegationRecord[]>(`/tasks/${id}/delegations`, {
+        params: query,
+      })
+      .then((r) => r.data),
+
+  getDelegatedToMe: () =>
+    client
+      .get<ActiveDelegation[]>('/tasks/delegated-to-me')
+      .then((r) => r.data),
+
+  getMyDelegations: () =>
+    client
+      .get<ActiveDelegation[]>('/tasks/my-delegations')
+      .then((r) => r.data),
+
+  // ─── Attachments ──────────────────────────────────────────────────────────
+
+  addAttachments: (taskId: string, payload: AddAttachmentPayload) =>
+    client
+      .post<TaskAttachment[]>(`/tasks/${taskId}/attachments`, payload)
+      .then((r) => r.data),
+
+  removeAttachment: (taskId: string, attachmentId: string, payload?: RemoveAttachmentPayload) =>
+    client
+      .delete<void>(`/tasks/${taskId}/attachments/${attachmentId}`, {
+        data: payload,
+      })
+      .then(() => undefined),
+
+  getAttachments: (taskId: string, query?: AttachmentQuery) =>
+    client
+      .get<PaginatedResponse<TaskAttachment>>(`/tasks/${taskId}/attachments`, {
+        params: query,
+      })
+      .then((r) => r.data),
+
+  addComment: (taskId: string, payload: { text: string; attachmentIds?: string[] }) =>
+    client
+      .post<any>(`/tasks/${taskId}/comment`, payload)
+      .then((r) => r.data),
 };

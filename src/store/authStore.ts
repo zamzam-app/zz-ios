@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import client from '../api/client';
 import { refreshTokenStorage, tokenStorage } from '../api/storage';
 import { syncPushToken } from '../utils/notifications';
+import { queryClient } from '../api/queryClient';
 
 export interface AuthUser {
   _id?: string;
@@ -56,6 +57,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     await tokenStorage.clear();
     await refreshTokenStorage.clear();
+    queryClient.clear();
     set({ user: null });
   },
 

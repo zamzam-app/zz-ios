@@ -1,18 +1,62 @@
 import { Task } from '../../api/endpoints/tasks';
+import type { TaskSummary, SerializedTimelineEvent } from '../../types/task';
 
-export function getTaskCategoryName(task: Task): string | undefined {
-  return task.taskCategory?.name ?? task.category;
+type TaskLike = Task | TaskSummary;
+
+function isLegacyTask(task: TaskLike): task is Task {
+  return 'taskCategory' in task || 'outlet' in task;
 }
 
-export function getTaskOutletName(task: Task): string | undefined {
-  return task.outlet?.name ?? task.outletName;
-}
-
-export function getTaskAssigneeNames(task: Task): string[] {
-  if (task.assigneeNames && task.assigneeNames.length > 0) {
-    return task.assigneeNames;
+export function getTaskCategoryName(task: TaskLike, legacyTask?: Task): string | undefined {
+  const t = legacyTask || (isLegacyTask(task) ? task : undefined);
+  if (t) {
+    return t.taskCategory?.name ?? t.category;
   }
-  return (task.assignees ?? [])
-    .map((assignee) => assignee.name)
-    .filter((name): name is string => Boolean(name));
+  return undefined;
+}
+
+export function getTaskOutletName(task: TaskLike, legacyTask?: Task): string | undefined {
+  const t = legacyTask || (isLegacyTask(task) ? task : undefined);
+  if (t) {
+    return t.outlet?.name ?? t.outletName;
+  }
+  return undefined;
+}
+
+export function getTaskAssigneeNames(task: TaskLike, legacyTask?: Task, events?: SerializedTimelineEvent[]): string[] {
+  const namesSet = new Set<string>();
+
+  // 1. If it has a populated activeOwner object (TaskSummary), add its name
+  const activeOwnerObj = (task as any).activeOwner;
+  if (activeOwnerObj && typeof activeOwnerObj === 'object' && typeof activeOwnerObj.name === 'string') {
+    namesSet.add(activeOwnerObj.name);
+  }
+
+  // 2. Add assignees from legacyTask or from task directly
+  const t = legacyTask || task;
+  if (t) {
+    const tAny = t as any;
+    if (tAny.assigneeNames && tAny.assigneeNames.length > 0) {
+      tAny.assigneeNames.forEach((n: string) => namesSet.add(n));
+    } else if (Array.isArray(tAny.assignees)) {
+      tAny.assignees
+        .map((a: any) => a?.name)
+        .filter((n: any): n is string => typeof n === 'string' && Boolean(n))
+        .forEach((n: string) => namesSet.add(n));
+    }
+  }
+
+  // 3. Scan timeline events for historically delegated managers
+  if (Array.isArray(events)) {
+    for (const event of events) {
+      if (event.type === 'REASSIGNED') {
+        const name = event.delegationSummary?.delegatedTo?.name;
+        if (name && typeof name === 'string') {
+          namesSet.add(name);
+        }
+      }
+    }
+  }
+
+  return Array.from(namesSet);
 }

@@ -780,7 +780,7 @@ export function CreateTaskContent({
       taskCategoryId,
       priority,
       dueDate: dueDate.toISOString(),
-      ...(userPickedTime ? { dueTime: `${dueDate.getHours().toString().padStart(2, '0')}:${dueDate.getMinutes().toString().padStart(2, '0')}` } : {}),
+      dueTime: `${dueDate.getHours().toString().padStart(2, '0')}:${dueDate.getMinutes().toString().padStart(2, '0')}`,
       isRecurring,
       ...(isRecurring ? { recurrenceType, recurrenceDays } : {}),
       ...(outletId ? { outletId } : {}),
