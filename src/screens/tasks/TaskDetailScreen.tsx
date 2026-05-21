@@ -1630,6 +1630,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           ...(user?.id ? [user.id] : []),
           ...(user?._id ? [user._id] : []),
         ]}
+        outletId={source?.outletId || (source as any).outlet?._id}
       />
     </SafeAreaView>
   );

@@ -26,6 +26,8 @@ interface DelegationSheetProps {
   taskDescription?: string;
   /** User IDs to exclude from the list (already attached / current user) */
   excludeUserIds?: string[];
+  /** Outlet ID associated with the task, if any */
+  outletId?: string | any;
 }
 
 function UserRow({
@@ -72,6 +74,7 @@ export default function DelegationSheet({
   taskId,
   taskDescription,
   excludeUserIds,
+  outletId,
 }: DelegationSheetProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -101,6 +104,20 @@ export default function DelegationSheet({
         u.role?.toLowerCase() === 'admin'
     );
     
+    // If task has an outlet, only include users associated with that outlet
+    let targetOutletId: string | undefined;
+    if (outletId) {
+      if (typeof outletId === 'string') {
+        targetOutletId = outletId;
+      } else if (typeof outletId === 'object') {
+        targetOutletId = outletId._id ?? outletId.id;
+      }
+    }
+
+    if (targetOutletId) {
+      result = result.filter((u) => u.outlets?.includes(targetOutletId!));
+    }
+    
     // Filter out already attached people & current user
     if (excludeUserIds && excludeUserIds.length > 0) {
       result = result.filter((u) => !excludeUserIds.includes(u.id));
@@ -114,7 +131,7 @@ export default function DelegationSheet({
         user.email?.toLowerCase().includes(query) ||
         user.role?.toLowerCase().includes(query),
     );
-  }, [users, searchQuery, excludeUserIds]);
+  }, [users, searchQuery, excludeUserIds, outletId]);
 
   const handleConfirm = useCallback(() => {
     if (!selectedUserId) return;
