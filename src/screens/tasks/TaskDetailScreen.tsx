@@ -986,14 +986,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           <Text style={styles.ownerDescriptionLabel}>Description</Text>
           <Text style={styles.description}>{source.description}</Text>
 
-          {/* Active delegation banner */}
-        {(source as any).activeDelegation && (
-          <DelegationBanner
-            delegatedTo={(source as any).activeDelegation.delegatedTo}
-            delegatedBy={(source as any).activeDelegation.delegatedBy}
-            delegatedAt={(source as any).activeDelegation.delegatedAt}
-          />
-        )}
+
 
           {/* Attachments gallery */}
           {sourceAttachments.hasAny && (
