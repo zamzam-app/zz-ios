@@ -1255,6 +1255,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
       </View>
 
+      {/* Sticky Task Details Card & Activity Header */}
+      {renderListHeader()}
+
       {/* ── Timeline FlashList (virtualized) ───────────────────────────── */}
       <FlashList
         style={styles.timelineList}
@@ -1262,7 +1265,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         data={filteredEvents}
         keyExtractor={keyExtractor}
         renderItem={renderEvent}
-        ListHeaderComponent={renderListHeader}
         ListFooterComponent={
           timelineQuery.isFetchingNextPage ? (
             <View style={styles.loadingMoreWrap}>
