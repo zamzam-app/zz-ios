@@ -8,7 +8,9 @@ import OverviewScreen from '../screens/overview/OverviewScreen';
 import TasksNavigator, { TasksStackParamList } from './TasksNavigator';
 import ReviewsNavigator, { ReviewsStackParamList } from './ReviewsNavigator';
 import MoreNavigator from './MoreNavigator';
-import { useReviews } from '../hooks/useReviews';
+import { useReviewBadgeStatus } from '../hooks/useReviews';
+import { useAuthStore } from '../store/authStore';
+import { getReviewTabBadgeModel } from './reviewBadgeState';
 import { useUnreadAggregated } from '../hooks/useTaskView';
 import * as Notifications from 'expo-notifications';
 

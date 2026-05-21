@@ -26,7 +26,7 @@ import { Task, TaskPriority, tasksApi } from '../../api/endpoints/tasks';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
-import { getTaskOutletName } from './taskDisplay';
+import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 import TaskBadgeRow from './TaskBadgeRow';
 import { buildTaskBarModel } from './taskBadges';
 import { CreateTaskContent } from './CreateTaskScreen';
@@ -257,7 +257,8 @@ function CompletedTaskCard({
   hasUnread: boolean;
 }) {
   const outletName = getTaskOutletName(task);
-  const taskBar = buildTaskBarModel(task);
+  const categoryName = getTaskCategoryName(task);
+  const taskBar = buildTaskBarModel(task as any);
   const imageCount = getTaskAttachmentUrls(task, 'images').length;
   const videoCount = getTaskAttachmentUrls(task, 'videos').length;
   const audioCount = getTaskAttachmentUrls(task, 'audios').length;
@@ -1598,6 +1599,14 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textSecondary,
     fontWeight: typography.semibold,
+  },
+  openCardAssignedTime: {
+    marginLeft: spacing.sm,
+    flexShrink: 1,
+    textAlign: 'right',
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
   },
   openMetaLabel: {
     fontSize: typography.sm,
