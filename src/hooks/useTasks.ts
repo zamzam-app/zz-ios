@@ -88,6 +88,9 @@ export const useUpdateTaskStatus = () => {
       qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
       qc.invalidateQueries({ queryKey: ['task', updated.id] });
+      qc.invalidateQueries({ queryKey: ['taskTimeline', updated.id] });
+      qc.invalidateQueries({ queryKey: ['taskDetail', updated.id] });
+      qc.invalidateQueries({ queryKey: ['eventTypeCounts', updated.id] });
     },
   });
 };
@@ -114,6 +117,9 @@ export const useUpdateTask = () => {
       qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
       qc.invalidateQueries({ queryKey: ['task', updated.id] });
+      qc.invalidateQueries({ queryKey: ['taskTimeline', updated.id] });
+      qc.invalidateQueries({ queryKey: ['taskDetail', updated.id] });
+      qc.invalidateQueries({ queryKey: ['eventTypeCounts', updated.id] });
     },
   });
 };
