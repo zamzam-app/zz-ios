@@ -32,16 +32,17 @@ export function getTaskAssigneeNames(task: TaskLike, legacyTask?: Task, events?:
     namesSet.add(activeOwnerObj.name);
   }
 
-  // 2. Add assignees from legacyTask or from task if it's a legacy task
-  const t = legacyTask || (isLegacyTask(task) ? task : undefined);
+  // 2. Add assignees from legacyTask or from task directly
+  const t = legacyTask || task;
   if (t) {
-    if (t.assigneeNames && t.assigneeNames.length > 0) {
-      t.assigneeNames.forEach((n) => namesSet.add(n));
-    } else if (Array.isArray(t.assignees)) {
-      t.assignees
-        .map((a) => a.name)
-        .filter((n): n is string => Boolean(n))
-        .forEach((n) => namesSet.add(n));
+    const tAny = t as any;
+    if (tAny.assigneeNames && tAny.assigneeNames.length > 0) {
+      tAny.assigneeNames.forEach((n: string) => namesSet.add(n));
+    } else if (Array.isArray(tAny.assignees)) {
+      tAny.assignees
+        .map((a: any) => a?.name)
+        .filter((n: any): n is string => typeof n === 'string' && Boolean(n))
+        .forEach((n: string) => namesSet.add(n));
     }
   }
 

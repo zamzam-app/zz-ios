@@ -16,13 +16,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteTasks } from '../../hooks/useTasks';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import DatePickerModal from '../../components/DatePickerModal';
-import { Task, TaskPriority } from '../../api/endpoints/tasks';
+import { Task, TaskPriority, tasksApi } from '../../api/endpoints/tasks';
+import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskOutletName } from './taskDisplay';
@@ -129,79 +130,116 @@ function formatRelativeTime(iso?: string | null) {
   return `Closed ${days}d ago`;
 }
 
+function formatDueDisplay(dueDateStr?: string | null, dueTime?: string | null) {
+  if (!dueDateStr) return 'No due date';
+  const date = new Date(dueDateStr);
+  if (Number.isNaN(date.getTime())) return 'No due date';
+
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+
+  const isToday = date.toDateString() === today.toDateString();
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+  let timeStr = '';
+  if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
+    const [hours, minutes] = dueTime.split(':');
+    const h = parseInt(hours, 10);
+    const m = parseInt(minutes, 10);
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${suffix}`;
+  }
+
+  if (isToday) {
+    return timeStr ? `Due: ${timeStr}` : 'Due: Today';
+  }
+  if (isTomorrow) {
+    return `Due: Tomorrow${timeStr ? ` ${timeStr}` : ''}`;
+  }
+
+  const datePart = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+  return `Due: ${datePart}${timeStr ? ` ${timeStr}` : ''}`;
+}
+
 function OpenTaskCard({
   task,
   onPress,
-  onOpenAttachment,
   hasUnread,
 }: {
   task: Task;
   onPress: () => void;
-  onOpenAttachment: (task: Task, type: AttachmentType) => void;
   hasUnread: boolean;
 }) {
   const outletName = getTaskOutletName(task);
-  const taskBar = buildTaskBarModel(task);
-  const imageCount = getTaskAttachmentUrls(task, 'images').length;
-  const videoCount = getTaskAttachmentUrls(task, 'videos').length;
-  const audioCount = getTaskAttachmentUrls(task, 'audios').length;
-  const fileCount = getTaskAttachmentUrls(task, 'files').length;
-  const footerModel = buildTaskCardFooterModel(task);
+  const categoryName = getTaskCategoryName(task);
+  const assigneeNames = getTaskAssigneeNames(task);
+
+  const upperCategory = (categoryName || '').toUpperCase();
+  const priority = task.priority;
+
+  let chipBg = '#E2E8F0';
+  let chipText = '#475569';
+  let chipLabel = categoryName || 'Task';
+
+  if (priority === 'HIGH' || upperCategory.includes('HIGH')) {
+    chipBg = '#FEE2E2';
+    chipText = '#991B1B';
+    chipLabel = 'HIGH PRIORITY';
+  } else if (priority === 'MEDIUM' || upperCategory.includes('ROUTINE') || upperCategory.includes('MEDIUM')) {
+    chipBg = '#DBEAFE';
+    chipText = '#1E40AF';
+    chipLabel = categoryName || 'ROUTINE';
+  } else if (priority === 'LOW' || upperCategory.includes('VENDOR') || upperCategory.includes('LOW')) {
+    chipBg = '#FEF3C7';
+    chipText = '#92400E';
+    chipLabel = categoryName || 'VENDOR';
+  }
+
+  const titleText = task.title || 'Task';
+  let descText = '';
+  const descLines = (task.description || '').split('\n');
+  if (descLines.length > 1) {
+    descText = descLines.slice(1).join('\n').trim();
+  } else if (task.description !== task.title) {
+    descText = task.description;
+  }
+
+  const names = assigneeNames;
 
   return (
-    <TouchableOpacity style={[styles.openCard, !hasUnread && styles.viewedCard]} onPress={onPress} activeOpacity={0.82}>
-      <View style={styles.openCardInner}>
-        <View style={styles.openCardTopRow}>
-          {hasUnread && (
-            <View style={styles.unreadDotWrap}>
-              <UnreadBadge count={1} dotOnly />
-            </View>
-          )}
-          <View style={styles.openCardPill}>
-            <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
+    <TouchableOpacity
+      style={[styles.openCard, hasUnread ? styles.unreadCard : styles.readCard]}
+      onPress={onPress}
+      activeOpacity={0.82}
+    >
+      <View style={styles.openCardTopRow}>
+        <View style={styles.topRowLeft}>
+          {hasUnread && <View style={styles.unreadDot} />}
+          <View style={[styles.openCardPill, { backgroundColor: chipBg, borderColor: 'transparent' }]}>
+            <Text style={[styles.openCardPillText, { color: chipText }]}>{chipLabel}</Text>
           </View>
-          {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
+          <Text style={styles.openCardDueText}>{formatDueDisplay(task.dueDate, task.dueTime)}</Text>
         </View>
+        {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
+      </View>
 
-        <Text style={styles.openTitle} numberOfLines={2}>
-          {taskBar.title}
-        </Text>
-        <Text style={styles.openMetaLine} numberOfLines={1}>
-          <Text style={styles.openMetaLabel}>Assigned to: </Text>
-          <Text style={styles.openMetaStrong}>{taskBar.assigneeLabel}</Text>
-        </Text>
-        <Text style={styles.openMetaLine} numberOfLines={1}>
-          <Text style={styles.openMetaLabel}>Due: </Text>
-          <Text style={styles.openMetaStrong}>{formatDate(task.dueDate, task.dueTime)}</Text>
-        </Text>
+      <Text style={[styles.openTitle, !hasUnread && styles.viewedTitle]} numberOfLines={2}>
+        {titleText}
+      </Text>
 
-        <View style={styles.openCardDivider} />
+      {descText ? (
+        <Text style={[styles.openDescription, !hasUnread && styles.viewedDescription]} numberOfLines={3}>
+          {descText}
+        </Text>
+      ) : null}
 
-        <View style={styles.openCardFooter}>
-          <View style={styles.openCardAttachmentActions}>
-            <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'images')}>
-              <Ionicons name="camera-outline" size={15} color={colors.textSecondary} />
-              {imageCount > 0 ? <Text style={styles.openCardIconCount}>{imageCount}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'videos')}>
-              <Ionicons name="videocam-outline" size={15} color={colors.textSecondary} />
-              {videoCount > 0 ? <Text style={styles.openCardIconCount}>{videoCount}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'files')}>
-              <Ionicons name="document-outline" size={15} color={colors.textSecondary} />
-              {fileCount > 0 ? <Text style={styles.openCardIconCount}>{fileCount}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'audios')}>
-              <Ionicons name="mic-outline" size={15} color={colors.textSecondary} />
-              {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
-            </TouchableOpacity>
-          </View>
-          {footerModel.assignedTimeLabel ? (
-            <Text style={styles.openCardAssignedTime} numberOfLines={1}>
-              {footerModel.assignedTimeLabel}
-            </Text>
-          ) : null}
-        </View>
+      <View style={styles.assigneeRow}>
+        <Text style={styles.assigneeText}>
+          <Text style={styles.assigneeLabel}>Assigned to: </Text>
+          <Text style={styles.assigneeStrong}>{names.length > 0 ? names.join(', ') : 'Unassigned'}</Text>
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -305,28 +343,74 @@ export default function TasksScreen() {
   const [attachmentModal, setAttachmentModal] = useState<{ task: Task; type: AttachmentType } | null>(null);
   const [lastLoadError, setLastLoadError] = useState('');
 
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'TODAY' | 'UNREAD' | 'HIGH_PRIORITY'>('ALL');
+  const { data: unreadIds = [], refetch: refetchUnreadIds } = useUnreadIds();
+  const unreadSet = useMemo(() => new Set(unreadIds), [unreadIds]);
+
+  useEffect(() => {
+    const incomingMetric = route.params?.initialTaskFilter?.metric;
+    if (incomingMetric === 'critical') {
+      setActiveFilter('HIGH_PRIORITY');
+    } else if (incomingMetric === 'due_today') {
+      setActiveFilter('TODAY');
+    }
+  }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
+
   const showOpenSection = metricFilter !== 'resolved';
   const showCompletedSection = metricFilter === 'all' || metricFilter === 'resolved';
-  const isCriticalMetric = metricFilter === 'critical';
-  const isDueTodayMetric = metricFilter === 'due_today';
 
-  const effectivePriorityFilter: TaskPriority | undefined = isCriticalMetric
+  const todayStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const todayEnd = useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, []);
+
+  const todayCountQuery = useQuery({
+    queryKey: ['tasks-count-today', activeTab, userIdentifier, isAdmin],
+    queryFn: () => tasksApi.listPaginated({
+      status: 'OPEN',
+      dueFrom: todayStart.toISOString(),
+      dueTo: todayEnd.toISOString(),
+      assigneeId: isAdmin ? undefined : userIdentifier,
+      isRecurring: activeTab === 'RECURRING',
+      limit: 1,
+    }),
+    staleTime: 10 * 1000,
+  });
+  const todayCount = todayCountQuery.data?.meta.total ?? 0;
+
+  const highPriorityCountQuery = useQuery({
+    queryKey: ['tasks-count-high', activeTab, userIdentifier, isAdmin],
+    queryFn: () => tasksApi.listPaginated({
+      status: 'OPEN',
+      priority: 'HIGH',
+      assigneeId: isAdmin ? undefined : userIdentifier,
+      isRecurring: activeTab === 'RECURRING',
+      limit: 1,
+    }),
+    staleTime: 10 * 1000,
+  });
+  const highPriorityCount = highPriorityCountQuery.data?.meta.total ?? 0;
+
+  const effectivePriorityFilter: TaskPriority | undefined = activeFilter === 'HIGH_PRIORITY'
     ? 'HIGH'
-    : priorityFilter === 'ALL'
-      ? undefined
-      : priorityFilter;
+    : (priorityFilter === 'ALL' ? undefined : priorityFilter);
 
-  const effectiveOpenDateFilter = dueDateFilter ?? (isDueTodayMetric ? new Date() : null);
-  const effectiveOpenDueDateStart = effectiveOpenDateFilter
-    ? new Date(
-      effectiveOpenDateFilter.getFullYear(),
-      effectiveOpenDateFilter.getMonth(),
-      effectiveOpenDateFilter.getDate(),
-    )
-    : null;
-  const effectiveOpenDueDateEnd = effectiveOpenDueDateStart
-    ? new Date(effectiveOpenDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
-    : null;
+  const effectiveOpenDueDateStart = activeFilter === 'TODAY'
+    ? todayStart
+    : (dueDateFilter
+      ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
+      : null);
+  const effectiveOpenDueDateEnd = activeFilter === 'TODAY'
+    ? todayEnd
+    : (effectiveOpenDueDateStart
+      ? new Date(effectiveOpenDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+      : null);
 
   const effectiveCompletedDueDateStart = dueDateFilter
     ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
@@ -361,6 +445,22 @@ export default function TasksScreen() {
       isRecurring: activeTab === 'RECURRING',
     },
     { enabled: showCompletedSection },
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void refetchUnreadIds();
+      void openTasksQuery.refetch();
+      void completedTasksQuery.refetch();
+      void todayCountQuery.refetch();
+      void highPriorityCountQuery.refetch();
+    }, [
+      refetchUnreadIds,
+      openTasksQuery.refetch,
+      completedTasksQuery.refetch,
+      todayCountQuery.refetch,
+      highPriorityCountQuery.refetch,
+    ])
   );
 
   useEffect(() => {
@@ -412,8 +512,12 @@ export default function TasksScreen() {
   );
 
   const openTasks = useMemo(() => {
-    return [...openTasksFromApi].sort(compareCreatedAtDesc);
-  }, [openTasksFromApi]);
+    let list = [...openTasksFromApi].sort(compareCreatedAtDesc);
+    if (activeFilter === 'UNREAD') {
+      list = list.filter((task) => unreadSet.has(task.id));
+    }
+    return list;
+  }, [openTasksFromApi, activeFilter, unreadSet]);
 
   const completedTasks = useMemo(
     () => [...completedTasksFromApi].sort(compareCompletedTaskOrder),
@@ -439,8 +543,6 @@ export default function TasksScreen() {
     refetchers.push(() => refetchUnreadIds());
     await Promise.all(refetchers.map((run) => run()));
   };
-  const { data: unreadIds = [], refetch: refetchUnreadIds } = useUnreadIds();
-  const unreadSet = useMemo(() => new Set(unreadIds), [unreadIds]);
 
   const isLoading = showOpenSection
     ? (openTasksQuery.isLoading || (showCompletedSection && completedTasksQuery.isLoading))
@@ -448,6 +550,68 @@ export default function TasksScreen() {
   const isFetching = showOpenSection
     ? (openTasksQuery.isFetching || (showCompletedSection && completedTasksQuery.isFetching))
     : completedTasksQuery.isFetching;
+
+  const renderFilterChips = () => {
+    const filters = [
+      {
+        key: 'TODAY' as const,
+        label: 'Today',
+        emoji: '🔥',
+        count: todayCount,
+        activeBg: '#FFEAD2',
+        activeText: '#C2410C',
+        inactiveBg: '#F3F4F6',
+        inactiveText: '#4B5563',
+      },
+      {
+        key: 'UNREAD' as const,
+        label: 'Unread',
+        emoji: '🔵',
+        count: unreadIds.length,
+        activeBg: '#DBEAFE',
+        activeText: '#1D4ED8',
+        inactiveBg: '#F3F4F6',
+        inactiveText: '#4B5563',
+      },
+      {
+        key: 'HIGH_PRIORITY' as const,
+        label: 'High Priority',
+        emoji: '🔴',
+        count: highPriorityCount,
+        activeBg: '#FEE2E2',
+        activeText: '#B91C1C',
+        inactiveBg: '#F3F4F6',
+        inactiveText: '#4B5563',
+      },
+    ];
+
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterScrollContent}
+      >
+        {filters.map((f) => {
+          const isActive = activeFilter === f.key;
+          return (
+            <TouchableOpacity
+              key={f.key}
+              style={[
+                styles.filterChip,
+                { backgroundColor: isActive ? f.activeBg : f.inactiveBg }
+              ]}
+              onPress={() => setActiveFilter(isActive ? 'ALL' : f.key)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterChipText, { color: isActive ? f.activeText : f.inactiveText }]}>
+                {f.emoji} {f.label} {f.count > 0 ? ` (${f.count})` : ''}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    );
+  };
 
   const openAttachmentModal = (task: Task, type: AttachmentType) => {
     const urls = getTaskAttachmentUrls(task, type);
@@ -513,7 +677,7 @@ export default function TasksScreen() {
       <View style={styles.header}>
         <View style={{ flexShrink: 1, marginRight: spacing.sm }}>
           <Text style={styles.heading} numberOfLines={1}>Task Board</Text>
-          <Text style={styles.subheading} numberOfLines={1}>Manage operational flows</Text>
+          <Text style={styles.subheading} numberOfLines={1}>Manage and assign outlet operations.</Text>
         </View>
         <View style={styles.headerBtns}>
           {isAdmin && (
@@ -550,35 +714,13 @@ export default function TasksScreen() {
       </View>
 
       <View style={styles.controlsRow}>
-        <View style={styles.searchWrap}>
-          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchInput}
-            placeholder="Search tasks..."
-            placeholderTextColor={colors.textSecondary}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              style={styles.searchClearBtn}
-              onPress={() => setSearchQuery('')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.searchClearText}>x</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={styles.filterMenuWrap}>
+        <View style={styles.filterMenuWrapCompact}>
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Open filters"
             style={[
-              styles.filterIconBtn,
-              (priorityFilter !== 'ALL' || Boolean(dueDateFilter)) && styles.filterIconBtnActive,
+              styles.filterIconBtnCompact,
+              (priorityFilter !== 'ALL' || Boolean(dueDateFilter) || metricFilter !== 'all') && styles.filterIconBtnActive,
             ]}
             onPress={() => setShowFilterModal(true)}
             activeOpacity={0.82}
@@ -586,10 +728,34 @@ export default function TasksScreen() {
             <Ionicons
               name="options-outline"
               size={18}
-              color={priorityFilter === 'ALL' && !dueDateFilter ? colors.textSecondary : colors.primaryDark}
+              color={priorityFilter === 'ALL' && !dueDateFilter && metricFilter === 'all' ? colors.textSecondary : colors.primaryDark}
             />
           </TouchableOpacity>
         </View>
+
+        <View style={styles.searchWrapCompact}>
+          <Ionicons name="search" size={14} color={colors.textSecondary} style={styles.searchIconCompact} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInputCompact}
+            placeholder="Search..."
+            placeholderTextColor={colors.textSecondary}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              style={styles.searchClearBtnCompact}
+              onPress={() => setSearchQuery('')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.searchClearTextCompact}>x</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {renderFilterChips()}
       </View>
 
       {metricFilter !== 'all' && (
@@ -617,6 +783,8 @@ export default function TasksScreen() {
           </View>
         </View>
       )}
+
+
 
       <View style={styles.sectionsContainer}>
         {showOpenSection && (
@@ -651,7 +819,6 @@ export default function TasksScreen() {
                     <OpenTaskCard
                       task={item}
                       onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-                      onOpenAttachment={openAttachmentModal}
                       hasUnread={unreadSet.has(item.id)}
                     />
                   </View>
@@ -1200,30 +1367,61 @@ const styles = StyleSheet.create({
   openListEmptyContent: { flexGrow: 1, justifyContent: 'center' },
   openCardWrap: { marginBottom: spacing.sm },
   openCard: {
-    backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC55',
-    ...shadow.sm,
+    padding: spacing.md,
+    marginBottom: spacing.xs,
   },
-  viewedCard: {
-    opacity: 0.75,
+  unreadCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  unreadDotWrap: {
-    marginRight: 4,
-    marginTop: 2,
+  readCard: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    elevation: 0,
   },
-  openCardInner: {
-    paddingTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
+  topRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.xs,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#3B82F6',
+    marginRight: 4,
+  },
+  openCardPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   openCardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  openCardPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  openCardDueText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginLeft: spacing.xs,
   },
   openCardOutletName: {
     flex: 1,
@@ -1237,28 +1435,182 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: typography.semibold,
   },
-  openMetaLine: {
+  openDescription: {
     fontSize: typography.sm,
     color: colors.textSecondary,
+    fontWeight: '400',
+    lineHeight: 18,
+    marginTop: spacing.xs,
+  },
+  assigneeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  avatarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarMini: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EEF1F4',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarMiniText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
+  },
+  avatarMiniMore: {
+    backgroundColor: '#E2E8F0',
+  },
+  avatarMiniMoreText: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
+  },
+  assigneeText: {
+    flex: 1,
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  assigneeLabel: {
+    color: colors.textSecondary,
+  },
+  assigneeStrong: {
+    fontWeight: '600',
+    color: colors.text,
+  },
+  searchWrapCompact: {
+    width: 110,
+    justifyContent: 'center',
+    marginRight: spacing.xs,
+  },
+  searchInputCompact: {
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingLeft: 30,
+    paddingRight: 20,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  searchIconCompact: {
+    position: 'absolute',
+    left: 10,
+    zIndex: 2,
+  },
+  searchClearBtnCompact: {
+    position: 'absolute',
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E6E8EA',
+  },
+  searchClearTextCompact: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.bold,
+    lineHeight: 14,
+    includeFontPadding: false,
+  },
+  filterScrollContent: {
+    alignItems: 'center',
+    paddingLeft: spacing.xs,
+  },
+  filterChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    marginRight: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterChipText: {
+    fontSize: typography.xs,
+    fontWeight: '700',
+  },
+  filterMenuWrapCompact: {
+    marginRight: spacing.xs,
+  },
+  filterIconBtnCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewedTitle: {
+    color: '#393c3fff',
+    fontWeight: '400',
+  },
+  viewedDescription: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  viewedCard: {
+    opacity: 0.75,
+  },
+  unreadDotWrap: {
+    marginRight: 4,
+    marginTop: 2,
+  },
+  openCardDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#D3C5AC55',
+    marginVertical: spacing.xs,
+  },
+  openCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  openCardAttachmentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  openCardIconBtn: {
+    minWidth: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 2,
+  },
+  openCardIconCount: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: typography.semibold,
   },
   openMetaLabel: {
     fontSize: typography.sm,
     color: '#4B6584',
     fontWeight: typography.semibold,
   },
-  openMetaStrong: { color: colors.text, fontWeight: typography.bold },
-  openCardDivider: { borderBottomWidth: 1, borderBottomColor: '#D3C5AC55' },
-  openCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  openCardAttachmentActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
-  openCardIconBtn: { minWidth: 18, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 2 },
-  openCardIconCount: { fontSize: 10, color: colors.textSecondary, fontWeight: typography.semibold },
-  openCardAssignedTime: {
-    marginLeft: spacing.sm,
-    flexShrink: 1,
-    textAlign: 'right',
-    fontSize: typography.xs,
+  openMetaStrong: {
+    color: colors.text,
+    fontWeight: typography.bold,
+  },
+  openMetaLine: {
+    fontSize: typography.sm,
     color: colors.textSecondary,
-    fontWeight: typography.medium,
   },
 
   completedSection: {
@@ -1526,21 +1878,25 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     marginHorizontal: spacing.md,
-    marginTop: 4,
-    marginBottom: spacing.xs,
-    backgroundColor: '#E6E8EA',
-    borderRadius: radius.md,
-    padding: 2,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+    backgroundColor: '#F1F3F5',
+    borderRadius: radius.lg,
+    padding: 4,
   },
   tabItem: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 12,
     alignItems: 'center',
     borderRadius: radius.md,
   },
   tabItemActive: {
-    backgroundColor: colors.surface,
-    ...shadow.sm,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   tabText: {
     fontSize: typography.sm,
@@ -1548,7 +1904,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   tabTextActive: {
-    color: colors.primaryDark,
+    color: '#A87E3B',
     fontWeight: typography.bold,
   },
   accordionContainer: {
