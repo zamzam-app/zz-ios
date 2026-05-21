@@ -6,6 +6,7 @@ import type {
   AggregatedUnread,
   RecentlyViewedTask,
   RecentlyViewedQuery,
+  TaskDetailTimelineResponse,
 } from '../types/task';
 
 // ─── Unread Queries ─────────────────────────────────────────────────────────
@@ -98,7 +99,64 @@ export const useMarkTaskViewed = () => {
 
   return useMutation({
     mutationFn: (taskId: string) => tasksApi.markTaskViewed(taskId),
-    onSuccess: (_data, taskId) => {
+
+    onMutate: async (taskId) => {
+      // Cancel outgoing queries so they don't overwrite our optimistic update
+      await qc.cancelQueries({ queryKey: ['unread'] });
+      await qc.cancelQueries({ queryKey: ['task', taskId] });
+      await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });
+
+      // Snapshots for rollback
+      const previousUnreadIds = qc.getQueryData<string[]>(['unread', 'ids']);
+      const previousAggregated = qc.getQueryData<AggregatedUnread>(['unread', 'aggregated']);
+      const previousTask = qc.getQueryData(['task', taskId]);
+      const previousDetail = qc.getQueryData<TaskDetailTimelineResponse>(['taskDetail', taskId]);
+
+      // Optimistically remove taskId from unread IDs set
+      if (previousUnreadIds) {
+        qc.setQueryData<string[]>(['unread', 'ids'],
+          previousUnreadIds.filter((id) => id !== taskId),
+        );
+      }
+
+      // Decrement aggregated unread count
+      if (previousAggregated) {
+        const hadUnread = previousUnreadIds?.includes(taskId) ?? false;
+        qc.setQueryData<AggregatedUnread>(['unread', 'aggregated'], {
+          totalUnread: Math.max(0, previousAggregated.totalUnread - (hadUnread ? 1 : 0)),
+          taskCount: Math.max(0, previousAggregated.taskCount - (hadUnread ? 1 : 0)),
+        });
+      }
+
+      // Set unreadCount to 0 in taskDetail cache
+      if (previousDetail) {
+        qc.setQueryData<TaskDetailTimelineResponse>(['taskDetail', taskId], {
+          ...previousDetail,
+          summary: { ...previousDetail.summary, unreadCount: 0 },
+        });
+      }
+
+      return { previousUnreadIds, previousAggregated, previousTask, previousDetail };
+    },
+
+    onError: (_err, taskId, context) => {
+      // Rollback on failure
+      if (context?.previousUnreadIds) {
+        qc.setQueryData(['unread', 'ids'], context.previousUnreadIds);
+      }
+      if (context?.previousAggregated) {
+        qc.setQueryData(['unread', 'aggregated'], context.previousAggregated);
+      }
+      if (context?.previousTask) {
+        qc.setQueryData(['task', taskId], context.previousTask);
+      }
+      if (context?.previousDetail) {
+        qc.setQueryData(['taskDetail', taskId], context.previousDetail);
+      }
+    },
+
+    onSettled: (_data, _error, taskId) => {
+      // Always refetch to ensure consistency
       qc.invalidateQueries({ queryKey: ['unread'] });
       qc.invalidateQueries({ queryKey: ['task', taskId] });
       qc.invalidateQueries({ queryKey: ['taskDetail', taskId] });

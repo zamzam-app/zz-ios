@@ -6,6 +6,7 @@ import type {
   RemoveAttachmentPayload,
   TaskAttachment,
   AttachmentQuery,
+  TaskDetailTimelineResponse,
 } from '../types/task';
 
 // ─── Attachment Paginated Query ─────────────────────────────────────────────
@@ -78,7 +79,37 @@ export const useAddAttachments = () => {
       taskId: string;
       payload: AddAttachmentPayload;
     }) => tasksApi.addAttachments(taskId, payload),
-    onSuccess: (_data, { taskId }) => {
+
+    onMutate: async ({ taskId, payload }) => {
+      await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });
+      await qc.cancelQueries({ queryKey: ['taskAttachments', taskId] });
+
+      const previousDetail = qc.getQueryData<TaskDetailTimelineResponse>(['taskDetail', taskId]);
+
+      if (previousDetail) {
+        const fileCount = payload.files.length;
+        qc.setQueryData<TaskDetailTimelineResponse>(['taskDetail', taskId], {
+          ...previousDetail,
+          summary: {
+            ...previousDetail.summary,
+            threadStats: {
+              ...previousDetail.summary.threadStats,
+              attachmentCount: previousDetail.summary.threadStats.attachmentCount + fileCount,
+            },
+          },
+        });
+      }
+
+      return { previousDetail };
+    },
+
+    onError: (_err, { taskId }, context) => {
+      if (context?.previousDetail) {
+        qc.setQueryData(['taskDetail', taskId], context.previousDetail);
+      }
+    },
+
+    onSettled: (_data, _error, { taskId }) => {
       qc.invalidateQueries({ queryKey: ['taskTimeline', taskId] });
       qc.invalidateQueries({ queryKey: ['taskAttachments', taskId] });
       qc.invalidateQueries({ queryKey: ['taskDetail', taskId] });
@@ -113,7 +144,36 @@ export const useRemoveAttachment = () => {
       attachmentId: string;
       payload?: RemoveAttachmentPayload;
     }) => tasksApi.removeAttachment(taskId, attachmentId, payload),
-    onSuccess: (_data, { taskId }) => {
+
+    onMutate: async ({ taskId, attachmentId }) => {
+      await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });
+      await qc.cancelQueries({ queryKey: ['taskAttachments', taskId] });
+
+      const previousDetail = qc.getQueryData<TaskDetailTimelineResponse>(['taskDetail', taskId]);
+
+      if (previousDetail) {
+        qc.setQueryData<TaskDetailTimelineResponse>(['taskDetail', taskId], {
+          ...previousDetail,
+          summary: {
+            ...previousDetail.summary,
+            threadStats: {
+              ...previousDetail.summary.threadStats,
+              attachmentCount: Math.max(0, previousDetail.summary.threadStats.attachmentCount - 1),
+            },
+          },
+        });
+      }
+
+      return { previousDetail };
+    },
+
+    onError: (_err, { taskId }, context) => {
+      if (context?.previousDetail) {
+        qc.setQueryData(['taskDetail', taskId], context.previousDetail);
+      }
+    },
+
+    onSettled: (_data, _error, { taskId }) => {
       qc.invalidateQueries({ queryKey: ['taskTimeline', taskId] });
       qc.invalidateQueries({ queryKey: ['taskAttachments', taskId] });
       qc.invalidateQueries({ queryKey: ['taskDetail', taskId] });

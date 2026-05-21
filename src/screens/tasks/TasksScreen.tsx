@@ -32,6 +32,8 @@ import { CreateTaskContent } from './CreateTaskScreen';
 import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
 import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
+import { useUnreadIds } from '../../hooks/useTaskView';
+import UnreadBadge from '../../components/UnreadBadge';
 import TaskQueueStatusBanner from '../../components/TaskQueueStatusBanner';
 import { buildTaskCardFooterModel } from './taskAssignedTime';
 
@@ -131,10 +133,12 @@ function OpenTaskCard({
   task,
   onPress,
   onOpenAttachment,
+  hasUnread,
 }: {
   task: Task;
   onPress: () => void;
   onOpenAttachment: (task: Task, type: AttachmentType) => void;
+  hasUnread: boolean;
 }) {
   const outletName = getTaskOutletName(task);
   const taskBar = buildTaskBarModel(task);
@@ -145,10 +149,17 @@ function OpenTaskCard({
   const footerModel = buildTaskCardFooterModel(task);
 
   return (
-    <TouchableOpacity style={styles.openCard} onPress={onPress} activeOpacity={0.82}>
+    <TouchableOpacity style={[styles.openCard, !hasUnread && styles.viewedCard]} onPress={onPress} activeOpacity={0.82}>
       <View style={styles.openCardInner}>
         <View style={styles.openCardTopRow}>
-          <TaskBadgeRow task={task} />
+          {hasUnread && (
+            <View style={styles.unreadDotWrap}>
+              <UnreadBadge count={1} dotOnly />
+            </View>
+          )}
+          <View style={styles.openCardPill}>
+            <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
+          </View>
           {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
         </View>
 
@@ -200,10 +211,12 @@ function CompletedTaskCard({
   task,
   onPress,
   onOpenAttachment,
+  hasUnread,
 }: {
   task: Task;
   onPress: () => void;
   onOpenAttachment: (task: Task, type: AttachmentType) => void;
+  hasUnread: boolean;
 }) {
   const outletName = getTaskOutletName(task);
   const taskBar = buildTaskBarModel(task);
@@ -214,9 +227,16 @@ function CompletedTaskCard({
   const footerModel = buildTaskCardFooterModel(task);
 
   return (
-    <TouchableOpacity style={styles.completedCard} onPress={onPress} activeOpacity={0.78}>
+    <TouchableOpacity style={[styles.completedCard, !hasUnread && styles.viewedCard]} onPress={onPress} activeOpacity={0.78}>
       <View style={styles.openCardTopRow}>
-        <TaskBadgeRow task={task} />
+        {hasUnread && (
+          <View style={styles.unreadDotWrap}>
+            <UnreadBadge count={1} dotOnly />
+          </View>
+        )}
+        <View style={styles.openCardPill}>
+          <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
+        </View>
         {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
       </View>
       <Text style={styles.completedWhen}>{formatRelativeTime(task.completedAt)}</Text>
@@ -416,8 +436,12 @@ export default function TasksScreen() {
     const refetchers: Array<() => Promise<unknown>> = [];
     if (showOpenSection) refetchers.push(() => openTasksQuery.refetch());
     if (showCompletedSection) refetchers.push(() => completedTasksQuery.refetch());
+    refetchers.push(() => refetchUnreadIds());
     await Promise.all(refetchers.map((run) => run()));
   };
+  const { data: unreadIds = [], refetch: refetchUnreadIds } = useUnreadIds();
+  const unreadSet = useMemo(() => new Set(unreadIds), [unreadIds]);
+
   const isLoading = showOpenSection
     ? (openTasksQuery.isLoading || (showCompletedSection && completedTasksQuery.isLoading))
     : completedTasksQuery.isLoading;
@@ -628,6 +652,7 @@ export default function TasksScreen() {
                       task={item}
                       onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
                       onOpenAttachment={openAttachmentModal}
+                      hasUnread={unreadSet.has(item.id)}
                     />
                   </View>
                 )}
@@ -940,6 +965,7 @@ export default function TasksScreen() {
                     task={item}
                     onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
                     onOpenAttachment={openAttachmentModal}
+                    hasUnread={unreadSet.has(item.id)}
                   />
                 )}
                 ListFooterComponent={
@@ -1179,6 +1205,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D3C5AC55',
     ...shadow.sm,
+  },
+  viewedCard: {
+    opacity: 0.75,
+  },
+  unreadDotWrap: {
+    marginRight: 4,
+    marginTop: 2,
   },
   openCardInner: {
     paddingTop: spacing.md,

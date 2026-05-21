@@ -8,9 +8,9 @@ import OverviewScreen from '../screens/overview/OverviewScreen';
 import TasksNavigator, { TasksStackParamList } from './TasksNavigator';
 import ReviewsNavigator, { ReviewsStackParamList } from './ReviewsNavigator';
 import MoreNavigator from './MoreNavigator';
-import { useReviewBadgeStatus } from '../hooks/useReviews';
-import { useAuthStore } from '../store/authStore';
-import { getReviewTabBadgeModel } from './reviewBadgeState';
+import { useReviews } from '../hooks/useReviews';
+import { useUnreadAggregated } from '../hooks/useTaskView';
+import * as Notifications from 'expo-notifications';
 
 export type AppTabParamList = {
   Overview: undefined;
@@ -55,14 +55,38 @@ function ReviewsTabIcon({ color, focused }: { color: string; focused: boolean })
   );
 }
 
+function TasksTabIcon({ color, focused }: { color: string; focused: boolean }) {
+  const { data: aggregated } = useUnreadAggregated();
+  const totalUnread = aggregated?.totalUnread ?? 0;
+  const icons = TAB_ICONS.Tasks;
+
+  // Sync aggregated unread count to iOS app icon badge
+  React.useEffect(() => {
+    void Notifications.setBadgeCountAsync(totalUnread).catch(() => undefined);
+  }, [totalUnread]);
+
+  return (
+    <View>
+      <Ionicons name={focused ? icons.filled : icons.outline} size={22} color={color} />
+      {totalUnread > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{totalUnread > 99 ? '99+' : totalUnread}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function TabIcon({ name, color, focused }: { name: TabRouteName; color: string; focused: boolean }) {
   if (name === 'Reviews') return <ReviewsTabIcon color={color} focused={focused} />;
+  if (name === 'Tasks') return <TasksTabIcon color={color} focused={focused} />;
   const icons = TAB_ICONS[name];
   if (!icons) return null;
   return <Ionicons name={focused ? icons.filled : icons.outline} size={22} color={color} />;
 }
 
 export default function AppNavigator() {
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

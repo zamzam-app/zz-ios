@@ -1,19 +1,21 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  FlatList as RNFlatList,
   StyleSheet,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   ActionSheetIOS,
   Platform,
-  Image,
   Linking,
   TextInput,
   Modal,
+  RefreshControl,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
+import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -29,10 +31,23 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus,
 } from 'expo-audio';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTask, useUpdateTaskStatus, useDeleteTask, useUpdateTask } from '../../hooks/useTasks';
-import { TaskStatus, Task } from '../../api/endpoints/tasks';
+import {
+  useTaskDetail,
+  useTaskTimeline,
+  useEventTypeCounts,
+} from '../../hooks/useTaskTimeline';
+import { useMarkTaskViewed } from '../../hooks/useTaskView';
+import { TaskStatus } from '../../api/endpoints/tasks';
 import StatusBadge from '../../components/StatusBadge';
+import TimelineEventCard from '../../components/TimelineEventCard';
+import TimelineSkeleton from '../../components/TimelineSkeleton';
+import DelegationBanner from '../../components/DelegationBanner';
+import DelegationSheet from '../../components/DelegationSheet';
+import { useClearDelegation } from '../../hooks/useTaskDelegation';
+import { flattenInfiniteData } from '../../utils/pagination';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
@@ -40,6 +55,9 @@ import { uploadToCloudinary } from '../../api/endpoints/upload';
 import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
 import { CreateTaskContent } from './CreateTaskScreen';
+import { TaskEventType } from '../../types/task';
+import type { SerializedTimelineEvent, AttachmentPreview } from '../../types/task';
+import { eventTypeIcon, formatFullDate } from '../../components/TimelineEventShared';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
 
@@ -54,6 +72,15 @@ const PRIORITY_COLORS: Record<string, string> = {
   MEDIUM: colors.priorityMedium,
   LOW: colors.priorityLow,
 };
+
+const EVENT_TYPE_FILTERS: { label: string; type: TaskEventType | 'ALL' }[] = [
+  { label: 'All', type: 'ALL' },
+  { label: 'Comments', type: TaskEventType.COMMENTED },
+  { label: 'Status', type: TaskEventType.STATUS_CHANGED },
+  { label: 'Attachments', type: TaskEventType.ATTACHMENT_ADDED },
+  { label: 'Delegations', type: TaskEventType.REASSIGNED },
+];
+
 const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
 
 const AUDIO_FILE_WAIT_RETRIES = 25;
@@ -81,6 +108,16 @@ function formatDate(iso?: string | null, dueTime?: string | null) {
     return `${dateStr} ${timeStr}`;
   }
   return dateStr;
+}
+
+/**
+ * Apply Cloudinary thumbnail transformation to reduce bandwidth/memory
+ * for attachment thumbnails. Falls back to the original URL if it's not
+ * a Cloudinary URL.
+ */
+function cloudinaryThumbnail(url: string, width = 200, height = 200): string {
+  if (!url.includes('cloudinary')) return url;
+  return url.replace('/upload/', `/upload/w_${width},h_${height},c_fill/`);
 }
 
 function formatDuration(ms: number) {
@@ -165,18 +202,22 @@ function SubmissionBlock({
       {imageItems.length > 0 && (
         <View style={styles.attachmentGroup}>
           <Text style={styles.attachmentGroupTitle}>Images</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRow}>
-            {imageItems.map((url, index) => (
+          <RNFlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={imageItems}
+            keyExtractor={(url, index) => `${title}-image-${url}-${index}`}
+            contentContainerStyle={styles.imageRow}
+            renderItem={({ item: url, index }) => (
               <TouchableOpacity
-                key={`${title}-image-${url}-${index}`}
                 onPress={() => onOpenAttachment(url, 'image')}
                 style={styles.imageItem}
                 activeOpacity={0.85}
               >
-                <Image source={{ uri: url }} style={styles.imageThumb} resizeMode="cover" />
+                <ExpoImage source={{ uri: cloudinaryThumbnail(url) }} style={styles.imageThumb} contentFit="cover" cachePolicy="memory-disk" />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            )}
+          />
         </View>
       )}
 
@@ -280,11 +321,25 @@ function SubmissionBlock({
 
 export default function TaskDetailScreen({ route, navigation }: Props) {
   const { taskId } = route.params;
-  const { data: task, isLoading } = useTask(taskId);
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === 'admin';
+
+  // ─── Thread data ────────────────────────────────────────────────────────
+  const { data: taskDetail, isLoading: detailLoading, error: detailError, refetch: refetchDetail } = useTaskDetail(taskId);
+  const timelineQuery = useTaskTimeline(taskId);
+  const eventTypeCountsQuery = useEventTypeCounts(taskId);
+  const markTaskViewed = useMarkTaskViewed();
+  const clearDelegation = useClearDelegation();
+
+  // ─── Legacy fallback fetch ────────────────────────────────────────────────
+  const { data: legacyTask } = useTask(taskId);
+
+  // ─── Action mutations ─────────────────────────────────────────────────────
   const updateStatus = useUpdateTaskStatus();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
-  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
+
+  // ─── Audio state (preserved) ──────────────────────────────────────────────
   const previewPlayer = useAudioPlayer(null, { updateInterval: 150 });
   const previewPlayerStatus = useAudioPlayerStatus(previewPlayer);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -309,13 +364,30 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
+  const [activeEventFilter, setActiveEventFilter] = useState<TaskEventType | 'ALL'>('ALL');
+  const [showDelegationSheet, setShowDelegationSheet] = useState(false);
 
+  // ─── Effect: mark task viewed on focus ─────────────────────────────────
+  useFocusEffect(
+    useCallback(() => {
+      markTaskViewed.mutate(taskId);
+    }, [taskId]),
+  );
+
+  // ─── Audio mode setup ─────────────────────────────────────────────────────
   useEffect(() => {
     setAudioModeAsync({
       allowsRecording: false,
       playsInSilentMode: true,
     }).catch((err) => console.warn('[TaskDetail] Failed to set audio mode on mount', err));
   }, []);
+
+  // ─── Derived: task data ──────────────────────────────────────────────────
+  const source = taskDetail?.summary ?? legacyTask;
+  const timelineEvents = useMemo(
+    () => flattenInfiniteData(timelineQuery.data),
+    [timelineQuery.data],
+  );
 
   const runPreviewPlayerActionSafely = useCallback((action: () => unknown): boolean => {
     try {
@@ -345,8 +417,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   };
 
   const handleStatusChange = () => {
-    if (!task) return;
+    if (!source) return;
 
+    const taskIdForUpdate = (source as any)._id ?? '';
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -356,7 +429,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         },
         (idx) => {
           if (idx < ALL_STATUSES.length) {
-            updateStatus.mutate({ id: task.id, status: ALL_STATUSES[idx] });
+            updateStatus.mutate({ id: taskIdForUpdate, status: ALL_STATUSES[idx] });
           }
         },
       );
@@ -366,14 +439,14 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     Alert.alert('Update Status', undefined, [
       ...ALL_STATUSES.map((s) => ({
         text: STATUS_LABELS[s],
-        onPress: () => updateStatus.mutate({ id: task.id, status: s }),
+        onPress: () => updateStatus.mutate({ id: taskIdForUpdate, status: s }),
       })),
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
 
   const handleDelete = () => {
-    Alert.alert('Delete Task', 'Are you sure?', [
+    Alert.alert('Delete Task', 'Are you sure? This action cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -424,71 +497,69 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const adminAttachments = task?.adminSubmission?.attachments;
-  const imageAttachments = Array.from(new Set([
-    ...(task?.attachments?.images ?? task?.imageUrls ?? []),
-    ...(adminAttachments?.images ?? [])
-  ]));
-  const videoAttachments = Array.from(new Set([
-    ...(task?.attachments?.videos ?? []),
-    ...(adminAttachments?.videos ?? [])
-  ]));
-  const savedAudioAttachments = Array.from(new Set([
-    ...(task?.attachments?.audios ?? []),
-    ...(adminAttachments?.audios ?? [])
-  ]));
-  const audioAttachments = Array.from(new Set([
-    ...savedAudioAttachments,
-    ...(managerAttachments.audios)
-  ]));
-  const fileAttachments = Array.from(new Set([
-    ...(task?.attachments?.files ?? []),
-    ...(adminAttachments?.files ?? [])
-  ]));
-  const audioAttachmentMeta = audioAttachments.map((url, index) => ({ id: `audio-${index}-${url}`, url }));
-  const audioAttachmentIds = audioAttachmentMeta.map((item) => item.id);
-  const audioAttachmentIdsKey = audioAttachmentIds.join('|');
-  const attachmentCount = imageAttachments.length
-    + videoAttachments.length
-    + savedAudioAttachments.length
-    + fileAttachments.length;
-  const hasAttachments = attachmentCount > 0;
+  // ─── Attachment helpers (preserved) ──────────────────────────────────────
+  const getSourceAttachments = (source: any) => {
+    const adminAttachments = source?.adminSubmission?.attachments;
+    const images = Array.from(new Set([
+      ...(source?.attachments?.images ?? source?.imageUrls ?? []),
+      ...(adminAttachments?.images ?? [])
+    ]));
+    const videos = Array.from(new Set([
+      ...(source?.attachments?.videos ?? []),
+      ...(adminAttachments?.videos ?? [])
+    ]));
+    const savedAudios = Array.from(new Set([
+      ...(source?.attachments?.audios ?? []),
+      ...(adminAttachments?.audios ?? [])
+    ]));
+    const audios = Array.from(new Set([
+      ...savedAudios,
+      ...(managerAttachments.audios)
+    ]));
+    const files = Array.from(new Set([
+      ...(source?.attachments?.files ?? []),
+      ...(adminAttachments?.files ?? [])
+    ]));
+    const audioMeta = audios.map((url: string, index: number) => ({ id: `audio-${index}-${url}`, url }));
+    const audioIds = audioMeta.map((item: any) => item.id);
+    const audioIdsKey = audioIds.join('|');
+    const count = images.length + videos.length + savedAudios.length + files.length;
+    return { images, videos, savedAudios, audios, files, audioMeta, audioIdsKey, count, hasAny: count > 0 };
+  };
 
+  const sourceAttachments = useMemo(
+    () => getSourceAttachments(taskDetail?.summary),
+    [taskDetail?.summary, managerAttachments.audios],
+  );
+
+  // ─── Manager submission setup ────────────────────────────────────────────
   useEffect(() => {
-    if (!task) return;
-    setManagerText(task.managerSubmission?.text ?? '');
+    const source = taskDetail?.summary;
+    if (!source) return;
+    setManagerText((source as any).managerSubmission?.text ?? '');
     setManagerAttachments({
-      images: task.managerSubmission?.attachments?.images ?? [],
-      videos: task.managerSubmission?.attachments?.videos ?? [],
-      audios: task.managerSubmission?.attachments?.audios ?? [],
-      files: task.managerSubmission?.attachments?.files ?? [],
+      images: (source as any).managerSubmission?.attachments?.images ?? [],
+      videos: (source as any).managerSubmission?.attachments?.videos ?? [],
+      audios: (source as any).managerSubmission?.attachments?.audios ?? [],
+      files: (source as any).managerSubmission?.attachments?.files ?? [],
     });
-  }, [task?.id, task?.managerSubmission?.text, task?.managerSubmission?.attachments]);
+  }, [(taskDetail?.summary as any)?._id]);
 
-  const addAttachmentUrl = (
-    type: 'images' | 'videos' | 'audios' | 'files',
-    url: string,
-  ) => {
+  const addAttachmentUrl = (type: 'images' | 'videos' | 'audios' | 'files', url: string) => {
     setManagerAttachments((prev) => ({
       ...prev,
       [type]: [...prev[type], url],
     }));
   };
 
-  const removeAttachmentUrl = (
-    type: 'images' | 'videos' | 'audios' | 'files',
-    index: number,
-  ) => {
+  const removeAttachmentUrl = (type: 'images' | 'videos' | 'audios' | 'files', index: number) => {
     setManagerAttachments((prev) => ({
       ...prev,
       [type]: prev[type].filter((_, idx) => idx !== index),
     }));
   };
 
-  const uploadLocalFile = async (
-    type: 'images' | 'videos' | 'audios' | 'files',
-    uri: string,
-  ) => {
+  const uploadLocalFile = async (type: 'images' | 'videos' | 'audios' | 'files', uri: string) => {
     setUploadingType(type);
     try {
       const remoteUrl = await uploadToCloudinary(uri, 'tasks');
@@ -499,6 +570,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       setUploadingType(null);
     }
   };
+
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -514,12 +586,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       Alert.alert('Permission needed', 'Camera access is required to take photos.');
       return;
     }
-
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
       quality: 0.8,
     });
-
     if (result.canceled || !result.assets?.[0]?.uri) return;
     await uploadLocalFile('images', result.assets[0].uri);
   };
@@ -542,53 +612,36 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const normalizeLocalFileUri = (uri: string): string => {
     const trimmed = uri.trim();
     if (!trimmed) return trimmed;
-    if (trimmed.startsWith('file://') || trimmed.startsWith('content://')) {
-      return trimmed;
-    }
+    if (trimmed.startsWith('file://') || trimmed.startsWith('content://')) return trimmed;
     if (trimmed.startsWith('file:/')) {
-      const pathOnly = trimmed.replace(/^file:\/*/, '/');
+      const pathOnly = trimmed.replace(/^file:\/*/, '');
       return `file://${pathOnly}`;
     }
-    if (trimmed.startsWith('/')) {
-      return `file://${trimmed}`;
-    }
+    if (trimmed.startsWith('/')) return `file://${trimmed}`;
     return trimmed;
   };
 
   const waitForRecordedAudioFile = async (uri: string): Promise<number> => {
     for (let attempt = 0; attempt < AUDIO_FILE_WAIT_RETRIES; attempt += 1) {
       const info = await FileSystem.getInfoAsync(uri);
-      if (info.exists && !info.isDirectory && info.size > 0) {
-        return info.size;
-      }
+      if (info.exists && !info.isDirectory && info.size > 0) return info.size;
       await new Promise((resolve) => setTimeout(resolve, AUDIO_FILE_WAIT_DELAY_MS));
     }
-
     const finalInfo = await FileSystem.getInfoAsync(uri);
-    if (finalInfo.exists && !finalInfo.isDirectory) {
-      return finalInfo.size;
-    }
+    if (finalInfo.exists && !finalInfo.isDirectory) return finalInfo.size;
     return 0;
   };
 
   const stageRecordedAudioForUpload = async (uri: string): Promise<string> => {
     const normalizedUri = normalizeLocalFileUri(uri);
     const recordedSize = await waitForRecordedAudioFile(normalizedUri);
-    if (recordedSize <= 0) {
-      throw new Error('Recorded audio file is unavailable.');
-    }
+    if (recordedSize <= 0) throw new Error('Recorded audio file is unavailable.');
 
     const cacheDir = FileSystem.cacheDirectory;
     if (!cacheDir) return normalizedUri;
-
-    const extFromUri = normalizedUri
-      .split(/[?#]/)[0]
-      .split('.')
-      .pop()
-      ?.toLowerCase();
+    const extFromUri = normalizedUri.split(/[?#]/)[0].split('.').pop()?.toLowerCase();
     const ext = extFromUri && /^[a-z0-9]+$/.test(extFromUri) ? extFromUri : 'm4a';
     const stagedUri = `${cacheDir}task-audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
     try {
       await FileSystem.copyAsync({ from: normalizedUri, to: stagedUri });
       return stagedUri;
@@ -608,22 +661,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         Alert.alert('Permission needed', 'Microphone access is required to record audio.');
         return;
       }
-
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
-
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
     } catch (error) {
       console.warn('[TaskDetail] Start recording failed', error);
-      // Reset audio mode if it fails after setAudioModeAsync
-      await setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      }).catch(() => undefined);
-
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
       Alert.alert('Error', 'Could not start recording. Please try again.');
     } finally {
       setRecordingBusy(false);
@@ -645,10 +688,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       console.warn('[TaskDetail] Stop recording failed', error);
       Alert.alert('Error', 'Could not stop recording. Please try again.');
     } finally {
-      await setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      }).catch(() => undefined);
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
       setRecordingBusy(false);
     }
   };
@@ -661,16 +701,14 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     } catch {
       // Ignore errors during discard stop
     } finally {
-      await setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      }).catch(() => undefined);
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
       setRecordingBusy(false);
     }
   };
 
   const saveManagerSubmission = () => {
-    if (!task) return;
+    const source = taskDetail?.summary;
+    if (!source) return;
 
     Alert.alert(
       'Complete Task',
@@ -681,9 +719,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           text: 'Complete Task',
           style: 'default',
           onPress: () => {
+            const sourceId = (source as any)._id ?? (source as any).id ?? '';
             updateTask.mutate(
               {
-                id: task.id,
+                id: sourceId,
                 payload: {
                   status: 'COMPLETED',
                   managerSubmission: {
@@ -709,6 +748,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     );
   };
 
+  // ─── Audio cleanup effects (preserved) ────────────────────────────────────
   useEffect(() => {
     return () => {
       runPreviewPlayerActionSafely(() => previewPlayer.pause());
@@ -725,13 +765,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             });
           }
         } catch (err) {
-          // Catch silently if the native Shared Object has already been released by unmounting
+          // Catch silently if the native Shared Object has already been released
         }
       }
-      setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      }).catch((err) => {
+      setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch((err) => {
         console.warn('[TaskDetail] Cleanup: Failed to reset audio mode', err);
       });
     };
@@ -754,7 +791,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     if (activeAudioAttachmentId || previewPlayerStatus.playing || probingAudioAttachmentId) return;
-    const nextToProbe = audioAttachmentMeta.find((item) => !audioDurationById[item.id]);
+    const nextToProbe = sourceAttachments.audioMeta.find((item: any) => !audioDurationById[item.id]);
     if (!nextToProbe) return;
 
     const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(nextToProbe.url));
@@ -764,7 +801,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     activeAudioAttachmentId,
     previewPlayerStatus.playing,
     probingAudioAttachmentId,
-    audioAttachmentIdsKey,
+    sourceAttachments.audioIdsKey,
     audioDurationById,
     previewPlayer,
     runPreviewPlayerActionSafely,
@@ -772,21 +809,20 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     if (!activeAudioAttachmentId) return;
-    if (!audioAttachmentIds.includes(activeAudioAttachmentId)) {
+    if (!sourceAttachments.audioMeta.some((m: any) => m.id === activeAudioAttachmentId)) {
       runPreviewPlayerActionSafely(() => previewPlayer.pause());
       setActiveAudioAttachmentId(null);
       setPendingPlayAudioId(null);
     }
-  }, [activeAudioAttachmentId, audioAttachmentIdsKey, previewPlayer, runPreviewPlayerActionSafely]);
+  }, [activeAudioAttachmentId, sourceAttachments.audioIdsKey, previewPlayer, runPreviewPlayerActionSafely]);
 
   useEffect(() => {
     if (!probingAudioAttachmentId) return;
-    if (!audioAttachmentIds.includes(probingAudioAttachmentId)) {
+    if (!sourceAttachments.audioMeta.some((m: any) => m.id === probingAudioAttachmentId)) {
       setProbingAudioAttachmentId(null);
     }
-  }, [probingAudioAttachmentId, audioAttachmentIdsKey]);
+  }, [probingAudioAttachmentId, sourceAttachments.audioIdsKey]);
 
-  // On iOS, replace() loads the source asynchronously. Play only once isLoaded is true.
   useEffect(() => {
     if (!pendingPlayAudioId || !previewPlayerStatus.isLoaded) return;
     runPreviewPlayerActionSafely(() => previewPlayer.play());
@@ -794,15 +830,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   }, [pendingPlayAudioId, previewPlayerStatus.isLoaded, previewPlayer, runPreviewPlayerActionSafely]);
 
   const handleAudioAttachmentPress = (audioId: string, url: string) => {
-    if (probingAudioAttachmentId) {
-      setProbingAudioAttachmentId(null);
-    }
+    if (probingAudioAttachmentId) setProbingAudioAttachmentId(null);
 
     if (activeAudioAttachmentId !== audioId) {
       const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(url));
       if (!replaced) return;
-      // Don't call play() immediately — on iOS, replace() loads asynchronously.
-      // The pendingPlayAudioId effect will call play() once isLoaded becomes true.
       setPendingPlayAudioId(audioId);
       setActiveAudioAttachmentId(audioId);
       return;
@@ -825,72 +857,47 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     runPreviewPlayerActionSafely(() => previewPlayer.play());
   };
 
-  if (isLoading) {
+  // ─── Event filter handling ───────────────────────────────────────────────
+  const filteredEvents = useMemo(() => {
+    if (activeEventFilter === 'ALL') return timelineEvents;
+    return timelineEvents.filter((e) => e.type === activeEventFilter);
+  }, [timelineEvents, activeEventFilter]);
+
+  const handleLoadMore = useCallback(() => {
+    if (timelineQuery.hasNextPage && !timelineQuery.isFetchingNextPage) {
+      void timelineQuery.fetchNextPage();
+    }
+  }, [timelineQuery.hasNextPage, timelineQuery.isFetchingNextPage, timelineQuery.fetchNextPage]);
+
+  const handleRefresh = useCallback(() => {
+    void timelineQuery.refetch();
+    void eventTypeCountsQuery.refetch();
+  }, [timelineQuery.refetch, eventTypeCountsQuery.refetch]);
+
+  const handleAttachmentPress = useCallback((attachment: AttachmentPreview) => {
+    openAttachment(attachment.url, 'image');
+  }, []);
+
+  const handleActorPress = useCallback((_userId: string) => {
+    // Future: navigate to user profile
+  }, []);
+
+  const isLoading = detailLoading;
+
+  // ─── Render: List Header (summary + manager submission) ──────────────────
+  const renderListHeader = useCallback(() => {
+    const source = taskDetail?.summary;
+    if (!source) return null;
+
+    const isOverdue = source.status !== 'COMPLETED' && new Date(source.dueDate) < new Date();
+    const outletName = getTaskOutletName(source);
+    const categoryName = getTaskCategoryName(source);
+    const assigneeNames = getTaskAssigneeNames(source);
+    const isNotCompleted = source.status !== 'COMPLETED' && !isAdmin;
+
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (!task) {
-    return (
-      <View style={styles.center}>
-        <Text style={{ color: colors.textSecondary }}>Task not found</Text>
-      </View>
-    );
-  }
-
-  const isOverdue = task.status !== 'COMPLETED' && new Date(task.dueDate) < new Date();
-  const outletName = getTaskOutletName(task);
-  const categoryName = getTaskCategoryName(task);
-  const assigneeNames = getTaskAssigneeNames(task);
-
-  return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <View style={styles.headingWrap}>
-            <View style={styles.titleRow}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Go back"
-                onPress={handleBack}
-                style={styles.backButton}
-              >
-                <Ionicons name="arrow-back" size={24} color={colors.primary} />
-              </TouchableOpacity>
-              <Text style={styles.heading} numberOfLines={1}>Task Details</Text>
-            </View>
-            <Text style={styles.subheading}>Task #{task.id.slice(-6).toUpperCase()}</Text>
-          </View>
-          <View style={styles.headerActions}>
-            {isAdmin && (
-              <>
-                <TouchableOpacity
-                  style={[styles.iconActionBtn, styles.editActionBtn]}
-                  onPress={() => setShowEditModal(true)}
-                  activeOpacity={0.82}
-                >
-                  <Ionicons name="create-outline" size={18} color={colors.textInverse} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
-                  onPress={handleDelete}
-                  disabled={deleteTask.isPending}
-                  activeOpacity={0.82}
-                >
-                  {deleteTask.isPending ? (
-                    <ActivityIndicator color={colors.textInverse} size="small" />
-                  ) : (
-                    <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-
+      <View>
+        {/* ── Summary Card ──────────────────────────────────────────────── */}
         <View style={styles.summaryCard}>
           <View style={styles.ownerTopRow}>
             <View style={styles.ownerHeadingWrap}>
@@ -902,57 +909,87 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             </View>
             <View style={styles.ownerBadgeWrap}>
               <View style={styles.ownerStatusPriorityRow}>
-                <StatusBadge status={task.status} />
-                <View style={[styles.priorityBadge, { backgroundColor: (PRIORITY_COLORS[task.priority] ?? colors.textSecondary) + '22' }]}>
-                  <Text style={[styles.priorityText, { color: PRIORITY_COLORS[task.priority] ?? colors.textSecondary }]}>
-                    {task.priority}
+                <StatusBadge status={source.status} />
+                <View style={[styles.priorityBadge, { backgroundColor: (PRIORITY_COLORS[source.priority] ?? colors.textSecondary) + '22' }]}>
+                  <Text style={[styles.priorityText, { color: PRIORITY_COLORS[source.priority] ?? colors.textSecondary }]}>
+                    {source.priority}
                   </Text>
                 </View>
               </View>
             </View>
           </View>
 
-          <Row label="Due Date" value={formatDate(task.dueDate, task.dueTime)} />
+          <Row label="Due Date" value={formatDate(source.dueDate, source.dueTime)} />
           {assigneeNames.length > 0 && (
             <Row label="Assigned To" value={assigneeNames.join(', ')} />
           )}
-          <Row label="Created" value={formatDate(task.createdAt)} />
-          {task.completedAt && (
-            <Row label="Completed" value={formatDate(task.completedAt)} />
+          <Row label="Created" value={formatDate(source.createdAt)} />              {(source as any).completedAt && (
+            <Row label="Completed" value={formatDate((source as any).completedAt)} />
           )}
 
           <Text style={styles.ownerDescriptionLabel}>Description</Text>
-          <Text style={styles.description}>{task.description}</Text>
+          <Text style={styles.description}>{source.description}</Text>
 
-          {hasAttachments && (
+          {/* Thread Stats (from new detail) */}
+          {taskDetail?.summary?.threadStats && (
+            <View style={styles.threadStatsRow}>
+              <View style={styles.statItem}>
+                <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.textSecondary} />
+                <Text style={styles.statText}>{taskDetail.summary.threadStats.eventCount} events</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Ionicons name="attach-outline" size={14} color={colors.textSecondary} />
+                <Text style={styles.statText}>{taskDetail.summary.threadStats.attachmentCount} attachments</Text>
+              </View>
+              {taskDetail.summary.threadStats.lastEventAt && (
+              <Text style={styles.statTimestamp}>
+                Last activity: {formatFullDate(taskDetail.summary.threadStats.lastEventAt)}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Active delegation banner */}
+        {source.activeDelegation && (
+          <DelegationBanner
+            delegatedTo={source.activeDelegation.delegatedTo}
+            delegatedBy={source.activeDelegation.delegatedBy}
+            delegatedAt={source.activeDelegation.delegatedAt}
+            onRevoke={() => clearDelegation.mutate(taskId)}
+            isRevoking={clearDelegation.isPending}
+          />
+        )}
+
+          {/* Attachments gallery */}
+          {sourceAttachments.hasAny && (
             <View style={styles.attachmentsInlineWrap}>
               <Text style={styles.ownerDescriptionLabel}>Attachments</Text>
-              {imageAttachments.length > 0 && (
+              {sourceAttachments.images.length > 0 && (
                 <View style={styles.attachmentGroup}>
                   <Text style={styles.attachmentGroupTitle}>Images</Text>
-                  <ScrollView
+                  <RNFlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
+                    data={sourceAttachments.images}
+                    keyExtractor={(url: string, index: number) => `image-${url}-${index}`}
                     contentContainerStyle={styles.imageRow}
-                  >
-                    {imageAttachments.map((url, index) => (
+                    renderItem={({ item: url, index }) => (
                       <TouchableOpacity
-                        key={`image-${url}-${index}`}
                         onPress={() => { void openAttachment(url, 'image'); }}
                         style={styles.imageItem}
                         activeOpacity={0.85}
                       >
-                        <Image source={{ uri: url }} style={styles.imageThumb} resizeMode="cover" />
+                        <ExpoImage source={{ uri: cloudinaryThumbnail(url) }} style={styles.imageThumb} contentFit="cover" cachePolicy="memory-disk" />
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                    )}
+                  />
                 </View>
               )}
 
-              {videoAttachments.length > 0 && (
+              {sourceAttachments.videos.length > 0 && (
                 <View style={styles.attachmentGroup}>
                   <Text style={styles.attachmentGroupTitle}>Videos</Text>
-                  {videoAttachments.map((url, index) => (
+                  {sourceAttachments.videos.map((url: string, index: number) => (
                     <TouchableOpacity
                       key={`video-${url}-${index}`}
                       style={styles.attachmentRow}
@@ -971,12 +1008,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 </View>
               )}
 
-              {savedAudioAttachments.length > 0 && (
+              {sourceAttachments.savedAudios.length > 0 && (
                 <SubmissionBlock
                   title="Audio"
                   onOpenAttachment={openAttachment}
-                  attachments={{ audios: savedAudioAttachments }}
-                  audioAttachmentMeta={audioAttachmentMeta}
+                  attachments={{ audios: sourceAttachments.savedAudios }}
+                  audioAttachmentMeta={sourceAttachments.audioMeta}
                   audioPlayerStatus={previewPlayerStatus}
                   activeAudioAttachmentId={activeAudioAttachmentId}
                   audioDurationById={audioDurationById}
@@ -984,10 +1021,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 />
               )}
 
-              {fileAttachments.length > 0 && (
+              {sourceAttachments.files.length > 0 && (
                 <View style={styles.attachmentGroup}>
                   <Text style={styles.attachmentGroupTitle}>Files</Text>
-                  {fileAttachments.map((url, index) => (
+                  {sourceAttachments.files.map((url: string, index: number) => (
                     <TouchableOpacity
                       key={`file-${url}-${index}`}
                       style={styles.attachmentRow}
@@ -1009,136 +1046,169 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        {task.status !== 'COMPLETED' && !isAdmin ? (
-          <>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeadingWrap}>
-                <View style={styles.sectionDot} />
-                <Text style={styles.sectionTitle}>Manager Submission</Text>
-              </View>
-            </View>
-
-            <View style={styles.managerCard}>
-              <TextInput
-                style={styles.managerTextInput}
-                placeholder="Add manager notes..."
-                placeholderTextColor={colors.textSecondary}
-                value={managerText}
-                onChangeText={setManagerText}
-                multiline
-                textAlignVertical="top"
-              />
-
-              {isRecordingAudio ? (
-                <View style={styles.recordingRow}>
-                  <View style={styles.recordingTimerWrap}>
-                    <View style={styles.recordingDot} />
-                    <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
-                  </View>
-                  <View style={styles.recordingActions}>
-                    <TouchableOpacity style={styles.recordingActionBtn} onPress={() => { void discardAudioRecording(); }}>
-                      <Ionicons name="trash-outline" size={18} color={colors.error} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.recordingActionBtn, styles.stopRecordingBtn]} onPress={() => { void stopAudioRecording(); }}>
-                      <Ionicons name="stop" size={18} color={colors.textInverse} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.managerActionsRow}>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void takePhoto(); }} disabled={uploadingType !== null || recordingBusy}>
-                    <Ionicons name="camera-outline" size={15} color={colors.primaryDark} />
-                    <Text style={styles.managerActionBtnText}>Camera</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null || recordingBusy}>
-                    <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
-                    <Text style={styles.managerActionBtnText}>Image</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVideo(); }} disabled={uploadingType !== null || recordingBusy}>
-                    <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
-                    <Text style={styles.managerActionBtnText}>Video</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickFile(); }} disabled={uploadingType !== null || recordingBusy}>
-                    <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
-                    <Text style={styles.managerActionBtnText}>File</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void startAudioRecording(); }} disabled={uploadingType !== null || recordingBusy}>
-                    <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
-                    <Text style={styles.managerActionBtnText}>Voice</Text>
-                  </TouchableOpacity>
-                </View>
+        {/* ── Timeline Filter Chips ──────────────────────────────────────── */}
+        <View style={styles.filterChipRow}>
+          {EVENT_TYPE_FILTERS.map((filter) => (
+            <TouchableOpacity
+              key={filter.label}
+              style={[
+                styles.filterChip,
+                activeEventFilter === filter.type && styles.filterChipActive,
+              ]}
+              onPress={() => setActiveEventFilter(filter.type)}
+              activeOpacity={0.7}
+            >
+              {filter.type !== 'ALL' && (
+                <Ionicons
+                  name={eventTypeIcon(filter.type) as any}
+                  size={12}
+                  color={activeEventFilter === filter.type ? colors.textInverse : colors.textSecondary}
+                  style={{ marginRight: 4 }}
+                />
               )}
-
-              {uploadingType && (
-                <View style={styles.uploadingRow}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.uploadingText}>Uploading {uploadingType.slice(0, -1)}...</Text>
-                </View>
-              )}
-
-              {(managerAttachments.images.length > 0
-                || managerAttachments.videos.length > 0
-                || managerAttachments.audios.length > 0
-                || managerAttachments.files.length > 0) && (
-                  <SubmissionBlock
-                    title="Attached"
-                    text={undefined}
-                    attachments={managerAttachments}
-                    onOpenAttachment={(url, type) => { void openAttachment(url, type); }}
-                    onRemoveAttachment={removeAttachmentUrl}
-                    audioAttachmentMeta={audioAttachmentMeta}
-                    audioPlayerStatus={previewPlayerStatus}
-                    activeAudioAttachmentId={activeAudioAttachmentId}
-                    audioDurationById={audioDurationById}
-                    onAudioPress={handleAudioAttachmentPress}
-                  />
-                )}
-
-
-
-              <View style={styles.managerTagGroup}>
-                {managerAttachments.images.map((url, index) => (
-                  <TouchableOpacity
-                    key={`manager-image-${url}-${index}`}
-                    style={styles.attachmentTag}
-                    onLongPress={() => removeAttachmentUrl('images', index)}
-                  >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'image', index)}</Text>
-                  </TouchableOpacity>
-                ))}
-                {managerAttachments.videos.map((url, index) => (
-                  <TouchableOpacity
-                    key={`manager-video-${url}-${index}`}
-                    style={styles.attachmentTag}
-                    onLongPress={() => removeAttachmentUrl('videos', index)}
-                  >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
-                  </TouchableOpacity>
-                ))}
-                {managerAttachments.files.map((url, index) => (
-                  <TouchableOpacity
-                    key={`manager-file-${url}-${index}`}
-                    style={styles.attachmentTag}
-                    onLongPress={() => removeAttachmentUrl('files', index)}
-                  >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity
-                style={[styles.saveManagerBtn, updateTask.isPending && styles.iconActionBtnDisabled]}
-                onPress={saveManagerSubmission}
-                disabled={updateTask.isPending}
+              <Text
+                style={[
+                  styles.filterChipText,
+                  activeEventFilter === filter.type && styles.filterChipTextActive,
+                ]}
               >
-                {updateTask.isPending ? (
-                  <ActivityIndicator color={colors.textInverse} size="small" />
-                ) : (
-                  <Text style={styles.saveManagerBtnText}>Save Submission</Text>
-                )}
-              </TouchableOpacity>
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* ── Activity Section Header ────────────────────────────────────── */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeadingWrap}>
+            <View style={[styles.sectionDot, styles.sectionDotActivity]} />
+            <Text style={styles.sectionTitle}>Activity</Text>
+          </View>
+          <Text style={styles.sectionCount}>
+            {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+
+        {/* ── Manager Submission Section ──────────────────────────────────── */}
+        {isNotCompleted ? (
+          <View style={styles.managerCard}>
+            <TextInput
+              style={styles.managerTextInput}
+              placeholder="Add manager notes..."
+              placeholderTextColor={colors.textSecondary}
+              value={managerText}
+              onChangeText={setManagerText}
+              multiline
+              textAlignVertical="top"
+            />
+
+            {isRecordingAudio ? (
+              <View style={styles.recordingRow}>
+                <View style={styles.recordingTimerWrap}>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
+                </View>
+                <View style={styles.recordingActions}>
+                  <TouchableOpacity style={styles.recordingActionBtn} onPress={() => { void discardAudioRecording(); }}>
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.recordingActionBtn, styles.stopRecordingBtn]} onPress={() => { void stopAudioRecording(); }}>
+                    <Ionicons name="stop" size={18} color={colors.textInverse} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.managerActionsRow}>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void takePhoto(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <Ionicons name="camera-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Camera</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Image</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVideo(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Video</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickFile(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>File</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void startAudioRecording(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
+                  <Text style={styles.managerActionBtnText}>Voice</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {uploadingType && (
+              <View style={styles.uploadingRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.uploadingText}>Uploading {uploadingType.slice(0, -1)}...</Text>
+              </View>
+            )}
+
+            {(managerAttachments.images.length > 0
+              || managerAttachments.videos.length > 0
+              || managerAttachments.audios.length > 0
+              || managerAttachments.files.length > 0) && (
+                <SubmissionBlock
+                  title="Attached"
+                  text={undefined}
+                  attachments={managerAttachments}
+                  onOpenAttachment={(url, type) => { void openAttachment(url, type); }}
+                  onRemoveAttachment={removeAttachmentUrl}
+                  audioAttachmentMeta={sourceAttachments.audioMeta}
+                  audioPlayerStatus={previewPlayerStatus}
+                  activeAudioAttachmentId={activeAudioAttachmentId}
+                  audioDurationById={audioDurationById}
+                  onAudioPress={handleAudioAttachmentPress}
+                />
+              )}
+
+            <View style={styles.managerTagGroup}>
+              {managerAttachments.images.map((url: string, index: number) => (
+                <TouchableOpacity
+                  key={`manager-image-${url}-${index}`}
+                  style={styles.attachmentTag}
+                  onLongPress={() => removeAttachmentUrl('images', index)}
+                >
+                  <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'image', index)}</Text>
+                </TouchableOpacity>
+              ))}
+              {managerAttachments.videos.map((url: string, index: number) => (
+                <TouchableOpacity
+                  key={`manager-video-${url}-${index}`}
+                  style={styles.attachmentTag}
+                  onLongPress={() => removeAttachmentUrl('videos', index)}
+                >
+                  <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+                </TouchableOpacity>
+              ))}
+              {managerAttachments.files.map((url: string, index: number) => (
+                <TouchableOpacity
+                  key={`manager-file-${url}-${index}`}
+                  style={styles.attachmentTag}
+                  onLongPress={() => removeAttachmentUrl('files', index)}
+                >
+                  <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </>
+
+            <TouchableOpacity
+              style={[styles.saveManagerBtn, updateTask.isPending && styles.iconActionBtnDisabled]}
+              onPress={saveManagerSubmission}
+              disabled={updateTask.isPending}
+            >
+              {updateTask.isPending ? (
+                <ActivityIndicator color={colors.textInverse} size="small" />
+              ) : (
+                <Text style={styles.saveManagerBtnText}>Save Submission</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         ) : (
           (managerText.trim().length > 0
             || managerAttachments.images.length > 0
@@ -1157,7 +1227,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 text={managerText}
                 attachments={managerAttachments}
                 onOpenAttachment={(url, type) => { void openAttachment(url, type); }}
-                audioAttachmentMeta={audioAttachmentMeta}
+                audioAttachmentMeta={sourceAttachments.audioMeta}
                 audioPlayerStatus={previewPlayerStatus}
                 activeAudioAttachmentId={activeAudioAttachmentId}
                 audioDurationById={audioDurationById}
@@ -1166,8 +1236,230 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             </>
           ) : null
         )}
-      </ScrollView>
+      </View>
+    );
+  }, [
+    taskDetail,
+    activeEventFilter,
+    filteredEvents.length,
+    sourceAttachments,
+    managerText,
+    managerAttachments,
+    isRecordingAudio,
+    recordingMillis,
+    recordingBusy,
+    uploadingType,
+    updateTask.isPending,
+    previewPlayerStatus,
+    activeAudioAttachmentId,
+    audioDurationById,
+  ]);
 
+  // ─── Render: Timeline Event ──────────────────────────────────────────────
+  const renderEvent = useCallback(
+    ({ item }: { item: SerializedTimelineEvent }) => (
+      <TimelineEventCard
+        event={item}
+        isLast={item.sortKey === filteredEvents[filteredEvents.length - 1]?.sortKey}
+        onAttachmentPress={handleAttachmentPress}
+        onActorPress={handleActorPress}
+      />
+    ),
+    [filteredEvents, handleAttachmentPress, handleActorPress],
+  );
+
+  const keyExtractor = useCallback(
+    (item: SerializedTimelineEvent) => item._id,
+    [],
+  );
+
+  // ─── Loading & Error states ──────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <View style={styles.root}>
+        <TimelineSkeleton />
+      </View>
+    );
+  }
+
+  if (detailError || (!source && !timelineQuery.isLoading)) {
+    return (
+      <View style={styles.center}>
+        <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
+        <Text style={styles.notFoundText}>
+          {detailError ? 'Failed to load task' : 'Task not found'}
+        </Text>
+        <Text style={styles.emptyTimelineSubtext}>
+          {detailError
+            ? 'Check your connection and try again'
+            : 'This task may have been deleted or you may not have access'
+          }
+        </Text>
+        <TouchableOpacity
+          style={styles.retryBtn}
+          onPress={() => {
+            void timelineQuery.refetch();
+            void eventTypeCountsQuery.refetch();
+            void refetchDetail();
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="refresh" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
+          <Text style={styles.retryBtnText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Fallback: if source is still undefined (e.g. timeline loading but detail not ready)
+  if (!source) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      {/* ── Header (fixed) ──────────────────────────────────────────────── */}
+      <View style={styles.header}>
+        <View style={styles.headingWrap}>
+          <View style={styles.titleRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={handleBack}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.heading} numberOfLines={1}>Task Details</Text>
+          </View>
+          <Text style={styles.subheading}>Task #{((source as any)._id ?? (source as any).id ?? '').toString().slice(-6).toUpperCase()}</Text>
+        </View>
+        <View style={styles.headerActions}>
+          {isAdmin && (
+            <>
+          <TouchableOpacity
+            style={[styles.iconActionBtn, styles.editActionBtn]}
+            onPress={() => setShowEditModal(true)}
+            activeOpacity={0.82}
+            accessibilityLabel="Edit task"
+          >
+            <Ionicons name="create-outline" size={18} color={colors.textInverse} />
+          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
+                onPress={handleDelete}
+                disabled={deleteTask.isPending}
+                accessibilityLabel="Delete task"
+                activeOpacity={0.82}
+              >
+                {deleteTask.isPending ? (
+                  <ActivityIndicator color={colors.textInverse} size="small" />
+                ) : (
+                  <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+
+      {/* ── Timeline FlashList (virtualized) ───────────────────────────── */}
+      <FlashList
+        style={styles.timelineList}
+        contentContainerStyle={styles.timelineContent}
+        data={filteredEvents}
+        keyExtractor={keyExtractor}
+        renderItem={renderEvent}
+        ListHeaderComponent={renderListHeader}
+        ListFooterComponent={
+          timelineQuery.isFetchingNextPage ? (
+            <View style={styles.loadingMoreWrap}>
+              <ActivityIndicator color={colors.primary} size="small" />
+              <Text style={styles.loadingMoreText}>Loading more events...</Text>
+            </View>
+          ) : !timelineQuery.hasNextPage && filteredEvents.length > 0 ? (
+            <View style={styles.endOfTimeline}>
+              <View style={styles.endDot} />
+              <Text style={styles.endText}>You've seen everything</Text>
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          !timelineQuery.isLoading ? (
+            <View style={styles.emptyTimeline}>
+              <Ionicons name="time-outline" size={32} color={colors.textDisabled} />
+              <Text style={styles.emptyTimelineText}>
+              {timelineQuery.isError ? 'Failed to load activity' : 'No activity yet'}
+            </Text>
+              <Text style={styles.emptyTimelineSubtext}>
+                {timelineQuery.isError
+                  ? 'Pull down to try again'
+                  : 'Events will appear here as the task is updated'
+                }
+              </Text>
+              {timelineQuery.isError && (
+                <TouchableOpacity
+                  style={styles.retryBtnSmall}
+                  onPress={() => timelineQuery.refetch()}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="refresh" size={14} color={colors.primary} />
+                  <Text style={styles.retryBtnSmallText}>Retry</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : timelineQuery.isLoading && !isLoading ? (
+            <TimelineSkeleton />
+          ) : null
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={timelineQuery.isRefetching && !timelineQuery.isLoading}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+          />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.3}
+        showsVerticalScrollIndicator
+        persistentScrollbar
+      />
+
+      {/* ── Bottom Action Bar ─────────────────────────────────────────────── */}
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomBarInner}>
+          <TouchableOpacity
+            style={styles.bottomBarBtn}
+            onPress={handleStatusChange}
+            activeOpacity={0.82}
+          >
+            <Ionicons
+              name={source.status === 'COMPLETED' ? 'refresh' : 'checkmark-circle-outline'}
+              size={18}
+              color={colors.textInverse}
+            />
+            <Text style={styles.bottomBarBtnText}>
+              {source.status === 'COMPLETED' ? 'Reopen' : 'Complete'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Delegate button */}
+          <TouchableOpacity
+            style={[styles.bottomBarBtn, styles.bottomBarBtnSecondary]}
+            activeOpacity={0.82}
+            onPress={() => setShowDelegationSheet(true)}
+          >
+            <Ionicons name="person-add-outline" size={18} color={colors.primary} />
+            <Text style={[styles.bottomBarBtnText, styles.bottomBarBtnTextSecondary]}>Delegate</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ── Edit Modal ─────────────────────────────────────────────────────── */}
       <Modal
         visible={showEditModal}
         transparent
@@ -1194,10 +1486,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               </View>
             </View>
             <CreateTaskContent
-              onSuccess={() => {
-                setShowEditModal(false);
-              }}
-              editTask={task}
+              onSuccess={() => setShowEditModal(false)}
+              editTask={source as any}
               submitLabel="Save Changes"
               bottomPadding={24}
               fill
@@ -1207,6 +1497,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         </View>
       </Modal>
 
+      {/* ── Image Viewer Modal ─────────────────────────────────────────────── */}
       <Modal
         visible={!!viewerImageUrl}
         transparent
@@ -1222,36 +1513,50 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           {viewerImageUrl ? (
-            <Image
+            <ExpoImage
               source={{ uri: viewerImageUrl }}
               style={styles.viewerImage}
-              resizeMode="contain"
+              contentFit="contain"
+              cachePolicy="memory-disk"
             />
           ) : null}
         </View>
       </Modal>
+      {/* ── Delegation Sheet ─────────────────────────────────────────── */}
+      <DelegationSheet
+        visible={showDelegationSheet}
+        onClose={() => setShowDelegationSheet(false)}
+        taskId={taskId}
+        taskDescription={source?.description}
+        currentOwnerName={(source as any).activeOwner?.name}
+      />
     </SafeAreaView>
   );
 }
 
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.screenBackground },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: 120 },
 
+  // ── Header ───────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.screenBackground,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  headingWrap: {
-    flex: 1,
-  },
+  headingWrap: { flex: 1 },
   heading: {
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 26,
+    lineHeight: 32,
     fontWeight: typography.bold,
     color: colors.text,
     letterSpacing: -0.5,
@@ -1287,23 +1592,369 @@ const styles = StyleSheet.create({
     backgroundColor: colors.buttonPrimaryBg,
     ...shadow.sm,
   },
-  deleteActionBtn: {
-    backgroundColor: colors.error,
+  deleteActionBtn: { backgroundColor: colors.error },
+  editActionBtn: { backgroundColor: colors.primary },
+  iconActionBtnDisabled: { opacity: 0.6 },
+
+  // ── Timeline List ────────────────────────────────────────────────────────
+  timelineList: { flex: 1 },
+  timelineContent: { paddingBottom: spacing.md },
+
+  // ── Summary Card ─────────────────────────────────────────────────────────
+  summaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: '#D3C5AC40',
+    ...shadow.sm,
   },
-  editActionBtn: {
+  ownerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  ownerHeadingWrap: { flex: 1, gap: 2 },
+  ownerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  ownerTitle: { fontSize: typography.md, color: colors.text, fontWeight: typography.bold },
+  ownerOutlet: { fontSize: typography.sm, color: colors.textSecondary, fontWeight: typography.medium },
+  ownerBadgeWrap: { alignItems: 'flex-end' },
+  ownerStatusPriorityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  priorityBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.full },
+  priorityText: { fontSize: typography.xs, fontWeight: typography.semibold },
+  description: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 20 },
+  ownerDescriptionLabel: {
+    marginTop: spacing.sm,
+    marginBottom: 4,
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
+  },
+  overdueTopTag: { color: colors.error, fontSize: typography.xs, fontWeight: typography.semibold },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  rowLabel: { fontSize: typography.sm, color: colors.textSecondary },
+  rowValue: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.medium,
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
+
+  // ── Thread Stats ─────────────────────────────────────────────────────────
+  threadStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
+  statText: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
+  statTimestamp: { fontSize: typography.xs, color: colors.textDisabled, flex: 1, textAlign: 'right' },
+
+  // ── Attachments ──────────────────────────────────────────────────────────
+  attachmentsInlineWrap: { marginTop: spacing.sm },
+  attachmentGroup: { marginBottom: spacing.sm },
+  attachmentGroupTitle: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
+    marginBottom: spacing.xs,
+  },
+  imageRow: { gap: spacing.sm, paddingTop: 2 },
+  imageItem: {
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  imageThumb: { width: 108, height: 108, backgroundColor: colors.surfaceElevated },
+  attachmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  attachmentRowLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1, marginRight: spacing.sm },
+  attachmentName: { fontSize: typography.sm, color: colors.textSecondary, flex: 1 },
+
+  // ── Audio ─────────────────────────────────────────────────────────────────
+  audioAttachmentCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+  audioPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  audioPlayBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryTintStrong,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  waveformRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2, height: 20 },
+  waveformBar: { width: 3, borderRadius: radius.full },
+  audioDurationText: { fontSize: typography.xs, color: colors.textSecondary, minWidth: 76, textAlign: 'right' },
+  removeAudioBtn: { padding: 4 },
+  submissionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    ...shadow.sm,
+  },
+  submissionTitle: { fontSize: typography.sm, color: colors.text, fontWeight: typography.semibold, marginBottom: spacing.xs },
+  submissionText: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.sm },
+
+  // ── Filter Chips ─────────────────────────────────────────────────────────
+  filterChipRow: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterChipActive: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
-  iconActionBtnDisabled: {
-    opacity: 0.6,
+  filterChipText: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
+  filterChipTextActive: { color: colors.textInverse, fontWeight: typography.semibold },
+
+  // ── Section Header ───────────────────────────────────────────────────────
+  sectionHeader: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  editModalRoot: {
+  sectionHeadingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionDot: { width: 6, height: 6, borderRadius: radius.full, backgroundColor: '#EAB308' },
+  sectionDotActivity: { backgroundColor: colors.info },
+  sectionTitle: {
+    fontSize: typography.xs,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: '#4F4633',
+    fontWeight: typography.bold,
+  },
+  sectionCount: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    backgroundColor: '#E6E8EA',
+    color: colors.text,
+    textTransform: 'uppercase',
+    fontSize: 10,
+    fontWeight: typography.bold,
+  },
+
+  // ── Timeline States ──────────────────────────────────────────────────────
+  loadingMoreWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
+  },
+  loadingMoreText: { fontSize: typography.xs, color: colors.textSecondary },
+  endOfTimeline: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  endDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.textDisabled },
+  endText: { fontSize: typography.xs, color: colors.textDisabled },
+  emptyTimeline: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  emptyTimelineText: { fontSize: typography.base, color: colors.textSecondary, fontWeight: typography.medium },
+  emptyTimelineSubtext: { fontSize: typography.sm, color: colors.textDisabled, textAlign: 'center' },
+
+  // ── Manager Submission ───────────────────────────────────────────────────
+  managerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    ...shadow.sm,
+    gap: spacing.sm,
+  },
+  managerTextInput: {
+    minHeight: 92,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  managerActionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  managerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+  },
+  managerActionBtnText: { fontSize: typography.xs, color: colors.primaryDark, fontWeight: typography.semibold },
+  uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  uploadingText: { fontSize: typography.xs, color: colors.textSecondary },
+  managerTagGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  attachmentTag: {
+    maxWidth: '100%',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+  },
+  attachmentTagText: { fontSize: typography.xs, color: colors.textSecondary },
+  saveManagerBtn: {
+    minHeight: 42,
+    borderRadius: radius.md,
+    backgroundColor: colors.buttonPrimaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.sm,
+  },
+  saveManagerBtnText: { fontSize: typography.sm, color: colors.textInverse, fontWeight: typography.semibold },
+  recordingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.error + '40',
+  },
+  recordingTimerWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  recordingDot: { width: 8, height: 8, borderRadius: radius.full, backgroundColor: colors.error },
+  recordingTimerText: {
+    fontSize: typography.md,
+    color: colors.error,
+    fontWeight: typography.bold,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  recordingActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  recordingActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  stopRecordingBtn: { backgroundColor: colors.error, borderColor: colors.error },
+
+  // ── Bottom Action Bar ────────────────────────────────────────────────────
+  bottomBar: {
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingBottom: Platform.OS === 'ios' ? spacing.lg : spacing.sm,
+    ...shadow.md,
+  },
+  bottomBarInner: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  bottomBarBtn: {
     flex: 1,
-    justifyContent: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    minHeight: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
   },
-  editModalScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+  bottomBarBtnSecondary: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
+  bottomBarBtnText: {
+    fontSize: typography.sm,
+    color: colors.textInverse,
+    fontWeight: typography.semibold,
+  },
+  bottomBarBtnTextSecondary: {
+    color: colors.primary,
+  },
+
+  // ── Edit Modal ───────────────────────────────────────────────────────────
+  editModalRoot: { flex: 1, justifyContent: 'flex-end' },
+  editModalScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   editSheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
@@ -1318,13 +1969,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  editSheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E0E0E0',
-    marginBottom: 12,
-  },
+  editSheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', marginBottom: 12 },
   editSheetHeader: {
     width: '100%',
     flexDirection: 'row',
@@ -1332,21 +1977,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  editSheetTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  editSheetClose: {
-    padding: 4,
-  },
+  editSheetTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  editSheetClose: { padding: 4 },
 
-  viewerRoot: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  // ── Image Viewer Modal ───────────────────────────────────────────────────
+  viewerRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
   viewerCloseBtn: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 50 : 20,
@@ -1354,405 +1989,42 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 8,
   },
-  viewerImage: {
-    width: '100%',
-    height: '100%',
-  },
+  viewerImage: { width: '100%', height: '100%' },
 
-  summaryCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: '#D3C5AC40',
-    ...shadow.sm,
-  },
-  topRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  ownerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  ownerHeadingWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  ownerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  ownerTitle: {
-    fontSize: typography.md,
-    color: colors.text,
-    fontWeight: typography.bold,
-  },
-  ownerOutlet: {
-    fontSize: typography.sm,
+  // ── Error / Retry States ──────────────────────────────────────────────────
+  notFoundText: {
+    marginTop: spacing.sm,
+    fontSize: typography.base,
     color: colors.textSecondary,
     fontWeight: typography.medium,
   },
-  ownerBadgeWrap: {
-    alignItems: 'flex-end',
-  },
-  ownerStatusPriorityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.full,
-  },
-  priorityText: {
-    fontSize: typography.xs,
-    fontWeight: typography.semibold,
-  },
-  description: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  ownerDescriptionLabel: {
-    marginTop: spacing.sm,
-    marginBottom: 4,
-    fontSize: typography.sm,
-    color: colors.text,
-    fontWeight: typography.semibold,
-  },
-  overdueTag: {
-    color: colors.error,
-    fontSize: typography.xs,
-    marginTop: spacing.xs,
-    fontWeight: typography.semibold,
-  },
-  overdueTopTag: {
-    color: colors.error,
-    fontSize: typography.xs,
-    fontWeight: typography.semibold,
-  },
-
-  sectionHeader: {
-    marginBottom: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionHeadingWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sectionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: radius.full,
-    backgroundColor: '#EAB308',
-  },
-  sectionTitle: {
-    fontSize: typography.xs,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: '#4F4633',
-    fontWeight: typography.bold,
-  },
-  sectionCount: {
-    minWidth: 22,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: radius.sm,
-    backgroundColor: '#E6E8EA',
-    color: colors.text,
-    textAlign: 'center',
-    fontSize: 10,
-    fontWeight: typography.bold,
-  },
-
-  detailsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    ...shadow.sm,
-  },
-  submissionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    ...shadow.sm,
-  },
-  submissionTitle: {
-    fontSize: typography.sm,
-    color: colors.text,
-    fontWeight: typography.semibold,
-    marginBottom: spacing.xs,
-  },
-  submissionText: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: spacing.sm,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  retryBtn: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  rowLabel: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-  },
-  rowValue: {
-    fontSize: typography.sm,
-    color: colors.text,
-    fontWeight: typography.medium,
-    maxWidth: '60%',
-    textAlign: 'right',
-  },
-
-  attachmentsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
     ...shadow.sm,
   },
-  attachmentsInlineWrap: {
-    marginTop: spacing.sm,
-  },
-  attachmentGroup: {
-    marginBottom: spacing.sm,
-  },
-  attachmentGroupTitle: {
-    fontSize: typography.sm,
-    color: colors.text,
-    fontWeight: typography.semibold,
-    marginBottom: spacing.xs,
-  },
-  imageRow: {
-    gap: spacing.sm,
-    paddingTop: 2,
-  },
-  imageItem: {
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  imageThumb: {
-    width: 108,
-    height: 108,
-    backgroundColor: colors.surfaceElevated,
-  },
-  attachmentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  attachmentRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  attachmentName: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  audioAttachmentCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.xs,
-    gap: spacing.sm,
-  },
-  audioPreviewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  audioPlayBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primaryTintStrong,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  waveformRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    height: 20,
-  },
-  waveformBar: {
-    width: 3,
-    borderRadius: radius.full,
-  },
-  audioDurationText: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    minWidth: 76,
-    textAlign: 'right',
-  },
-  removeAudioBtn: {
-    padding: 4,
-  },
-  managerCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadow.sm,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  managerTextInput: {
-    minHeight: 92,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    fontSize: typography.sm,
-    color: colors.text,
-    backgroundColor: colors.surface,
-  },
-  managerActionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  managerActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    backgroundColor: colors.surface,
-  },
-  managerActionBtnText: {
-    fontSize: typography.xs,
-    color: colors.primaryDark,
-    fontWeight: typography.semibold,
-  },
-  uploadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  uploadingText: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-  },
-  managerDraftPreview: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  managerTagGroup: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  attachmentTag: {
-    maxWidth: '100%',
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-  },
-  attachmentTagText: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-  },
-  saveManagerBtn: {
-    minHeight: 42,
-    borderRadius: radius.md,
-    backgroundColor: colors.buttonPrimaryBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.sm,
-  },
-  saveManagerBtnText: {
+  retryBtnText: {
     fontSize: typography.sm,
     color: colors.textInverse,
     fontWeight: typography.semibold,
   },
-  recordingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.error + '40',
-  },
-  recordingTimerWrap: {
+  retryBtnSmall: {
+    marginTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    ...shadow.sm,
   },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: radius.full,
-    backgroundColor: colors.error,
-  },
-  recordingTimerText: {
-    fontSize: typography.md,
-    color: colors.error,
-    fontWeight: typography.bold,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  recordingActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  recordingActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  stopRecordingBtn: {
-    backgroundColor: colors.error,
-    borderColor: colors.error,
+  retryBtnSmallText: {
+    fontSize: typography.sm,
+    color: colors.textInverse,
+    fontWeight: typography.semibold,
   },
 });

@@ -62,6 +62,7 @@ export interface TaskSummary {
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   dueDate: string;
   dueTime: string;
+  completedAt?: string | null;
   activeOwner?: Actor;
   activeDelegation?: {
     delegatedTo: Actor;
