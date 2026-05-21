@@ -982,7 +982,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           {assigneeNames.length > 0 && (
             <Row label="Assigned To" value={assigneeNames.join(', ')} />
           )}
-          <Row label="Created" value={formatDate(source.createdAt)} />              {(source as any).completedAt && (
+          <Row label="Created" value={formatDate(source.createdAt)} />
+          {(source as any).completedAt && (
             <Row label="Completed" value={formatDate((source as any).completedAt)} />
           )}
 
@@ -1397,33 +1398,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           </View>
           <Text style={styles.subheading}>Task #{((source as any)._id ?? (source as any).id ?? '').toString().slice(-6).toUpperCase()}</Text>
         </View>
-        <View style={styles.headerActions}>
-          {isAdmin && (
-            <>
-          <TouchableOpacity
-            style={[styles.iconActionBtn, styles.editActionBtn]}
-            onPress={() => setShowEditModal(true)}
-            activeOpacity={0.82}
-            accessibilityLabel="Edit task"
-          >
-            <Ionicons name="create-outline" size={18} color={colors.textInverse} />
-          </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.iconActionBtn, styles.deleteActionBtn, deleteTask.isPending && styles.iconActionBtnDisabled]}
-                onPress={handleDelete}
-                disabled={deleteTask.isPending}
-                accessibilityLabel="Delete task"
-                activeOpacity={0.82}
-              >
-                {deleteTask.isPending ? (
-                  <ActivityIndicator color={colors.textInverse} size="small" />
-                ) : (
-                  <Ionicons name="trash-outline" size={18} color={colors.textInverse} />
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+
       </View>
 
       {/* ── Timeline FlashList (virtualized) ───────────────────────────── */}
@@ -1491,29 +1466,61 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       {/* ── Bottom Action Bar ─────────────────────────────────────────────── */}
       <View style={styles.bottomBar}>
         <View style={styles.bottomBarInner}>
+          {/* Complete/Reopen Button */}
           <TouchableOpacity
             style={styles.bottomBarBtn}
             onPress={handleStatusChange}
             activeOpacity={0.82}
+            accessibilityLabel={source.status === 'COMPLETED' ? 'Reopen task' : 'Complete task'}
+            aria-label={source.status === 'COMPLETED' ? 'Reopen task' : 'Complete task'}
           >
             <Ionicons
               name={source.status === 'COMPLETED' ? 'refresh' : 'checkmark-circle-outline'}
-              size={18}
+              size={20}
               color={colors.textInverse}
             />
-            <Text style={styles.bottomBarBtnText}>
-              {source.status === 'COMPLETED' ? 'Reopen' : 'Complete'}
-            </Text>
           </TouchableOpacity>
 
-          {/* Delegate button */}
+          {/* Edit Button */}
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.bottomBarBtn}
+              onPress={() => setShowEditModal(true)}
+              activeOpacity={0.82}
+              accessibilityLabel="Edit task"
+              aria-label="Edit task"
+            >
+              <Ionicons name="create-outline" size={20} color={colors.textInverse} />
+            </TouchableOpacity>
+          )}
+
+          {/* Delete Button */}
+          {isAdmin && (
+            <TouchableOpacity
+              style={[styles.bottomBarBtn, styles.bottomBarBtnDelete, deleteTask.isPending && styles.bottomBarBtnDisabled]}
+              onPress={handleDelete}
+              disabled={deleteTask.isPending}
+              activeOpacity={0.82}
+              accessibilityLabel="Delete task"
+              aria-label="Delete task"
+            >
+              {deleteTask.isPending ? (
+                <ActivityIndicator color={colors.textInverse} size="small" />
+              ) : (
+                <Ionicons name="trash-outline" size={20} color={colors.textInverse} />
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* Delegate Button */}
           <TouchableOpacity
             style={[styles.bottomBarBtn, styles.bottomBarBtnSecondary]}
             activeOpacity={0.82}
             onPress={() => setShowDelegationSheet(true)}
+            accessibilityLabel="Delegate task"
+            aria-label="Delegate task"
           >
-            <Ionicons name="person-add-outline" size={18} color={colors.primary} />
-            <Text style={[styles.bottomBarBtnText, styles.bottomBarBtnTextSecondary]}>Delegate</Text>
+            <Ionicons name="person-add-outline" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -1979,7 +1986,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    paddingBottom: Platform.OS === 'ios' ? spacing.lg : spacing.sm,
+    paddingBottom: spacing.sm,
+    marginBottom: Platform.OS === 'ios' ? 104 : 96,
     ...shadow.md,
   },
   bottomBarInner: {
@@ -2001,6 +2009,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  bottomBarBtnDelete: {
+    backgroundColor: colors.error,
+  },
+  bottomBarBtnDisabled: {
+    opacity: 0.6,
   },
   bottomBarBtnText: {
     fontSize: typography.sm,
