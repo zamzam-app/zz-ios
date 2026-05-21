@@ -25,12 +25,15 @@ import DatePickerModal from '../../components/DatePickerModal';
 import { Task, TaskPriority } from '../../api/endpoints/tasks';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
-import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
+import { getTaskOutletName } from './taskDisplay';
+import TaskBadgeRow from './TaskBadgeRow';
+import { buildTaskBarModel } from './taskBadges';
 import { CreateTaskContent } from './CreateTaskScreen';
 import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
 import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
 import TaskQueueStatusBanner from '../../components/TaskQueueStatusBanner';
+import { buildTaskCardFooterModel } from './taskAssignedTime';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
@@ -134,29 +137,27 @@ function OpenTaskCard({
   onOpenAttachment: (task: Task, type: AttachmentType) => void;
 }) {
   const outletName = getTaskOutletName(task);
-  const categoryName  = getTaskCategoryName(task);
-  const assigneeNames = getTaskAssigneeNames(task);
+  const taskBar = buildTaskBarModel(task);
   const imageCount = getTaskAttachmentUrls(task, 'images').length;
   const videoCount = getTaskAttachmentUrls(task, 'videos').length;
   const audioCount = getTaskAttachmentUrls(task, 'audios').length;
   const fileCount = getTaskAttachmentUrls(task, 'files').length;
+  const footerModel = buildTaskCardFooterModel(task);
 
   return (
     <TouchableOpacity style={styles.openCard} onPress={onPress} activeOpacity={0.82}>
       <View style={styles.openCardInner}>
         <View style={styles.openCardTopRow}>
-          <View style={styles.openCardPill}>
-            <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
-          </View>
+          <TaskBadgeRow task={task} />
           {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
         </View>
 
         <Text style={styles.openTitle} numberOfLines={2}>
-          {task.title || task.description}
+          {taskBar.title}
         </Text>
         <Text style={styles.openMetaLine} numberOfLines={1}>
           <Text style={styles.openMetaLabel}>Assigned to: </Text>
-          <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
+          <Text style={styles.openMetaStrong}>{taskBar.assigneeLabel}</Text>
         </Text>
         <Text style={styles.openMetaLine} numberOfLines={1}>
           <Text style={styles.openMetaLabel}>Due: </Text>
@@ -184,6 +185,11 @@ function OpenTaskCard({
               {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
             </TouchableOpacity>
           </View>
+          {footerModel.assignedTimeLabel ? (
+            <Text style={styles.openCardAssignedTime} numberOfLines={1}>
+              {footerModel.assignedTimeLabel}
+            </Text>
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -199,30 +205,28 @@ function CompletedTaskCard({
   onPress: () => void;
   onOpenAttachment: (task: Task, type: AttachmentType) => void;
 }) {
-  const assigneeNames = getTaskAssigneeNames(task);
-  const categoryName = getTaskCategoryName(task);
   const outletName = getTaskOutletName(task);
+  const taskBar = buildTaskBarModel(task);
   const imageCount = getTaskAttachmentUrls(task, 'images').length;
   const videoCount = getTaskAttachmentUrls(task, 'videos').length;
   const audioCount = getTaskAttachmentUrls(task, 'audios').length;
   const fileCount = getTaskAttachmentUrls(task, 'files').length;
+  const footerModel = buildTaskCardFooterModel(task);
 
   return (
     <TouchableOpacity style={styles.completedCard} onPress={onPress} activeOpacity={0.78}>
       <View style={styles.openCardTopRow}>
-        <View style={styles.openCardPill}>
-          <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
-        </View>
+        <TaskBadgeRow task={task} />
         {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
       </View>
       <Text style={styles.completedWhen}>{formatRelativeTime(task.completedAt)}</Text>
 
       <Text style={styles.openTitle} numberOfLines={2}>
-        {task.title || task.description}
+        {taskBar.title}
       </Text>
       <Text style={styles.openMetaLine} numberOfLines={1}>
         <Text style={styles.openMetaLabel}>Assigned to: </Text>
-        <Text style={styles.openMetaStrong}>{assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}</Text>
+        <Text style={styles.openMetaStrong}>{taskBar.assigneeLabel}</Text>
       </Text>
       <Text style={styles.openMetaLine} numberOfLines={1}>
         <Text style={styles.openMetaLabel}>Due: </Text>
@@ -250,6 +254,11 @@ function CompletedTaskCard({
             {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
           </TouchableOpacity>
         </View>
+        {footerModel.assignedTimeLabel ? (
+          <Text style={styles.openCardAssignedTime} numberOfLines={1}>
+            {footerModel.assignedTimeLabel}
+          </Text>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -1177,22 +1186,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     gap: spacing.xs,
   },
-  openCardPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: '#8ED3AE',
-    backgroundColor: '#DDF6E9',
-  },
   openCardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  openCardPillText: { fontSize: typography.xs, color: '#1C7A52', fontWeight: typography.semibold },
   openCardOutletName: {
     flex: 1,
     textAlign: 'right',
@@ -1217,9 +1216,17 @@ const styles = StyleSheet.create({
   openMetaStrong: { color: colors.text, fontWeight: typography.bold },
   openCardDivider: { borderBottomWidth: 1, borderBottomColor: '#D3C5AC55' },
   openCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  openCardAttachmentActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  openCardAttachmentActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
   openCardIconBtn: { minWidth: 18, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 2 },
   openCardIconCount: { fontSize: 10, color: colors.textSecondary, fontWeight: typography.semibold },
+  openCardAssignedTime: {
+    marginLeft: spacing.sm,
+    flexShrink: 1,
+    textAlign: 'right',
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
 
   completedSection: {
     marginTop: spacing.md,

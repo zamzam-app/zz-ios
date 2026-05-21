@@ -1,5 +1,6 @@
 import client from '../client';
 import { mapListSafely } from './mapListSafely';
+import { buildCriticalReviewsQuery, filterOpenCriticalReviews } from '../../utils/reviewCritical';
 
 export type ComplaintStatus = 'pending' | 'resolved' | 'dismissed';
 
@@ -13,6 +14,12 @@ export interface ResolutionAttachments {
   videos: string[];
   audios: string[];
   files: string[];
+}
+
+export interface ReviewBadgeStatus {
+  unreadCount: number;
+  pendingCount: number;
+  hasUnread: boolean;
 }
 
 export interface Review {
@@ -39,6 +46,11 @@ export interface ReviewsQuery {
   page?: number;
   limit?: number;
   outletId?: string;
+  isComplaint?: boolean;
+  complaintStatus?: ComplaintStatus | 'open';
+  severity?: 'critical' | 'concern';
+  unresolvedOnly?: boolean;
+  excludeResolved?: boolean;
 }
 
 export interface ResolveComplaintPayload {
@@ -145,6 +157,16 @@ function mapReview(raw: RawReview): Review {
 }
 
 export const reviewsApi = {
+  getBadgeStatus: (userId: string) =>
+    client
+      .get<ReviewBadgeStatus>(`/review/badge-status/${userId}`)
+      .then((r) => r.data),
+
+  markAsRead: (reviewId: string, userId: string) =>
+    client
+      .post<ReviewBadgeStatus>(`/review/${reviewId}/mark-read`, { userId })
+      .then((r) => r.data),
+
   list: (query?: ReviewsQuery) =>
     client
       .get<{ data: RawReview[]; meta?: unknown } | RawReview[]>('/review', { params: query })
@@ -152,6 +174,15 @@ export const reviewsApi = {
         const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawReview[] }).data ?? [];
         return mapListSafely(raw, 'reviews', mapReview);
       }),
+
+  listCriticalOpen: (query?: ReviewsQuery) =>
+    reviewsApi.list(buildCriticalReviewsQuery(query)).then((reviews) => {
+      const filtered = filterOpenCriticalReviews(reviews);
+      if (filtered.length !== reviews.length) {
+        console.warn('[reviewsApi.listCriticalOpen] Backend returned resolved or non-critical reviews; filtering client-side safeguard applied.');
+      }
+      return filtered;
+    }),
 
   getById: (id: string) =>
     client

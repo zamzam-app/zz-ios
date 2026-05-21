@@ -7,6 +7,7 @@ export type ReviewFilterSource = TaskFilterSource;
 export interface ReviewFilterParams {
   metric?: ReviewMetricFilter;
   typeFilter?: ReviewTypeFilter;
+  outletId?: string;
   source?: ReviewFilterSource;
   nonce?: number;
 }

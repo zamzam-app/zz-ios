@@ -15,7 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useReviews } from '../../hooks/useReviews';
+import { useCriticalReviews, useReviews } from '../../hooks/useReviews';
 import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
 import { Review } from '../../api/endpoints/reviews';
 import { FranchiseRankingItem, MetricsHeatmapItem } from '../../api/endpoints/analytics';
@@ -24,6 +24,12 @@ import { useAuthStore } from '../../store/authStore';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import { ReviewMetricFilter } from '../../constants/reviewFilters';
 import StarRating from '../../components/StarRating';
+import {
+  filterOpenCriticalReviews,
+  getCriticalReviewsEmptyStateMessage,
+  isOpenComplaintStatus,
+  isOpenCriticalReview,
+} from '../../utils/reviewCritical';
 
 type Nav = NativeStackNavigationProp<ReviewsStackParamList, 'ReviewsList'>;
 type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewsList'>;
@@ -211,7 +217,16 @@ export default function ReviewsScreen({ route }: Props) {
     if (incomingTypeFilter) {
       setAllReviewsFilter(incomingTypeFilter);
     }
-  }, [route.params?.initialReviewFilter?.metric, route.params?.initialReviewFilter?.typeFilter, route.params?.initialReviewFilter?.nonce]);
+    const incomingOutletId = route.params?.initialReviewFilter?.outletId;
+    if (incomingOutletId) {
+      setSelectedOutletId(incomingOutletId);
+    }
+  }, [
+    route.params?.initialReviewFilter?.metric,
+    route.params?.initialReviewFilter?.typeFilter,
+    route.params?.initialReviewFilter?.outletId,
+    route.params?.initialReviewFilter?.nonce,
+  ]);
 
   const {
     data: reviews,
@@ -219,6 +234,12 @@ export default function ReviewsScreen({ route }: Props) {
     isFetching: isReviewsFetching,
     refetch: refetchReviews,
   } = useReviews();
+  const {
+    data: criticalReviews,
+    isLoading: isCriticalReviewsLoading,
+    isFetching: isCriticalReviewsFetching,
+    refetch: refetchCriticalReviews,
+  } = useCriticalReviews();
 
   const {
     data: analytics,
@@ -275,7 +296,7 @@ export default function ReviewsScreen({ route }: Props) {
     });
 
     if (statusFilter === 'open') {
-      return outletFiltered.filter((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus));
+      return outletFiltered.filter((review) => review.isComplaint && isOpenComplaintStatus(review.complaintStatus));
     }
 
     if (statusFilter === 'resolved') {
@@ -286,27 +307,28 @@ export default function ReviewsScreen({ route }: Props) {
   }, [reviews, selectedOutletId, statusFilter]);
 
   const pendingCount = useMemo(
-    () => filteredReviews.filter((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus)).length,
+    () => filterOpenCriticalReviews(filteredReviews).length,
     [filteredReviews],
   );
   const hasUnresolvedComplaint = useMemo(
-    () => filteredReviews.some((review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus)),
+    () => filterOpenCriticalReviews(filteredReviews).length > 0,
     [filteredReviews],
   );
 
   const criticalFeed = useMemo(() => {
-    if (!filteredReviews || filteredReviews.length === 0) return [];
+    const outletScopedCriticalReviews = selectedOutletId === 'all'
+      ? criticalReviews ?? []
+      : (criticalReviews ?? []).filter((review) => {
+        const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+        return outletKey === selectedOutletId;
+      });
 
-    const filtered = filteredReviews.filter(
-      (review) => review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus),
-    );
-
-    const sorted = [...filtered].sort((a, b) => {
+    const sorted = [...outletScopedCriticalReviews].sort((a, b) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
     return sorted;
-  }, [filteredReviews]);
+  }, [criticalReviews, selectedOutletId]);
 
   const allReviews = useMemo(
     () => [...filteredReviews].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -333,9 +355,9 @@ export default function ReviewsScreen({ route }: Props) {
 
       // Status filter
       if (allReviewsFilter === 'all') return true;
-      if (allReviewsFilter === 'open') return review.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus);
+      if (allReviewsFilter === 'open') return review.isComplaint && isOpenComplaintStatus(review.complaintStatus);
       if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
-      if (allReviewsFilter === 'critical') return review.overallRating < 2.0 && review.complaintStatus !== 'resolved';
+      if (allReviewsFilter === 'critical') return isOpenCriticalReview(review);
       if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
       return true;
     });
@@ -378,12 +400,13 @@ export default function ReviewsScreen({ route }: Props) {
     return [buildZeroRow(selectedOutlet.id, selectedOutlet.label)];
   }, [heatmapRows, outletOptions, selectedOutletId]);
 
-  const refreshing = isReviewsFetching || isAnalyticsFetching;
+  const refreshing = isReviewsFetching || isCriticalReviewsFetching || isAnalyticsFetching;
   const activeStatusFilterLabel = statusFilter === 'open'
     ? 'Open'
     : statusFilter === 'resolved'
       ? 'Resolved'
       : null;
+  const allReviewsEmptyMessage = getCriticalReviewsEmptyStateMessage(allReviewsFilter === 'critical');
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -395,6 +418,7 @@ export default function ReviewsScreen({ route }: Props) {
             refreshing={refreshing && !isReviewsLoading}
             onRefresh={() => {
               void refetchReviews();
+              void refetchCriticalReviews();
               void refetchAnalytics();
             }}
           />
@@ -517,10 +541,10 @@ export default function ReviewsScreen({ route }: Props) {
             </View>
 
             <View style={styles.feedbackContainer}>
-              {isReviewsLoading ? (
+              {isReviewsLoading || isCriticalReviewsLoading ? (
                 <ActivityIndicator color={colors.primary} style={styles.loading} />
               ) : criticalFeed.length === 0 ? (
-                <Text style={styles.emptyText}>No reviews available.</Text>
+                <Text style={styles.emptyText}>No unresolved critical reviews.</Text>
               ) : (
                 criticalFeed.map((review, index) => {
                   const severity = getSeverity(review.overallRating);
@@ -635,7 +659,7 @@ export default function ReviewsScreen({ route }: Props) {
           {isReviewsLoading ? (
             <ActivityIndicator color={colors.primary} style={styles.loading} />
           ) : displayedAllReviews.length === 0 ? (
-            <Text style={styles.emptyText}>No reviews available.</Text>
+            <Text style={styles.emptyText}>{allReviewsEmptyMessage}</Text>
           ) : (
             displayedAllReviews.map((review, index) => {
               const tags = getReviewTags(review);

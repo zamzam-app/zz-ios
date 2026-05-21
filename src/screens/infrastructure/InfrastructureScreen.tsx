@@ -13,6 +13,7 @@ import {
   Linking,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +29,7 @@ import { InfrastructureStackParamList } from '../../navigation/InfrastructureNav
 import { useAuthStore } from '../../store/authStore';
 import { CreateOutletContent } from './CreateOutletScreen';
 import { QR_REVIEW_BASE_URL } from '../../config/env';
+import { buildOutletsScreenModel, OUTLET_SEARCH_DEBOUNCE_MS } from './outletSearch';
 
 type Nav = NativeStackNavigationProp<InfrastructureStackParamList, 'OutletsList'>;
 
@@ -128,10 +130,26 @@ export default function InfrastructureScreen() {
   const { data: outlets, isLoading, isFetching, refetch } = useOutlets();
   const deleteOutlet = useDeleteOutlet();
   const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState('');
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [editingOutlet, setEditingOutlet] = React.useState<Outlet | null>(null);
   const [selectedQrOutlet, setSelectedQrOutlet] = React.useState<Outlet | null>(null);
   const qrRef = React.useRef<any>(null);
+  const outletList = React.useMemo(() => outlets ?? [], [outlets]);
+
+  React.useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, OUTLET_SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(handle);
+  }, [searchQuery]);
+
+  const screenModel = React.useMemo(
+    () => buildOutletsScreenModel(outletList, searchQuery, debouncedSearchQuery),
+    [debouncedSearchQuery, outletList, searchQuery],
+  );
 
   const handleDelete = (outlet: Outlet) => {
     Alert.alert('Delete Outlet', `Delete "${outlet.name}"? This cannot be undone.`, [
@@ -219,13 +237,41 @@ export default function InfrastructureScreen() {
         </View>
       </View>
 
+      <View style={styles.controlsRow}>
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+            placeholder={screenModel.searchPlaceholder}
+            placeholderTextColor={colors.textSecondary}
+          />
+          {screenModel.showClearSearch && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              style={styles.searchClearBtn}
+              onPress={() => setSearchQuery('')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.searchClearText}>x</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {isLoading ? (
         <ActivityIndicator style={{ marginTop: spacing.xxl }} color={colors.primary} />
       ) : (
         <FlatList
-          data={outlets ?? []}
+          data={screenModel.visibleOutlets}
           keyExtractor={(o) => o.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[
+            styles.list,
+            screenModel.visibleOutlets.length === 0 && styles.listEmpty,
+          ]}
+          keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
           renderItem={({ item }) => (
             <OutletCard
@@ -237,7 +283,15 @@ export default function InfrastructureScreen() {
               onDelete={() => handleDelete(item)}
             />
           )}
-          ListEmptyComponent={<Text style={styles.empty}>No outlets found</Text>}
+          ListEmptyComponent={(
+            <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={28} color={colors.textSecondary} />
+              <Text style={styles.empty}>{screenModel.emptyMessage}</Text>
+              {screenModel.showClearSearch ? (
+                <Text style={styles.emptyHint}>Try a different outlet name, location, or identifier.</Text>
+              ) : null}
+            </View>
+          )}
         />
       )}
 
@@ -408,6 +462,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
   },
+  controlsRow: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  searchWrap: {
+    justifyContent: 'center',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    zIndex: 2,
+  },
+  searchInput: {
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingLeft: 38,
+    paddingRight: 34,
+    fontSize: typography.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  searchClearBtn: {
+    position: 'absolute',
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E6E8EA',
+  },
+  searchClearText: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.bold,
+    lineHeight: 16,
+    includeFontPadding: false,
+  },
   secondaryBtn: {
     paddingHorizontal: spacing.md,
     paddingVertical: 9,
@@ -435,6 +529,7 @@ const styles = StyleSheet.create({
   },
 
   list: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: 120 },
+  listEmpty: { flexGrow: 1 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: radius.lg,
@@ -577,7 +672,26 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
   },
 
-  empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xxl },
+  empty: {
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
+  emptyState: {
+    flex: 1,
+    minHeight: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  emptyHint: {
+    marginTop: spacing.xs,
+    textAlign: 'center',
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+  },
 
   createModalRoot: {
     flex: 1,

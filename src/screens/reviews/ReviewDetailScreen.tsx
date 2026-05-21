@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { useReview, useResolveComplaint } from '../../hooks/useReviews';
+import { useMarkReviewAsRead, useReview, useResolveComplaint } from '../../hooks/useReviews';
 import { useForm } from '../../hooks/useForms';
 import { useUsers } from '../../hooks/useUsers';
 import { useAuthStore } from '../../store/authStore';
@@ -268,6 +268,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
   const { data: form } = useForm(review?.formId ?? '');
   const { data: users } = useUsers();
   const resolveComplaint = useResolveComplaint();
+  const markReviewAsRead = useMarkReviewAsRead();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
   const [resolutionNotes, setResolutionNotes] = useState('');
@@ -437,6 +438,13 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
     }
     return map;
   }, [form?.questions]);
+
+  useEffect(() => {
+    const userId = user?.id || user?._id;
+    if (!review?.id || !userId) return;
+    markReviewAsRead.mutate({ reviewId: review.id, userId });
+  }, [markReviewAsRead, review?.id, user?.id, user?._id]);
+
   const userNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const current of users ?? []) {
