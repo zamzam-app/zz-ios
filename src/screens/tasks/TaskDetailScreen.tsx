@@ -455,10 +455,30 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   // ─── Derived: task data ──────────────────────────────────────────────────
   const source = taskDetail?.summary ?? legacyTask;
-  const timelineEvents = useMemo(
-    () => flattenInfiniteData(timelineQuery.data),
-    [timelineQuery.data],
-  );
+  const timelineEvents = useMemo(() => {
+    const rawEvents = flattenInfiniteData(timelineQuery.data);
+    const clubbed: typeof rawEvents = [];
+    for (const event of rawEvents) {
+      if (event.type === TaskEventType.ATTACHMENT_ADDED) {
+        const lastEvent = clubbed[clubbed.length - 1];
+        if (
+          lastEvent &&
+          lastEvent.type === TaskEventType.ATTACHMENT_ADDED &&
+          lastEvent.createdBy._id === event.createdBy._id
+        ) {
+          const prevPreviews = lastEvent.attachmentPreviews || [];
+          const currPreviews = event.attachmentPreviews || [];
+          lastEvent.attachmentPreviews = [...prevPreviews, ...currPreviews];
+          continue;
+        }
+      }
+      clubbed.push({
+        ...event,
+        attachmentPreviews: event.attachmentPreviews ? [...event.attachmentPreviews] : undefined,
+      });
+    }
+    return clubbed;
+  }, [timelineQuery.data]);
 
   const runPreviewPlayerActionSafely = useCallback((action: () => unknown): boolean => {
     try {
