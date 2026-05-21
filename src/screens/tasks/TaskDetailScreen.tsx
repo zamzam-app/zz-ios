@@ -13,6 +13,7 @@ import {
   TextInput,
   Modal,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Image as ExpoImage } from 'expo-image';
@@ -39,8 +40,11 @@ import {
   useTaskTimeline,
   useEventTypeCounts,
 } from '../../hooks/useTaskTimeline';
+import { useTaskAttachments, useAddAttachments, useRemoveAttachment } from '../../hooks/useTaskAttachments';
 import { useMarkTaskViewed } from '../../hooks/useTaskView';
 import { TaskStatus } from '../../api/endpoints/tasks';
+import { AttachmentType } from '../../types/task';
+import { formatFileSize } from '../../components/TimelineEventShared';
 import StatusBadge from '../../components/StatusBadge';
 import TimelineEventCard from '../../components/TimelineEventCard';
 import TimelineSkeleton from '../../components/TimelineSkeleton';
@@ -57,7 +61,7 @@ import { useAuthStore } from '../../store/authStore';
 import { CreateTaskContent } from './CreateTaskScreen';
 import { TaskEventType } from '../../types/task';
 import type { SerializedTimelineEvent, AttachmentPreview } from '../../types/task';
-import { eventTypeIcon, formatFullDate } from '../../components/TimelineEventShared';
+import { eventTypeIcon, formatFullDate, formatRelativeTime } from '../../components/TimelineEventShared';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
 
@@ -328,6 +332,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const { data: taskDetail, isLoading: detailLoading, error: detailError, refetch: refetchDetail } = useTaskDetail(taskId);
   const timelineQuery = useTaskTimeline(taskId);
   const eventTypeCountsQuery = useEventTypeCounts(taskId);
+  const attachmentsQuery = useTaskAttachments(taskId);
+  const addAttachmentsMutation = useAddAttachments();
+  const removeAttachmentMutation = useRemoveAttachment();
   const markTaskViewed = useMarkTaskViewed();
   const clearDelegation = useClearDelegation();
 
@@ -669,6 +676,144 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     await uploadLocalFile('files', result.assets[0].uri);
   };
 
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+
+  const uploadAndAddAttachment = async (
+    type: 'images' | 'videos' | 'audios' | 'files',
+    uri: string,
+    size?: number,
+    mimeType?: string
+  ) => {
+    if (isUploadingAttachment) return;
+    setIsUploadingAttachment(true);
+    try {
+      const remoteUrl = await uploadToCloudinary(uri, 'tasks');
+      let attachmentType = AttachmentType.FILE;
+      if (type === 'images') attachmentType = AttachmentType.IMAGE;
+      else if (type === 'videos') attachmentType = AttachmentType.VIDEO;
+      else if (type === 'audios') attachmentType = AttachmentType.AUDIO;
+      else {
+        if (mimeType?.toLowerCase().includes('pdf') || uri.toLowerCase().endsWith('.pdf')) {
+          attachmentType = AttachmentType.DOCUMENT;
+        }
+      }
+
+      await addAttachmentsMutation.mutateAsync({
+        taskId,
+        payload: {
+          files: [
+            {
+              url: remoteUrl,
+              type: attachmentType,
+              size,
+              mimeType,
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      Alert.alert('Upload failed', getApiErrorMessage(error, 'Could not upload attachment.'));
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
+  const pickAttachmentImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const asset = result.assets[0];
+    await uploadAndAddAttachment('images', asset.uri, asset.fileSize, asset.mimeType);
+  };
+
+  const takeAttachmentPhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Camera access is required to take photos.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const asset = result.assets[0];
+    await uploadAndAddAttachment('images', asset.uri, asset.fileSize, asset.mimeType);
+  };
+
+  const pickAttachmentVideo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const asset = result.assets[0];
+    await uploadAndAddAttachment('videos', asset.uri, asset.fileSize, asset.mimeType);
+  };
+
+  const pickAttachmentFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ multiple: false });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const asset = result.assets[0];
+    await uploadAndAddAttachment('files', asset.uri, asset.size, asset.mimeType);
+  };
+
+  const handleAddFilesPress = () => {
+    const options = ['Take Photo', 'Choose Photo', 'Choose Video', 'Choose Document', 'Cancel'];
+    const cancelButtonIndex = 4;
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex,
+          title: 'Add Attachment',
+        },
+        (idx) => {
+          if (idx === 0) void takeAttachmentPhoto();
+          else if (idx === 1) void pickAttachmentImage();
+          else if (idx === 2) void pickAttachmentVideo();
+          else if (idx === 3) void pickAttachmentFile();
+        },
+      );
+    } else {
+      Alert.alert(
+        'Add Attachment',
+        'Choose a file source',
+        [
+          { text: 'Take Photo', onPress: () => { void takeAttachmentPhoto(); } },
+          { text: 'Choose Photo', onPress: () => { void pickAttachmentImage(); } },
+          { text: 'Choose Video', onPress: () => { void pickAttachmentVideo(); } },
+          { text: 'Choose Document', onPress: () => { void pickAttachmentFile(); } },
+          { text: 'Cancel', style: 'cancel' },
+        ],
+        { cancelable: true },
+      );
+    }
+  };
+
+  const handleRemoveAttachment = (attachmentId: string) => {
+    Alert.alert(
+      'Remove Attachment',
+      'Are you sure you want to remove this attachment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            removeAttachmentMutation.mutate({
+              taskId,
+              attachmentId,
+            });
+          },
+        },
+      ],
+    );
+  };
+
   const normalizeLocalFileUri = (uri: string): string => {
     const trimmed = uri.trim();
     if (!trimmed) return trimmed;
@@ -949,6 +1094,145 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     const categoryName = getTaskCategoryName(source);
     const assigneeNames = getTaskAssigneeNames(source);
     const isNotCompleted = source.status !== 'COMPLETED' && !isAdmin;
+    const attachments = flattenInfiniteData(attachmentsQuery.data) || [];
+
+    // Render the list of attachments or empty/loading state
+    let attachmentsContent: React.ReactNode = null;
+    if (attachmentsQuery.isLoading) {
+      attachmentsContent = (
+        <View style={styles.loadingMoreWrap}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingMoreText}>Loading attachments...</Text>
+        </View>
+      );
+    } else if (attachments.length === 0 && !isUploadingAttachment) {
+      attachmentsContent = (
+        <View style={styles.emptyAttachmentsWrap}>
+          <Ionicons name="document-text-outline" size={24} color={colors.textDisabled} />
+          <Text style={styles.emptyAttachmentsText}>No attachments yet.</Text>
+        </View>
+      );
+    } else {
+      attachmentsContent = (
+        <ScrollView
+          style={{ maxHeight: 160 }}
+          contentContainerStyle={{ flexGrow: 1 }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
+          {attachments.map((item) => {
+            const isOwner = item.uploadedBy?._id === user?._id;
+            const canDelete = isAdmin || isOwner;
+            const isAudio = item.type === AttachmentType.AUDIO;
+            const isImage = item.type === AttachmentType.IMAGE;
+            const isVideo = item.type === AttachmentType.VIDEO;
+            const isDocument = item.type === AttachmentType.DOCUMENT;
+
+            // Compute background color and icon based on type
+            let bg = '#E0F2FE';
+            let iconName = 'document-outline';
+            let iconColor = '#0284C7';
+
+            if (isImage) {
+              bg = '#FEF3C7';
+              iconName = 'image-outline';
+              iconColor = '#D97706';
+            } else if (isVideo) {
+              bg = '#FEF3C7';
+              iconName = 'videocam-outline';
+              iconColor = '#D97706';
+            } else if (isAudio) {
+              bg = '#DCFCE7';
+              iconName = 'musical-notes-outline';
+              iconColor = '#16A34A';
+            } else if (isDocument) {
+              bg = '#FEE2E2';
+              iconName = 'document-text-outline';
+              iconColor = '#DC2626';
+            }
+
+            // For audio attachment play state
+            const audioId = item._id;
+            const isActiveAudio = activeAudioAttachmentId === audioId;
+            const isAudioPlaying = isActiveAudio && previewPlayerStatus?.playing;
+
+            return (
+              <View key={item._id} style={styles.attachmentItemRow}>
+                <TouchableOpacity
+                  style={styles.attachmentLeftWrap}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    if (isAudio) {
+                      handleAudioAttachmentPress(audioId, item.url);
+                    } else {
+                      void openAttachment(item.url, isImage ? 'image' : isVideo ? 'video' : 'file');
+                    }
+                  }}
+                >
+                  <View style={[styles.attachmentIconBox, { backgroundColor: bg }]}>
+                    {isImage ? (
+                      <ExpoImage
+                        source={{ uri: cloudinaryThumbnail(item.url) }}
+                        style={styles.attachmentIconThumb}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                      />
+                    ) : (
+                      <Ionicons name={iconName as any} size={18} color={iconColor} />
+                    )}
+                  </View>
+                  <View style={styles.attachmentTextWrap}>
+                    <Text style={styles.attachmentItemName} numberOfLines={1}>
+                      {buildAttachmentName(item.url, item.type.toLowerCase(), 0)}
+                    </Text>
+                    <Text style={styles.attachmentItemMeta}>
+                      {item.size ? `${formatFileSize(item.size)} • ` : ''}
+                      {formatRelativeTime(item.createdAt)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <View style={styles.attachmentActions}>
+                  {isAudio && (
+                    <TouchableOpacity
+                      style={styles.attachmentActionBtn}
+                      onPress={() => handleAudioAttachmentPress(audioId, item.url)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={isAudioPlaying ? 'pause-circle' : 'play-circle'}
+                        size={22}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                  {!isAudio && (
+                    <TouchableOpacity
+                      style={styles.attachmentActionBtn}
+                      onPress={() => {
+                        void openAttachment(item.url, isImage ? 'image' : isVideo ? 'video' : 'file');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="eye-outline" size={18} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                  {canDelete && (
+                    <TouchableOpacity
+                      style={styles.attachmentActionBtn}
+                      onPress={() => handleRemoveAttachment(item._id)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.error} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+      );
+    }
 
     return (
       <View>
@@ -988,8 +1272,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
 
 
-          {/* Attachments gallery */}
-          {sourceAttachments.hasAny && (
+          {/* Attachments gallery (only for completed tasks) */}
+          {source.status === 'COMPLETED' && sourceAttachments.hasAny && (
             <View style={styles.attachmentsInlineWrap}>
               <Text style={styles.ownerDescriptionLabel}>Attachments</Text>
               {sourceAttachments.images.length > 0 && (
@@ -1073,6 +1357,42 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             </View>
           )}
         </View>
+
+        {source.status !== 'COMPLETED' && (
+          <View style={styles.attachmentsCard}>
+            <View style={styles.attachmentsHeaderRow}>
+              <Text style={styles.attachmentsTitle}>ATTACHMENTS</Text>
+              {isUploadingAttachment ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <TouchableOpacity
+                  onPress={handleAddFilesPress}
+                  style={styles.addFilesBtn}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Add Files"
+                >
+                  <Text style={styles.addFilesText}>+ Add Files</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isUploadingAttachment && (
+              <View style={styles.attachmentItemRow}>
+                <View style={styles.attachmentLeftWrap}>
+                  <View style={[styles.attachmentIconBox, { backgroundColor: '#F3F4F6' }]}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  </View>
+                  <View style={styles.attachmentTextWrap}>
+                    <Text style={styles.attachmentItemName} numberOfLines={1}>Uploading file...</Text>
+                    <Text style={styles.attachmentItemMeta}>Please wait</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {attachmentsContent}
+          </View>
+        )}
 
 
         {/* ── Activity Section Header ────────────────────────────────────── */}
@@ -2035,5 +2355,105 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     color: colors.textInverse,
     fontWeight: typography.semibold,
+  },
+
+  // ── Dedicated Attachments Section ────────────────────────────────────────
+  attachmentsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: '#D3C5AC40',
+    ...shadow.sm,
+  },
+  attachmentsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  attachmentsTitle: {
+    fontSize: typography.xs,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: '#4F4633',
+    fontWeight: typography.bold,
+  },
+  addFilesBtn: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  addFilesText: {
+    fontSize: typography.sm,
+    color: colors.primaryDark,
+    fontWeight: typography.bold,
+  },
+  attachmentsScroll: {
+    marginTop: spacing.xs,
+  },
+  attachmentItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.sm,
+    backgroundColor: '#F9FAFB',
+    borderRadius: radius.md,
+    marginBottom: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  attachmentLeftWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  attachmentIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+  attachmentIconThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
+  },
+  attachmentTextWrap: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  attachmentItemName: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.medium,
+  },
+  attachmentItemMeta: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  attachmentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  attachmentActionBtn: {
+    padding: 4,
+  },
+  emptyAttachmentsWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+  },
+  emptyAttachmentsText: {
+    fontSize: typography.sm,
+    color: colors.textDisabled,
+    marginTop: spacing.xs,
   },
 });
