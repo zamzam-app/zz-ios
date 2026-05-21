@@ -364,7 +364,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
-  const [activeEventFilter, setActiveEventFilter] = useState<TaskEventType | 'ALL'>('ALL');
   const [showDelegationSheet, setShowDelegationSheet] = useState(false);
 
   // ─── Effect: mark task viewed on focus ─────────────────────────────────
@@ -918,10 +917,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   };
 
   // ─── Event filter handling ───────────────────────────────────────────────
-  const filteredEvents = useMemo(() => {
-    if (activeEventFilter === 'ALL') return timelineEvents;
-    return timelineEvents.filter((e) => e.type === activeEventFilter);
-  }, [timelineEvents, activeEventFilter]);
+  const filteredEvents = timelineEvents;
 
   const handleLoadMore = useCallback(() => {
     if (timelineQuery.hasNextPage && !timelineQuery.isFetchingNextPage) {
@@ -990,33 +986,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           <Text style={styles.ownerDescriptionLabel}>Description</Text>
           <Text style={styles.description}>{source.description}</Text>
 
-          {/* Thread Stats (from new detail) */}
-          {taskDetail?.summary?.threadStats && (
-            <View style={styles.threadStatsRow}>
-              <View style={styles.statItem}>
-                <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.statText}>{taskDetail.summary.threadStats.eventCount} events</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Ionicons name="attach-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.statText}>{taskDetail.summary.threadStats.attachmentCount} attachments</Text>
-              </View>
-              {taskDetail.summary.threadStats.lastEventAt && (
-              <Text style={styles.statTimestamp}>
-                Last activity: {formatFullDate(taskDetail.summary.threadStats.lastEventAt)}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Active delegation banner */}
+          {/* Active delegation banner */}
         {(source as any).activeDelegation && (
           <DelegationBanner
             delegatedTo={(source as any).activeDelegation.delegatedTo}
             delegatedBy={(source as any).activeDelegation.delegatedBy}
             delegatedAt={(source as any).activeDelegation.delegatedAt}
-            onRevoke={() => clearDelegation.mutate(taskId)}
-            isRevoking={clearDelegation.isPending}
           />
         )}
 
@@ -1106,37 +1081,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        {/* ── Timeline Filter Chips ──────────────────────────────────────── */}
-        <View style={styles.filterChipRow}>
-          {EVENT_TYPE_FILTERS.map((filter) => (
-            <TouchableOpacity
-              key={filter.label}
-              style={[
-                styles.filterChip,
-                activeEventFilter === filter.type && styles.filterChipActive,
-              ]}
-              onPress={() => setActiveEventFilter(filter.type)}
-              activeOpacity={0.7}
-            >
-              {filter.type !== 'ALL' && (
-                <Ionicons
-                  name={eventTypeIcon(filter.type) as any}
-                  size={12}
-                  color={activeEventFilter === filter.type ? colors.textInverse : colors.textSecondary}
-                  style={{ marginRight: 4 }}
-                />
-              )}
-              <Text
-                style={[
-                  styles.filterChipText,
-                  activeEventFilter === filter.type && styles.filterChipTextActive,
-                ]}
-              >
-                {filter.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
         {/* ── Activity Section Header ────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
@@ -1300,7 +1244,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     );
   }, [
     source,
-    activeEventFilter,
     filteredEvents.length,
     sourceAttachments,
     managerText,
