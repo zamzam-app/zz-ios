@@ -181,3 +181,27 @@ export const useRemoveAttachment = () => {
     },
   });
 };
+
+/**
+ * Add a comment to a task thread.
+ * Invalidates ['taskTimeline', taskId] so the new COMMENTED event shows up.
+ */
+export const useAddComment = () => {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      payload,
+    }: {
+      taskId: string;
+      payload: { text: string; attachmentIds?: string[] };
+    }) => tasksApi.addComment(taskId, payload),
+
+    onSettled: (_data, _error, { taskId }) => {
+      qc.invalidateQueries({ queryKey: ['taskTimeline', taskId] });
+      qc.invalidateQueries({ queryKey: ['taskDetail', taskId] });
+      qc.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+  });
+};

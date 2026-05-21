@@ -562,4 +562,8 @@ export const tasksApi = {
       })
       .then((r) => r.data),
 
+  addComment: (taskId: string, payload: { text: string; attachmentIds?: string[] }) =>
+    client
+      .post<any>(`/tasks/${taskId}/comment`, payload)
+      .then((r) => r.data),
 };
