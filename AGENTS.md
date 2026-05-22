@@ -43,7 +43,7 @@ Use `.env.example` as the source of truth for local `.env`.
 |----------|----------|------|
 | `EXPO_PUBLIC_API_BASE_URL` | Yes | Backend base URL (no `/api` suffix); app derives `API_URL = ${BASE}/api` |
 | `EXPO_PUBLIC_QR_REVIEW_BASE_URL` | No | Defaults to `https://zz-user.vercel.app` |
-| `EXPO_PUBLIC_ADMIN_EMAIL` | No | Defaults to `admin@zamzam.com` |
+| `EXPO_PUBLIC_ADMIN_EMAIL` | No | Defaults to `admin@zamzam.com` | Do not change unless you have a strong reason |
 
 ## EAS / TestFlight (iOS)
 
