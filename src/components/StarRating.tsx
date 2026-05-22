@@ -56,8 +56,12 @@ export default function StarRating({
       accessible
       accessibilityLabel={accessibilityLabel ?? defaultLabel}
       accessibilityRole={mode === 'interactive' ? 'adjustable' : undefined}
-      accessibilityValue={mode === 'interactive' ? { min: 1, max: maxStars, now: roundedRating } : undefined}
-      accessibilityActions={mode === 'interactive' ? [{ name: 'increment' }, { name: 'decrement' }] : undefined}
+      accessibilityValue={
+        mode === 'interactive' ? { min: 1, max: maxStars, now: roundedRating } : undefined
+      }
+      accessibilityActions={
+        mode === 'interactive' ? [{ name: 'increment' }, { name: 'decrement' }] : undefined
+      }
       onAccessibilityAction={mode === 'interactive' ? handleAccessibilityAction : undefined}
     >
       {Array.from({ length: maxStars }, (_, index) => {

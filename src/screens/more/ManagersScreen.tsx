@@ -17,7 +17,12 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useManagers, useUpdateManager, useCreateManager, useDeleteManager } from '../../hooks/useUsers';
+import {
+  useManagers,
+  useUpdateManager,
+  useCreateManager,
+  useDeleteManager,
+} from '../../hooks/useUsers';
 import { User, UpdateManagerPayload } from '../../api/endpoints/users';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
@@ -46,13 +51,19 @@ function ManagerRow({
 
   return (
     <View style={styles.managerRow}>
-      <TouchableOpacity style={styles.rowLeft} activeOpacity={0.86} onPress={() => onPress(manager)}>
+      <TouchableOpacity
+        style={styles.rowLeft}
+        activeOpacity={0.86}
+        onPress={() => onPress(manager)}
+      >
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{getInitial(manager.name)}</Text>
         </View>
 
         <View style={styles.identityWrap}>
-          <Text style={styles.managerName} numberOfLines={1}>{manager.name}</Text>
+          <Text style={styles.managerName} numberOfLines={1}>
+            {manager.name}
+          </Text>
         </View>
       </TouchableOpacity>
 
@@ -169,9 +180,9 @@ export default function ManagersScreen() {
   const hasEditChanges = useMemo(() => {
     if (!editingManager) return false;
     return (
-      name !== (editingManager.name ?? '').trim()
-      || userName !== (editingManager.userName ?? '').trim()
-      || phoneNumber !== (editingManager.phoneNumber ?? '').trim()
+      name !== (editingManager.name ?? '').trim() ||
+      userName !== (editingManager.userName ?? '').trim() ||
+      phoneNumber !== (editingManager.phoneNumber ?? '').trim()
     );
   }, [editingManager, name, userName, phoneNumber]);
 
@@ -214,7 +225,8 @@ export default function ManagersScreen() {
     const payload: UpdateManagerPayload = {};
     if (name !== (editingManager.name ?? '').trim()) payload.name = name;
     if (userName !== (editingManager.userName ?? '').trim()) payload.userName = userName;
-    if (phoneNumber !== (editingManager.phoneNumber ?? '').trim()) payload.phoneNumber = phoneNumber || undefined;
+    if (phoneNumber !== (editingManager.phoneNumber ?? '').trim())
+      payload.phoneNumber = phoneNumber || undefined;
 
     updateManager.mutate(
       { id: editingManager.id, payload },
@@ -260,17 +272,19 @@ export default function ManagersScreen() {
           </View>
           <Text style={styles.subtitle}>High-density administrative control panel</Text>
           {isAdmin ? (
-            <TouchableOpacity
-              style={styles.createBtn}
-              onPress={openCreateModal}
-            >
+            <TouchableOpacity style={styles.createBtn} onPress={openCreateModal}>
               <Text style={styles.createBtnText}>+ New Manager</Text>
             </TouchableOpacity>
           ) : null}
         </View>
 
         <View style={styles.searchWrap}>
-          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+          <Ionicons
+            name="search"
+            size={16}
+            color={colors.textSecondary}
+            style={styles.searchIcon}
+          />
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -337,7 +351,14 @@ export default function ManagersScreen() {
                 {(isEditMode ? updateManager.isPending : createManager.isPending) ? (
                   <ActivityIndicator color={colors.primary} />
                 ) : (
-                  <Text style={[styles.modalHeaderSave, !canSaveManager && styles.modalHeaderSaveDisabled]}>Save</Text>
+                  <Text
+                    style={[
+                      styles.modalHeaderSave,
+                      !canSaveManager && styles.modalHeaderSaveDisabled,
+                    ]}
+                  >
+                    Save
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>

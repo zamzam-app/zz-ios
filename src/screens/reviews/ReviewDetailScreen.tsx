@@ -107,7 +107,6 @@ function ResponseItem({
   questionTitle: string;
   questionType?: string;
 }) {
-
   const renderAnswer = () => {
     const answer = response.answer;
     if (questionType === 'rating' && typeof answer === 'number') {
@@ -117,7 +116,9 @@ function ResponseItem({
       return (
         <View style={styles.answerList}>
           {answer.map((a, i) => (
-            <Text key={`${questionTitle}-${i}`} style={styles.answerText}>· {a}</Text>
+            <Text key={`${questionTitle}-${i}`} style={styles.answerText}>
+              · {a}
+            </Text>
           ))}
         </View>
       );
@@ -169,25 +170,28 @@ function SubmissionBlock({
   const videoItems = attachments?.videos ?? [];
   const audioItems = attachments?.audios ?? [];
   const fileItems = attachments?.files ?? [];
-  const hasAny = Boolean(text?.trim())
-    || imageItems.length > 0
-    || videoItems.length > 0
-    || audioItems.length > 0
-    || fileItems.length > 0;
+  const hasAny =
+    Boolean(text?.trim()) ||
+    imageItems.length > 0 ||
+    videoItems.length > 0 ||
+    audioItems.length > 0 ||
+    fileItems.length > 0;
 
   if (!hasAny) return null;
 
   return (
     <View style={styles.submissionCard}>
       <Text style={styles.submissionTitle}>{title}</Text>
-      {text?.trim() ? (
-        <Text style={styles.submissionText}>{text.trim()}</Text>
-      ) : null}
+      {text?.trim() ? <Text style={styles.submissionText}>{text.trim()}</Text> : null}
 
       {imageItems.length > 0 && (
         <View style={styles.attachmentGroup}>
           <Text style={styles.attachmentGroupTitle}>Images</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.imageRow}
+          >
             {imageItems.map((url, index) => (
               <TouchableOpacity
                 key={`${title}-image-${url}-${index}`}
@@ -211,7 +215,9 @@ function SubmissionBlock({
         >
           <View style={styles.attachmentRowLeft}>
             <Ionicons name="videocam-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              {buildAttachmentName(url, 'video', index)}
+            </Text>
           </View>
           <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -226,7 +232,9 @@ function SubmissionBlock({
         >
           <View style={styles.attachmentRowLeft}>
             <Ionicons name="mic-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              {buildAttachmentName(url, 'audio', index)}
+            </Text>
           </View>
           <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -241,7 +249,9 @@ function SubmissionBlock({
         >
           <View style={styles.attachmentRowLeft}>
             <Ionicons name="document-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              {buildAttachmentName(url, 'file', index)}
+            </Text>
           </View>
           <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -257,7 +267,9 @@ function SectionHeader({ title, count }: { title: string; count?: number | strin
         <View style={styles.sectionDot} />
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
-      {count !== undefined && count !== null ? <Text style={styles.sectionCount}>{count}</Text> : null}
+      {count !== undefined && count !== null ? (
+        <Text style={styles.sectionCount}>{count}</Text>
+      ) : null}
     </View>
   );
 }
@@ -278,7 +290,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
     audios: string[];
     files: string[];
   }>({ images: [], videos: [], audios: [], files: [] });
-  const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
+  const [uploadingType, setUploadingType] = useState<
+    null | 'images' | 'videos' | 'audios' | 'files'
+  >(null);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -289,8 +303,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
   };
 
   const canResolve =
-    review?.isComplaint
-    && (review.complaintStatus === 'pending' || !review.complaintStatus);
+    review?.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus);
 
   const showResolveSection = canResolve && !isAdmin;
 
@@ -354,41 +367,43 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
     if (!review || !user) return;
     const resolvedBy = user.id || (user as unknown as { _id?: string })._id;
     if (!resolvedBy) {
-      Alert.alert('Unable to resolve complaint', 'Could not determine resolver identity. Please sign in again.');
+      Alert.alert(
+        'Unable to resolve complaint',
+        'Could not determine resolver identity. Please sign in again.',
+      );
       return;
     }
 
-    Alert.alert(
-      'Mark as Resolved',
-      'Are you sure you want to mark this complaint as resolved?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: () => {
-            resolveComplaint.mutate(
-              {
-                reviewId,
-                payload: {
-                  complaintStatus: 'resolved',
-                  resolvedBy,
-                  resolutionNotes: resolutionNotes.trim() || undefined,
-                  images: resolutionAttachments.images,
-                  videos: resolutionAttachments.videos,
-                  audios: resolutionAttachments.audios,
-                  files: resolutionAttachments.files,
-                },
+    Alert.alert('Mark as Resolved', 'Are you sure you want to mark this complaint as resolved?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Confirm',
+        onPress: () => {
+          resolveComplaint.mutate(
+            {
+              reviewId,
+              payload: {
+                complaintStatus: 'resolved',
+                resolvedBy,
+                resolutionNotes: resolutionNotes.trim() || undefined,
+                images: resolutionAttachments.images,
+                videos: resolutionAttachments.videos,
+                audios: resolutionAttachments.audios,
+                files: resolutionAttachments.files,
               },
-              {
-                onError: () => {
-                  Alert.alert('Update failed', 'Could not update complaint status. Please try again.');
-                },
+            },
+            {
+              onError: () => {
+                Alert.alert(
+                  'Update failed',
+                  'Could not update complaint status. Please try again.',
+                );
               },
-            );
-          },
+            },
+          );
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const openAttachment = async (url: string, type?: 'image' | 'video' | 'audio' | 'file') => {
@@ -399,9 +414,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
       try {
         const fileName = trimmedUrl.split('/').pop()?.split('?')[0] || `document-${Date.now()}`;
         const localUri = `${FileSystem.cacheDirectory}${fileName}`;
-        
+
         const downloadRes = await FileSystem.downloadAsync(trimmedUrl, localUri);
-        
+
         if (downloadRes.status === 200) {
           const sharingAvailable = await Sharing.isAvailableAsync();
           if (sharingAvailable) {
@@ -485,10 +500,10 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
 
   if (review.resolvedBy) {
     const resolvedByName =
-      review.resolvedByName
-      || (user && review.resolvedBy === user.id ? user.name : undefined)
-      || userNameById.get(review.resolvedBy)
-      || 'Unknown User';
+      review.resolvedByName ||
+      (user && review.resolvedBy === user.id ? user.name : undefined) ||
+      userNameById.get(review.resolvedBy) ||
+      'Unknown User';
     resolutionRows.push({ label: 'Resolved By', value: resolvedByName });
   }
 
@@ -522,16 +537,27 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
 
           <Text style={styles.summaryOutlet}>{review.outletName}</Text>
           {isAdmin && review.customerPhone && (
-            <Text style={styles.summaryPhone} onPress={() => Linking.openURL(`tel:${review.customerPhone}`)}>
-              <Ionicons name="call-outline" size={12} color={colors.textSecondary} /> {review.customerPhone}
+            <Text
+              style={styles.summaryPhone}
+              onPress={() => Linking.openURL(`tel:${review.customerPhone}`)}
+            >
+              <Ionicons name="call-outline" size={12} color={colors.textSecondary} />{' '}
+              {review.customerPhone}
             </Text>
           )}
           <Text style={styles.summaryMeta}>Submitted on {formatDate(review.createdAt)}</Text>
           <View style={styles.summaryStatusRow}>
             <Text style={styles.summaryStatusLabel}>Status:</Text>
             {complaintTone ? (
-              <View style={[styles.statusBadge, { backgroundColor: complaintTone.bg, borderColor: complaintTone.border }]}>
-                <Text style={[styles.statusBadgeText, { color: complaintTone.text }]}>{complaintTone.label}</Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: complaintTone.bg, borderColor: complaintTone.border },
+                ]}
+              >
+                <Text style={[styles.statusBadgeText, { color: complaintTone.text }]}>
+                  {complaintTone.label}
+                </Text>
               </View>
             ) : (
               <View style={styles.feedbackBadge}>
@@ -539,7 +565,6 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
               </View>
             )}
           </View>
-
         </View>
 
         {review.userResponses.length > 0 && (
@@ -547,19 +572,20 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
             <SectionHeader title="Responses" />
             <View style={styles.responsesCard}>
               {review.userResponses.map((response, index) => {
-                const questionRef = typeof response.questionId === 'object' && response.questionId
-                  ? response.questionId
-                  : null;
-                const questionId = typeof response.questionId === 'string'
-                  ? response.questionId
-                  : questionRef?._id;
+                const questionRef =
+                  typeof response.questionId === 'object' && response.questionId
+                    ? response.questionId
+                    : null;
+                const questionId =
+                  typeof response.questionId === 'string' ? response.questionId : questionRef?._id;
                 const fallbackQuestion = questionId ? questionById.get(questionId) : undefined;
                 const mappedTitle = questionRef?.title?.trim() || fallbackQuestion?.title?.trim();
-                const inlineStringQuestion = typeof response.questionId === 'string'
-                  && !isLikelyObjectId(response.questionId)
-                  ? response.questionId.trim()
-                  : '';
-                const questionTitle = mappedTitle || inlineStringQuestion || `Question ${index + 1}`;
+                const inlineStringQuestion =
+                  typeof response.questionId === 'string' && !isLikelyObjectId(response.questionId)
+                    ? response.questionId.trim()
+                    : '';
+                const questionTitle =
+                  mappedTitle || inlineStringQuestion || `Question ${index + 1}`;
                 const questionType = questionRef?.type ?? fallbackQuestion?.type;
 
                 return (
@@ -608,19 +634,35 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
               />
 
               <View style={styles.managerActionsRow}>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={pickImage} disabled={uploadingType !== null}>
+                <TouchableOpacity
+                  style={styles.managerActionBtn}
+                  onPress={pickImage}
+                  disabled={uploadingType !== null}
+                >
                   <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>Image</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={pickVideo} disabled={uploadingType !== null}>
+                <TouchableOpacity
+                  style={styles.managerActionBtn}
+                  onPress={pickVideo}
+                  disabled={uploadingType !== null}
+                >
                   <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>Video</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={pickFile} disabled={uploadingType !== null}>
+                <TouchableOpacity
+                  style={styles.managerActionBtn}
+                  onPress={pickFile}
+                  disabled={uploadingType !== null}
+                >
                   <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>File</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={pickVoice} disabled={uploadingType !== null}>
+                <TouchableOpacity
+                  style={styles.managerActionBtn}
+                  onPress={pickVoice}
+                  disabled={uploadingType !== null}
+                >
                   <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>Voice</Text>
                 </TouchableOpacity>
@@ -629,7 +671,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
               {uploadingType && (
                 <View style={styles.uploadingRow}>
                   <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.uploadingText}>Uploading {uploadingType.slice(0, -1)}...</Text>
+                  <Text style={styles.uploadingText}>
+                    Uploading {uploadingType.slice(0, -1)}...
+                  </Text>
                 </View>
               )}
 
@@ -640,7 +684,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('images', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'image', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'image', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {resolutionAttachments.videos.map((url, index) => (
@@ -649,7 +695,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('videos', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'video', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {resolutionAttachments.audios.map((url, index) => (
@@ -658,7 +706,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('audios', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'audio', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {resolutionAttachments.files.map((url, index) => (
@@ -667,7 +717,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('files', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'file', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -697,7 +749,11 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                   key={item.label}
                   label={item.label}
                   value={item.value}
-                  isLast={index === resolutionRows.length - 1 && !review.resolutionNotes && !review.resolutionAttachments}
+                  isLast={
+                    index === resolutionRows.length - 1 &&
+                    !review.resolutionNotes &&
+                    !review.resolutionAttachments
+                  }
                 />
               ))}
 
@@ -718,8 +774,6 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
             </View>
           </>
         )}
-
-
       </ScrollView>
     </SafeAreaView>
   );

@@ -22,7 +22,11 @@ export default function ReviewsNavigator() {
       }}
     >
       <Stack.Screen name="ReviewsList" component={ReviewsScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="ReviewDetail" component={ReviewDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="ReviewDetail"
+        component={ReviewDetailScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }

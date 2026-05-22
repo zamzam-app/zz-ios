@@ -16,20 +16,18 @@ function UnreadBadge({ count, size = 'sm', dotOnly = false }: UnreadBadgeProps) 
   const fontSize = size === 'md' ? 10 : 9;
 
   if (dotOnly) {
-    return (
-      <View
-        style={[
-          styles.dot,
-          { width: 8, height: 8, borderRadius: 4 },
-        ]}
-      />
-    );
+    return <View style={[styles.dot, { width: 8, height: 8, borderRadius: 4 }]} />;
   }
 
   const displayCount = count > 99 ? '99+' : String(count);
 
   return (
-    <View style={[styles.badge, { minWidth: badgeSize, height: badgeSize, borderRadius: badgeSize / 2 }]}>
+    <View
+      style={[
+        styles.badge,
+        { minWidth: badgeSize, height: badgeSize, borderRadius: badgeSize / 2 },
+      ]}
+    >
       <Text style={[styles.text, { fontSize }]}>{displayCount}</Text>
     </View>
   );

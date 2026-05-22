@@ -48,7 +48,9 @@ export default function StatusBadge({ status }: { status: TaskStatus | string })
   };
 
   return (
-    <View style={[styles.badge, { backgroundColor: cfg.backgroundColor, borderColor: cfg.borderColor }]}>
+    <View
+      style={[styles.badge, { backgroundColor: cfg.backgroundColor, borderColor: cfg.borderColor }]}
+    >
       <Text style={[styles.text, { color: cfg.color }]}>{cfg.label}</Text>
     </View>
   );

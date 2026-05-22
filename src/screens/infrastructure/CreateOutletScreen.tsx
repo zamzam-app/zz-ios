@@ -172,7 +172,8 @@ export function CreateOutletContent({
         },
         {
           onSuccess,
-          onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to update outlet.')),
+          onError: (error) =>
+            Alert.alert('Error', getApiErrorMessage(error, 'Failed to update outlet.')),
         },
       );
       return;
@@ -190,14 +191,18 @@ export function CreateOutletContent({
       },
       {
         onSuccess,
-        onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to create outlet.')),
+        onError: (error) =>
+          Alert.alert('Error', getApiErrorMessage(error, 'Failed to create outlet.')),
       },
     );
   };
 
   return (
     <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]}
+        keyboardShouldPersistTaps="handled"
+      >
         <Label text="Name" required />
         <TextInput
           style={styles.input}
@@ -236,7 +241,9 @@ export function CreateOutletContent({
             <Text style={styles.fieldError}>Unable to load outlet types.</Text>
             <TouchableOpacity
               style={[styles.retryBtn, isFetchingOutletTypes && styles.retryBtnDisabled]}
-              onPress={() => { void refetchOutletTypes(); }}
+              onPress={() => {
+                void refetchOutletTypes();
+              }}
               disabled={isFetchingOutletTypes}
             >
               {isFetchingOutletTypes ? (
@@ -257,7 +264,9 @@ export function CreateOutletContent({
         <Label text="Managers" />
         <TouchableOpacity style={styles.input} onPress={() => setShowManagerPicker(true)}>
           <Text style={{ color: selectedManagers.length > 0 ? colors.text : colors.textDisabled }}>
-            {selectedManagers.length > 0 ? selectedManagers.map((m) => m.name).join(', ') : 'Select managers...'}
+            {selectedManagers.length > 0
+              ? selectedManagers.map((m) => m.name).join(', ')
+              : 'Select managers...'}
           </Text>
         </TouchableOpacity>
 
@@ -273,13 +282,13 @@ export function CreateOutletContent({
           onPress={handleSubmit}
           disabled={isSubmitting || !isAdmin}
         >
-          {isSubmitting
-            ? <ActivityIndicator color={colors.textInverse} />
-            : <Text style={styles.submitBtnText}>{submitLabel}</Text>}
+          {isSubmitting ? (
+            <ActivityIndicator color={colors.textInverse} />
+          ) : (
+            <Text style={styles.submitBtnText}>{submitLabel}</Text>
+          )}
         </TouchableOpacity>
-        {!isAdmin && (
-          <Text style={styles.helperText}>Only admins can create outlets.</Text>
-        )}
+        {!isAdmin && <Text style={styles.helperText}>Only admins can create outlets.</Text>}
       </ScrollView>
 
       <PickerModal
@@ -287,7 +296,10 @@ export function CreateOutletContent({
         title="Select Outlet Type"
         items={outletTypes ?? []}
         selected={outletTypeId}
-        onSelect={(id) => { setOutletTypeId(id); setShowTypePicker(false); }}
+        onSelect={(id) => {
+          setOutletTypeId(id);
+          setShowTypePicker(false);
+        }}
         onClose={() => setShowTypePicker(false)}
       />
       <PickerModal
@@ -296,9 +308,11 @@ export function CreateOutletContent({
         items={managers ?? []}
         selected={managerIds}
         multi
-        onSelect={(id) => setManagerIds((prev) =>
-          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-        )}
+        onSelect={(id) =>
+          setManagerIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+          )
+        }
         onClose={() => setShowManagerPicker(false)}
       />
       <PickerModal
@@ -306,7 +320,10 @@ export function CreateOutletContent({
         title="Select Form"
         items={(forms ?? []).map((f) => ({ id: f.id, name: f.title }))}
         selected={formId}
-        onSelect={(id) => { setFormId(id); setShowFormPicker(false); }}
+        onSelect={(id) => {
+          setFormId(id);
+          setShowFormPicker(false);
+        }}
         onClose={() => setShowFormPicker(false)}
       />
     </View>
@@ -315,7 +332,10 @@ export function CreateOutletContent({
 
 export default function CreateOutletScreen({ navigation }: Props) {
   return (
-    <SafeAreaView style={[styles.rootFill, { backgroundColor: colors.background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.rootFill, { backgroundColor: colors.background }]}
+      edges={['bottom']}
+    >
       <CreateOutletContent onSuccess={() => navigation.goBack()} />
     </SafeAreaView>
   );
@@ -374,7 +394,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.md,
   },
-  submitBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
+  submitBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
   helperText: {
     marginTop: spacing.xs,
     color: colors.textSecondary,

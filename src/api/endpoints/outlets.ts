@@ -80,14 +80,18 @@ function mapOutlet(raw: RawOutlet): Outlet {
     .map((manager) => (typeof manager === 'string' ? manager : String(manager._id ?? '')))
     .filter(Boolean);
   let managerNames = managerRefs
-    .map((manager) => (typeof manager === 'object' ? manager.name ?? '' : ''))
+    .map((manager) => (typeof manager === 'object' ? (manager.name ?? '') : ''))
     .filter(Boolean);
 
   if (Array.isArray(raw.managerNames) && raw.managerNames.length > 0) {
     managerNames = raw.managerNames.filter(Boolean);
   }
 
-  if ((managerIds.length === 0 || managerNames.length === 0) && Array.isArray(raw.managers) && raw.managers.length > 0) {
+  if (
+    (managerIds.length === 0 || managerNames.length === 0) &&
+    Array.isArray(raw.managers) &&
+    raw.managers.length > 0
+  ) {
     if (managerIds.length === 0) {
       managerIds = raw.managers.map((m) => String(m._id ?? '')).filter(Boolean);
     }
@@ -101,13 +105,14 @@ function mapOutlet(raw: RawOutlet): Outlet {
     name: raw.name ?? '',
     description: raw.description,
     address: raw.address,
-    formId: typeof raw.formId === 'string'
-      ? raw.formId
-      : raw.formId?._id
-        ? String(raw.formId._id)
-        : raw.formId?.id
-          ? String(raw.formId.id)
-          : undefined,
+    formId:
+      typeof raw.formId === 'string'
+        ? raw.formId
+        : raw.formId?._id
+          ? String(raw.formId._id)
+          : raw.formId?.id
+            ? String(raw.formId.id)
+            : undefined,
     outletTypeId,
     outletTypeName,
     managerIds,
@@ -124,12 +129,11 @@ export const outletsApi = {
     client
       .get<{ data: RawOutlet[] } | RawOutlet[]>('/outlet', { params: { limit: 100 } })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawOutlet[] }).data ?? [];
+        const raw = Array.isArray(r.data) ? r.data : ((r.data as { data: RawOutlet[] }).data ?? []);
         return mapListSafely(raw, 'outlets', mapOutlet);
       }),
 
-  getById: (id: string) =>
-    client.get<RawOutlet>(`/outlet/${id}`).then((r) => mapOutlet(r.data)),
+  getById: (id: string) => client.get<RawOutlet>(`/outlet/${id}`).then((r) => mapOutlet(r.data)),
 
   create: (payload: CreateOutletPayload) =>
     client.post<RawOutlet>('/outlet', payload).then((r) => mapOutlet(r.data)),

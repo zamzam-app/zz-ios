@@ -75,18 +75,9 @@ function TypeFormModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.createModalRoot}>
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.createModalScrim}
-          onPress={onClose}
-        />
+        <TouchableOpacity activeOpacity={1} style={styles.createModalScrim} onPress={onClose} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.createSheet}
@@ -94,7 +85,9 @@ function TypeFormModal({
           <View style={styles.createSheetTop}>
             <View style={styles.createSheetHandle} />
             <View style={styles.createSheetHeader}>
-              <Text style={styles.createSheetTitle}>{initial ? 'Edit Outlet Type' : 'Create Outlet Type'}</Text>
+              <Text style={styles.createSheetTitle}>
+                {initial ? 'Edit Outlet Type' : 'Create Outlet Type'}
+              </Text>
               <TouchableOpacity
                 style={styles.createSheetClose}
                 onPress={onClose}
@@ -134,11 +127,7 @@ function TypeFormModal({
             {descriptionError ? <Text style={styles.fieldError}>{descriptionError}</Text> : null}
 
             <View style={styles.formActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={onClose}
-                disabled={submitting}
-              >
+              <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={submitting}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -149,7 +138,9 @@ function TypeFormModal({
                 {submitting ? (
                   <ActivityIndicator color={colors.textInverse} />
                 ) : (
-                  <Text style={styles.submitBtnText}>{initial ? 'Save Changes' : 'Create Type'}</Text>
+                  <Text style={styles.submitBtnText}>
+                    {initial ? 'Save Changes' : 'Create Type'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -230,8 +221,12 @@ export default function OutletTypesScreen() {
     <View style={styles.card}>
       <View style={styles.cardRow}>
         <View style={styles.cardBody}>
-          <Text style={styles.typeName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.typeDesc} numberOfLines={1} ellipsizeMode="tail">{item.description}</Text>
+          <Text style={styles.typeName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={styles.typeDesc} numberOfLines={1} ellipsizeMode="tail">
+            {item.description}
+          </Text>
         </View>
         {isAdmin && (
           <View style={styles.cardActions}>
@@ -244,7 +239,10 @@ export default function OutletTypesScreen() {
             >
               <Ionicons name="create-outline" size={16} color={colors.primary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.actionBtn, styles.deleteBtn]}>
+            <TouchableOpacity
+              onPress={() => handleDelete(item)}
+              style={[styles.actionBtn, styles.deleteBtn]}
+            >
               <Ionicons name="trash-outline" size={16} color={colors.error} />
             </TouchableOpacity>
           </View>
@@ -288,9 +286,13 @@ export default function OutletTypesScreen() {
         extraData={types}
         keyExtractor={(t) => t.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+        refreshControl={
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />
+        }
         ListHeaderComponent={
-          isLoading ? <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} /> : null
+          isLoading ? (
+            <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
+          ) : null
         }
         renderItem={renderItem}
         ListEmptyComponent={

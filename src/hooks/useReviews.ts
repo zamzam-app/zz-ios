@@ -1,9 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  reviewsApi,
-  ReviewsQuery,
-  ResolveComplaintPayload,
-} from '../api/endpoints/reviews';
+import { reviewsApi, ReviewsQuery, ResolveComplaintPayload } from '../api/endpoints/reviews';
 
 export const useReviews = (query?: ReviewsQuery) =>
   useQuery({
@@ -23,7 +19,6 @@ export const useReview = (id: string) =>
     queryFn: () => reviewsApi.getById(id),
     enabled: !!id,
   });
-
 
 export const useReviewBadgeStatus = (userId?: string) =>
   useQuery({

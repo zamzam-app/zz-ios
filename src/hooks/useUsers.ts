@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { usersApi, CreateManagerPayload, UpdateManagerPayload, ChangePasswordPayload } from '../api/endpoints/users';
+import {
+  usersApi,
+  CreateManagerPayload,
+  UpdateManagerPayload,
+  ChangePasswordPayload,
+} from '../api/endpoints/users';
 
 export const useUsers = () =>
   useQuery({

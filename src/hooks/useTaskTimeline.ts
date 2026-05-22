@@ -16,7 +16,10 @@ import type {
  *
  * Query key: `['taskDetail', taskId]`
  */
-export const useTaskDetail = (taskId: string, options?: { enabled?: boolean; initialTimelineLimit?: number }) =>
+export const useTaskDetail = (
+  taskId: string,
+  options?: { enabled?: boolean; initialTimelineLimit?: number },
+) =>
   useQuery<TaskDetailTimelineResponse>({
     queryKey: ['taskDetail', taskId],
     queryFn: () => tasksApi.getTaskDetail(taskId, options?.initialTimelineLimit),
@@ -51,8 +54,7 @@ export const useTaskTimeline = (
       ? ['taskTimeline', taskId, { types: typesParam }]
       : ['taskTimeline', taskId],
     queryFn: cursorQueryFn(
-      (cursor: string | undefined) =>
-        tasksApi.getTimeline(taskId, { cursor, types: typesParam }),
+      (cursor: string | undefined) => tasksApi.getTimeline(taskId, { cursor, types: typesParam }),
       undefined as void,
     ),
     initialPageParam: undefined as string | undefined,

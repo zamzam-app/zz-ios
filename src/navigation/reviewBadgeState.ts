@@ -1,8 +1,11 @@
-export type ReviewBadgeSnapshot = {
-  unreadCount?: number;
-  pendingCount?: number;
-  hasUnread?: boolean;
-} | null | undefined;
+export type ReviewBadgeSnapshot =
+  | {
+      unreadCount?: number;
+      pendingCount?: number;
+      hasUnread?: boolean;
+    }
+  | null
+  | undefined;
 
 export type ReviewTabBadgeModel = {
   visible: boolean;

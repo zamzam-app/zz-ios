@@ -45,7 +45,8 @@ export default function SettingsScreen() {
           setNewPassword('');
           setConfirmPassword('');
         },
-        onError: () => Alert.alert('Error', 'Failed to update password. Check your current password.'),
+        onError: () =>
+          Alert.alert('Error', 'Failed to update password. Check your current password.'),
       },
     );
   };
@@ -73,7 +74,9 @@ export default function SettingsScreen() {
             </TouchableOpacity>
             <Text style={styles.pageTitle}>Account Settings</Text>
           </View>
-          <Text style={styles.pageSubtitle}>Manage your digital atelier profile and security protocols.</Text>
+          <Text style={styles.pageSubtitle}>
+            Manage your digital atelier profile and security protocols.
+          </Text>
         </View>
 
         <View style={styles.stack}>
@@ -130,9 +133,11 @@ export default function SettingsScreen() {
               onPress={handleChangePassword}
               disabled={changePassword.isPending}
             >
-              {changePassword.isPending
-                ? <ActivityIndicator color={colors.textInverse} />
-                : <Text style={styles.updateBtnText}>Update Password</Text>}
+              {changePassword.isPending ? (
+                <ActivityIndicator color={colors.textInverse} />
+              ) : (
+                <Text style={styles.updateBtnText}>Update Password</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

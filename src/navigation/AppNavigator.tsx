@@ -27,10 +27,10 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 type TabRouteName = keyof AppTabParamList;
 
 const TAB_ICONS: Record<TabRouteName, { outline: IoniconName; filled: IoniconName }> = {
-  Overview: { outline: 'speedometer-outline',       filled: 'speedometer' },
-  Tasks: { outline: 'document-text-outline',      filled: 'document-text' },
+  Overview: { outline: 'speedometer-outline', filled: 'speedometer' },
+  Tasks: { outline: 'document-text-outline', filled: 'document-text' },
   Reviews: { outline: 'chatbubble-ellipses-outline', filled: 'chatbubble-ellipses' },
-  More: { outline: 'menu-outline',             filled: 'menu' },
+  More: { outline: 'menu-outline', filled: 'menu' },
 };
 
 const TAB_LABELS: Record<TabRouteName, string> = {
@@ -79,7 +79,15 @@ function TasksTabIcon({ color, focused }: { color: string; focused: boolean }) {
   );
 }
 
-function TabIcon({ name, color, focused }: { name: TabRouteName; color: string; focused: boolean }) {
+function TabIcon({
+  name,
+  color,
+  focused,
+}: {
+  name: TabRouteName;
+  color: string;
+  focused: boolean;
+}) {
   if (name === 'Reviews') return <ReviewsTabIcon color={color} focused={focused} />;
   if (name === 'Tasks') return <TasksTabIcon color={color} focused={focused} />;
   const icons = TAB_ICONS[name];
@@ -88,7 +96,6 @@ function TabIcon({ name, color, focused }: { name: TabRouteName; color: string; 
 }
 
 export default function AppNavigator() {
-
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

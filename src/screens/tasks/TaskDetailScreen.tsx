@@ -36,11 +36,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTask, useUpdateTaskStatus, useDeleteTask, useUpdateTask } from '../../hooks/useTasks';
-import {
-  useTaskDetail,
-  useTaskTimeline,
-  useEventTypeCounts,
-} from '../../hooks/useTaskTimeline';
+import { useTaskDetail, useTaskTimeline, useEventTypeCounts } from '../../hooks/useTaskTimeline';
 import { useAddAttachments, useAddComment } from '../../hooks/useTaskAttachments';
 import { useMarkTaskViewed } from '../../hooks/useTaskView';
 import { TaskStatus } from '../../api/endpoints/tasks';
@@ -90,8 +86,8 @@ const AUDIO_FILE_WAIT_DELAY_MS = 120;
 
 function isReleasedAudioPlayerError(error: unknown) {
   return (
-    error instanceof Error
-    && /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
+    error instanceof Error &&
+    /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
   );
 }
 
@@ -99,7 +95,11 @@ function formatDate(iso?: string | null, dueTime?: string | null) {
   if (!iso) return 'Not set';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'Not set';
-  const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dateStr = date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
   if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
     const [hours, minutes] = dueTime.split(':');
     const h = parseInt(hours, 10);
@@ -186,20 +186,19 @@ function SubmissionBlock({
   const videoItems = attachments?.videos ?? [];
   const audioItems = attachments?.audios ?? [];
   const fileItems = attachments?.files ?? [];
-  const hasAny = Boolean(text?.trim())
-    || imageItems.length > 0
-    || videoItems.length > 0
-    || audioItems.length > 0
-    || fileItems.length > 0;
+  const hasAny =
+    Boolean(text?.trim()) ||
+    imageItems.length > 0 ||
+    videoItems.length > 0 ||
+    audioItems.length > 0 ||
+    fileItems.length > 0;
 
   if (!hasAny) return null;
 
   return (
     <View style={styles.submissionCard}>
       <Text style={styles.submissionTitle}>{title}</Text>
-      {text?.trim() ? (
-        <Text style={styles.submissionText}>{text.trim()}</Text>
-      ) : null}
+      {text?.trim() ? <Text style={styles.submissionText}>{text.trim()}</Text> : null}
 
       {imageItems.length > 0 && (
         <View style={styles.attachmentGroup}>
@@ -216,7 +215,12 @@ function SubmissionBlock({
                 style={styles.imageItem}
                 activeOpacity={0.85}
               >
-                <ExpoImage source={{ uri: cloudinaryThumbnail(url) }} style={styles.imageThumb} contentFit="cover" cachePolicy="memory-disk" />
+                <ExpoImage
+                  source={{ uri: cloudinaryThumbnail(url) }}
+                  style={styles.imageThumb}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
               </TouchableOpacity>
             )}
           />
@@ -232,7 +236,9 @@ function SubmissionBlock({
         >
           <View style={styles.attachmentRowLeft}>
             <Ionicons name="videocam-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              {buildAttachmentName(url, 'video', index)}
+            </Text>
           </View>
           <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -245,22 +251,21 @@ function SubmissionBlock({
             const audioId = meta?.id ?? `audio-${index}-${url}`;
             const isActiveAudio = activeAudioAttachmentId === audioId;
             const knownDurationMs = audioDurationById[audioId] ?? 0;
-            const liveDurationMs = isActiveAudio && audioPlayerStatus
-              ? Math.max(Math.floor(audioPlayerStatus.duration * 1000), knownDurationMs)
-              : knownDurationMs;
-            const currentMillis = isActiveAudio && audioPlayerStatus
-              ? Math.max(0, Math.floor(audioPlayerStatus.currentTime * 1000))
-              : 0;
+            const liveDurationMs =
+              isActiveAudio && audioPlayerStatus
+                ? Math.max(Math.floor(audioPlayerStatus.duration * 1000), knownDurationMs)
+                : knownDurationMs;
+            const currentMillis =
+              isActiveAudio && audioPlayerStatus
+                ? Math.max(0, Math.floor(audioPlayerStatus.currentTime * 1000))
+                : 0;
             const remainingMillis = Math.max(liveDurationMs - currentMillis, 0);
             const progress = liveDurationMs > 0 ? Math.min(currentMillis / liveDurationMs, 1) : 0;
             const activeBarCount = Math.round(progress * WAVEFORM_BARS.length);
             const durationLabel = liveDurationMs > 0 ? formatDuration(remainingMillis) : '--:--';
 
             return (
-              <View
-                key={`${title}-audio-${url}-${index}`}
-                style={styles.audioAttachmentCard}
-              >
+              <View key={`${title}-audio-${url}-${index}`} style={styles.audioAttachmentCard}>
                 <View style={styles.audioPreviewRow}>
                   <View style={styles.waveformRow}>
                     {WAVEFORM_BARS.map((barHeight, barIndex) => (
@@ -270,7 +275,8 @@ function SubmissionBlock({
                           styles.waveformBar,
                           {
                             height: barHeight,
-                            backgroundColor: barIndex < activeBarCount ? colors.primary : colors.border,
+                            backgroundColor:
+                              barIndex < activeBarCount ? colors.primary : colors.border,
                           },
                         ]}
                       />
@@ -312,7 +318,9 @@ function SubmissionBlock({
         >
           <View style={styles.attachmentRowLeft}>
             <Ionicons name="document-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              {buildAttachmentName(url, 'file', index)}
+            </Text>
           </View>
           <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -327,7 +335,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const isAdmin = user?.role === 'admin';
 
   // ─── Thread data ────────────────────────────────────────────────────────
-  const { data: taskDetail, isLoading: detailLoading, error: detailError, refetch: refetchDetail } = useTaskDetail(taskId);
+  const {
+    data: taskDetail,
+    isLoading: detailLoading,
+    error: detailError,
+    refetch: refetchDetail,
+  } = useTaskDetail(taskId);
   const timelineQuery = useTaskTimeline(taskId);
   const eventTypeCountsQuery = useEventTypeCounts(taskId);
   const addAttachmentsMutation = useAddAttachments();
@@ -365,7 +378,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     audios: string[];
     files: string[];
   }>({ images: [], videos: [], audios: [], files: [] });
-  const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
+  const [uploadingType, setUploadingType] = useState<
+    null | 'images' | 'videos' | 'audios' | 'files'
+  >(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
   const [showDelegationSheet, setShowDelegationSheet] = useState(false);
@@ -394,7 +409,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     if (legacyTask) {
-      console.log('[TaskDetailScreen] Fetched legacyTask successfully for taskId:', taskId, legacyTask);
+      console.log(
+        '[TaskDetailScreen] Fetched legacyTask successfully for taskId:',
+        taskId,
+        legacyTask,
+      );
     }
   }, [legacyTask, taskId]);
 
@@ -438,7 +457,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       });
     }
   }, [eventTypeCountsQuery.error, taskId]);
-
 
   // ─── Audio mode setup ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -586,31 +604,40 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   // ─── Attachment helpers (preserved) ──────────────────────────────────────
   const getSourceAttachments = (source: any) => {
     const adminAttachments = source?.adminSubmission?.attachments;
-    const images = Array.from(new Set([
-      ...(source?.attachments?.images ?? source?.imageUrls ?? []),
-      ...(adminAttachments?.images ?? [])
-    ]));
-    const videos = Array.from(new Set([
-      ...(source?.attachments?.videos ?? []),
-      ...(adminAttachments?.videos ?? [])
-    ]));
-    const savedAudios = Array.from(new Set([
-      ...(source?.attachments?.audios ?? []),
-      ...(adminAttachments?.audios ?? [])
-    ]));
-    const audios = Array.from(new Set([
-      ...savedAudios,
-      ...(managerAttachments.audios)
-    ]));
-    const files = Array.from(new Set([
-      ...(source?.attachments?.files ?? []),
-      ...(adminAttachments?.files ?? [])
-    ]));
-    const audioMeta = audios.map((url: string, index: number) => ({ id: `audio-${index}-${url}`, url }));
+    const images = Array.from(
+      new Set([
+        ...(source?.attachments?.images ?? source?.imageUrls ?? []),
+        ...(adminAttachments?.images ?? []),
+      ]),
+    );
+    const videos = Array.from(
+      new Set([...(source?.attachments?.videos ?? []), ...(adminAttachments?.videos ?? [])]),
+    );
+    const savedAudios = Array.from(
+      new Set([...(source?.attachments?.audios ?? []), ...(adminAttachments?.audios ?? [])]),
+    );
+    const audios = Array.from(new Set([...savedAudios, ...managerAttachments.audios]));
+    const files = Array.from(
+      new Set([...(source?.attachments?.files ?? []), ...(adminAttachments?.files ?? [])]),
+    );
+    const audioMeta = audios.map((url: string, index: number) => ({
+      id: `audio-${index}-${url}`,
+      url,
+    }));
     const audioIds = audioMeta.map((item: any) => item.id);
     const audioIdsKey = audioIds.join('|');
     const count = images.length + videos.length + savedAudios.length + files.length;
-    return { images, videos, savedAudios, audios, files, audioMeta, audioIdsKey, count, hasAny: count > 0 };
+    return {
+      images,
+      videos,
+      savedAudios,
+      audios,
+      files,
+      audioMeta,
+      audioIdsKey,
+      count,
+      hasAny: count > 0,
+    };
   };
 
   const sourceAttachments = useMemo(
@@ -694,8 +721,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     await uploadLocalFile('files', result.assets[0].uri);
   };
 
-
-
   const normalizeLocalFileUri = (uri: string): string => {
     const trimmed = uri.trim();
     if (!trimmed) return trimmed;
@@ -753,7 +778,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       recorder.record();
     } catch (error) {
       console.warn('[TaskDetail] Start recording failed', error);
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(
+        () => undefined,
+      );
       Alert.alert('Error', 'Could not start recording. Please try again.');
     } finally {
       setRecordingBusy(false);
@@ -775,7 +802,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       console.warn('[TaskDetail] Stop recording failed', error);
       Alert.alert('Error', 'Could not stop recording. Please try again.');
     } finally {
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(
+        () => undefined,
+      );
       setRecordingBusy(false);
     }
   };
@@ -788,7 +817,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     } catch {
       // Ignore errors during discard stop
     } finally {
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(
+        () => undefined,
+      );
       setRecordingBusy(false);
     }
   };
@@ -884,7 +915,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     if (activeAudioAttachmentId || previewPlayerStatus.playing || probingAudioAttachmentId) return;
-    const nextToProbe = sourceAttachments.audioMeta.find((item: any) => !audioDurationById[item.id]);
+    const nextToProbe = sourceAttachments.audioMeta.find(
+      (item: any) => !audioDurationById[item.id],
+    );
     if (!nextToProbe) return;
 
     const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(nextToProbe.url));
@@ -907,7 +940,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       setActiveAudioAttachmentId(null);
       setPendingPlayAudioId(null);
     }
-  }, [activeAudioAttachmentId, sourceAttachments.audioIdsKey, previewPlayer, runPreviewPlayerActionSafely]);
+  }, [
+    activeAudioAttachmentId,
+    sourceAttachments.audioIdsKey,
+    previewPlayer,
+    runPreviewPlayerActionSafely,
+  ]);
 
   useEffect(() => {
     if (!probingAudioAttachmentId) return;
@@ -920,7 +958,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     if (!pendingPlayAudioId || !previewPlayerStatus.isLoaded) return;
     runPreviewPlayerActionSafely(() => previewPlayer.play());
     setPendingPlayAudioId(null);
-  }, [pendingPlayAudioId, previewPlayerStatus.isLoaded, previewPlayer, runPreviewPlayerActionSafely]);
+  }, [
+    pendingPlayAudioId,
+    previewPlayerStatus.isLoaded,
+    previewPlayer,
+    runPreviewPlayerActionSafely,
+  ]);
 
   const handleAudioAttachmentPress = (audioId: string, url: string) => {
     if (probingAudioAttachmentId) setProbingAudioAttachmentId(null);
@@ -939,11 +982,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
 
     const shouldRestart =
-      previewPlayerStatus.didJustFinish
-      || (
-        previewPlayerStatus.duration > 0
-        && previewPlayerStatus.currentTime >= previewPlayerStatus.duration
-      );
+      previewPlayerStatus.didJustFinish ||
+      (previewPlayerStatus.duration > 0 &&
+        previewPlayerStatus.currentTime >= previewPlayerStatus.duration);
     if (shouldRestart) {
       void previewPlayer.seekTo(0).catch(() => undefined);
     }
@@ -987,7 +1028,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     ]);
     const isNotCompleted = source.status !== 'COMPLETED' && !isAdmin;
 
-
     return (
       <View>
         {/* ── Summary Card ──────────────────────────────────────────────── */}
@@ -1003,8 +1043,21 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             <View style={styles.ownerBadgeWrap}>
               <View style={styles.ownerStatusPriorityRow}>
                 <StatusBadge status={source.status} />
-                <View style={[styles.priorityBadge, { backgroundColor: (PRIORITY_COLORS[source.priority] ?? colors.textSecondary) + '22' }]}>
-                  <Text style={[styles.priorityText, { color: PRIORITY_COLORS[source.priority] ?? colors.textSecondary }]}>
+                <View
+                  style={[
+                    styles.priorityBadge,
+                    {
+                      backgroundColor:
+                        (PRIORITY_COLORS[source.priority] ?? colors.textSecondary) + '22',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.priorityText,
+                      { color: PRIORITY_COLORS[source.priority] ?? colors.textSecondary },
+                    ]}
+                  >
                     {source.priority}
                   </Text>
                 </View>
@@ -1028,8 +1081,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           <Text style={styles.ownerDescriptionLabel}>Description</Text>
           <Text style={styles.description}>{source.description}</Text>
 
-
-
           {/* Attachments gallery (only for completed tasks) */}
           {source.status === 'COMPLETED' && sourceAttachments.hasAny && (
             <View style={styles.attachmentsInlineWrap}>
@@ -1045,11 +1096,18 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     contentContainerStyle={styles.imageRow}
                     renderItem={({ item: url, index }) => (
                       <TouchableOpacity
-                        onPress={() => { void openAttachment(url, 'image'); }}
+                        onPress={() => {
+                          void openAttachment(url, 'image');
+                        }}
                         style={styles.imageItem}
                         activeOpacity={0.85}
                       >
-                        <ExpoImage source={{ uri: cloudinaryThumbnail(url) }} style={styles.imageThumb} contentFit="cover" cachePolicy="memory-disk" />
+                        <ExpoImage
+                          source={{ uri: cloudinaryThumbnail(url) }}
+                          style={styles.imageThumb}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                        />
                       </TouchableOpacity>
                     )}
                   />
@@ -1063,7 +1121,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     <TouchableOpacity
                       key={`video-${url}-${index}`}
                       style={styles.attachmentRow}
-                      onPress={() => { void openAttachment(url, 'video'); }}
+                      onPress={() => {
+                        void openAttachment(url, 'video');
+                      }}
                       activeOpacity={0.8}
                     >
                       <View style={styles.attachmentRowLeft}>
@@ -1098,7 +1158,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     <TouchableOpacity
                       key={`file-${url}-${index}`}
                       style={styles.attachmentRow}
-                      onPress={() => { void openAttachment(url, 'file'); }}
+                      onPress={() => {
+                        void openAttachment(url, 'file');
+                      }}
                       activeOpacity={0.8}
                     >
                       <View style={styles.attachmentRowLeft}>
@@ -1116,9 +1178,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           )}
         </View>
 
-
-
-
         {/* ── Activity Section Header ────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeadingWrap}>
@@ -1131,33 +1190,33 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         </View>
 
         {/* ── Manager Submission Section (Moved to Modal) ────────────────────── */}
-        {isNotCompleted ? null : (
-          (managerText.trim().length > 0
-            || managerAttachments.images.length > 0
-            || managerAttachments.videos.length > 0
-            || managerAttachments.audios.length > 0
-            || managerAttachments.files.length > 0) ? (
-            <>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionHeadingWrap}>
-                  <View style={styles.sectionDot} />
-                  <Text style={styles.sectionTitle}>Manager Submission</Text>
-                </View>
+        {isNotCompleted ? null : managerText.trim().length > 0 ||
+          managerAttachments.images.length > 0 ||
+          managerAttachments.videos.length > 0 ||
+          managerAttachments.audios.length > 0 ||
+          managerAttachments.files.length > 0 ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeadingWrap}>
+                <View style={styles.sectionDot} />
+                <Text style={styles.sectionTitle}>Manager Submission</Text>
               </View>
-              <SubmissionBlock
-                title="Submitted Details"
-                text={managerText}
-                attachments={managerAttachments}
-                onOpenAttachment={(url, type) => { void openAttachment(url, type); }}
-                audioAttachmentMeta={sourceAttachments.audioMeta}
-                audioPlayerStatus={previewPlayerStatus}
-                activeAudioAttachmentId={activeAudioAttachmentId}
-                audioDurationById={audioDurationById}
-                onAudioPress={handleAudioAttachmentPress}
-              />
-            </>
-          ) : null
-        )}
+            </View>
+            <SubmissionBlock
+              title="Submitted Details"
+              text={managerText}
+              attachments={managerAttachments}
+              onOpenAttachment={(url, type) => {
+                void openAttachment(url, type);
+              }}
+              audioAttachmentMeta={sourceAttachments.audioMeta}
+              audioPlayerStatus={previewPlayerStatus}
+              activeAudioAttachmentId={activeAudioAttachmentId}
+              audioDurationById={audioDurationById}
+              onAudioPress={handleAudioAttachmentPress}
+            />
+          </>
+        ) : null}
       </View>
     );
   }, [
@@ -1191,10 +1250,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     [filteredEvents, handleAttachmentPress, handleActorPress],
   );
 
-  const keyExtractor = useCallback(
-    (item: SerializedTimelineEvent) => item._id,
-    [],
-  );
+  const keyExtractor = useCallback((item: SerializedTimelineEvent) => item._id, []);
 
   // ─── Loading & Error states ──────────────────────────────────────────────
   if (isLoading) {
@@ -1215,8 +1271,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         <Text style={styles.emptyTimelineSubtext}>
           {detailError
             ? 'Check your connection and try again'
-            : 'This task may have been deleted or you may not have access'
-          }
+            : 'This task may have been deleted or you may not have access'}
         </Text>
         <TouchableOpacity
           style={styles.retryBtn}
@@ -1227,7 +1282,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           }}
           activeOpacity={0.8}
         >
-          <Ionicons name="refresh" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
+          <Ionicons
+            name="refresh"
+            size={16}
+            color={colors.textInverse}
+            style={{ marginRight: 4 }}
+          />
           <Text style={styles.retryBtnText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -1257,10 +1317,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             >
               <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.heading} numberOfLines={1}>Task Details</Text>
+            <Text style={styles.heading} numberOfLines={1}>
+              Task Details
+            </Text>
           </View>
         </View>
-
       </View>
 
       {/* Sticky Task Details Card & Activity Header */}
@@ -1291,13 +1352,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             <View style={styles.emptyTimeline}>
               <Ionicons name="time-outline" size={32} color={colors.textDisabled} />
               <Text style={styles.emptyTimelineText}>
-              {timelineQuery.isError ? 'Failed to load activity' : 'No activity yet'}
-            </Text>
+                {timelineQuery.isError ? 'Failed to load activity' : 'No activity yet'}
+              </Text>
               <Text style={styles.emptyTimelineSubtext}>
                 {timelineQuery.isError
                   ? 'Pull down to try again'
-                  : 'Events will appear here as the task is updated'
-                }
+                  : 'Events will appear here as the task is updated'}
               </Text>
               {timelineQuery.isError && (
                 <TouchableOpacity
@@ -1362,7 +1422,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={[
               styles.bottomBarBtn,
-              source.status === 'COMPLETED' && styles.bottomBarBtnDisabled
+              source.status === 'COMPLETED' && styles.bottomBarBtnDisabled,
             ]}
             onPress={() => setShowSubmissionModal(true)}
             disabled={source.status === 'COMPLETED'}
@@ -1376,7 +1436,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           {/* Delete Button */}
           {isAdmin && (
             <TouchableOpacity
-              style={[styles.bottomBarBtn, styles.bottomBarBtnDelete, deleteTask.isPending && styles.bottomBarBtnDisabled]}
+              style={[
+                styles.bottomBarBtn,
+                styles.bottomBarBtnDelete,
+                deleteTask.isPending && styles.bottomBarBtnDisabled,
+              ]}
               onPress={handleDelete}
               disabled={deleteTask.isPending}
               activeOpacity={0.82}
@@ -1520,33 +1584,73 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
                   </View>
                   <View style={styles.recordingActions}>
-                    <TouchableOpacity style={styles.recordingActionBtn} onPress={() => { void discardAudioRecording(); }}>
+                    <TouchableOpacity
+                      style={styles.recordingActionBtn}
+                      onPress={() => {
+                        void discardAudioRecording();
+                      }}
+                    >
                       <Ionicons name="trash-outline" size={18} color={colors.error} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.recordingActionBtn, styles.stopRecordingBtn]} onPress={() => { void stopAudioRecording(); }}>
+                    <TouchableOpacity
+                      style={[styles.recordingActionBtn, styles.stopRecordingBtn]}
+                      onPress={() => {
+                        void stopAudioRecording();
+                      }}
+                    >
                       <Ionicons name="stop" size={18} color={colors.textInverse} />
                     </TouchableOpacity>
                   </View>
                 </View>
               ) : (
                 <View style={styles.managerActionsRow}>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void takePhoto(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <TouchableOpacity
+                    style={styles.managerActionBtn}
+                    onPress={() => {
+                      void takePhoto();
+                    }}
+                    disabled={uploadingType !== null || recordingBusy}
+                  >
                     <Ionicons name="camera-outline" size={15} color={colors.primaryDark} />
                     <Text style={styles.managerActionBtnText}>Camera</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickImage(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <TouchableOpacity
+                    style={styles.managerActionBtn}
+                    onPress={() => {
+                      void pickImage();
+                    }}
+                    disabled={uploadingType !== null || recordingBusy}
+                  >
                     <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
                     <Text style={styles.managerActionBtnText}>Image</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickVideo(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <TouchableOpacity
+                    style={styles.managerActionBtn}
+                    onPress={() => {
+                      void pickVideo();
+                    }}
+                    disabled={uploadingType !== null || recordingBusy}
+                  >
                     <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
                     <Text style={styles.managerActionBtnText}>Video</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void pickFile(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <TouchableOpacity
+                    style={styles.managerActionBtn}
+                    onPress={() => {
+                      void pickFile();
+                    }}
+                    disabled={uploadingType !== null || recordingBusy}
+                  >
                     <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
                     <Text style={styles.managerActionBtnText}>File</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.managerActionBtn} onPress={() => { void startAudioRecording(); }} disabled={uploadingType !== null || recordingBusy}>
+                  <TouchableOpacity
+                    style={styles.managerActionBtn}
+                    onPress={() => {
+                      void startAudioRecording();
+                    }}
+                    disabled={uploadingType !== null || recordingBusy}
+                  >
                     <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
                     <Text style={styles.managerActionBtnText}>Voice</Text>
                   </TouchableOpacity>
@@ -1556,27 +1660,31 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               {uploadingType && (
                 <View style={styles.uploadingRow}>
                   <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.uploadingText}>Uploading {uploadingType.slice(0, -1)}...</Text>
+                  <Text style={styles.uploadingText}>
+                    Uploading {uploadingType.slice(0, -1)}...
+                  </Text>
                 </View>
               )}
 
-              {(managerAttachments.images.length > 0
-                || managerAttachments.videos.length > 0
-                || managerAttachments.audios.length > 0
-                || managerAttachments.files.length > 0) && (
-                  <SubmissionBlock
-                    title="Attached"
-                    text={undefined}
-                    attachments={managerAttachments}
-                    onOpenAttachment={(url, type) => { void openAttachment(url, type); }}
-                    onRemoveAttachment={removeAttachmentUrl}
-                    audioAttachmentMeta={sourceAttachments.audioMeta}
-                    audioPlayerStatus={previewPlayerStatus}
-                    activeAudioAttachmentId={activeAudioAttachmentId}
-                    audioDurationById={audioDurationById}
-                    onAudioPress={handleAudioAttachmentPress}
-                  />
-                )}
+              {(managerAttachments.images.length > 0 ||
+                managerAttachments.videos.length > 0 ||
+                managerAttachments.audios.length > 0 ||
+                managerAttachments.files.length > 0) && (
+                <SubmissionBlock
+                  title="Attached"
+                  text={undefined}
+                  attachments={managerAttachments}
+                  onOpenAttachment={(url, type) => {
+                    void openAttachment(url, type);
+                  }}
+                  onRemoveAttachment={removeAttachmentUrl}
+                  audioAttachmentMeta={sourceAttachments.audioMeta}
+                  audioPlayerStatus={previewPlayerStatus}
+                  activeAudioAttachmentId={activeAudioAttachmentId}
+                  audioDurationById={audioDurationById}
+                  onAudioPress={handleAudioAttachmentPress}
+                />
+              )}
 
               <View style={styles.managerTagGroup}>
                 {managerAttachments.images.map((url: string, index: number) => (
@@ -1585,7 +1693,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('images', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'image', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'image', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {managerAttachments.videos.map((url: string, index: number) => (
@@ -1594,7 +1704,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('videos', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'video', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {managerAttachments.files.map((url: string, index: number) => (
@@ -1603,7 +1715,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('files', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'file', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1611,7 +1725,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               <TouchableOpacity
                 style={[
                   styles.saveManagerBtn,
-                  (addAttachmentsMutation.isPending || addCommentMutation.isPending) && styles.iconActionBtnDisabled
+                  (addAttachmentsMutation.isPending || addCommentMutation.isPending) &&
+                    styles.iconActionBtnDisabled,
                 ]}
                 onPress={saveManagerSubmission}
                 disabled={addAttachmentsMutation.isPending || addCommentMutation.isPending}
@@ -1732,7 +1847,11 @@ const styles = StyleSheet.create({
   ownerHeadingWrap: { flex: 1, gap: 2 },
   ownerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   ownerTitle: { fontSize: typography.md, color: colors.text, fontWeight: typography.bold },
-  ownerOutlet: { fontSize: typography.sm, color: colors.textSecondary, fontWeight: typography.medium },
+  ownerOutlet: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
   ownerBadgeWrap: { alignItems: 'flex-end' },
   ownerStatusPriorityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   priorityBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.full },
@@ -1783,7 +1902,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   statText: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
-  statTimestamp: { fontSize: typography.xs, color: colors.textDisabled, flex: 1, textAlign: 'right' },
+  statTimestamp: {
+    fontSize: typography.xs,
+    color: colors.textDisabled,
+    flex: 1,
+    textAlign: 'right',
+  },
 
   // ── Attachments ──────────────────────────────────────────────────────────
   attachmentsInlineWrap: { marginTop: spacing.sm },
@@ -1814,7 +1938,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     marginBottom: spacing.xs,
   },
-  attachmentRowLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1, marginRight: spacing.sm },
+  attachmentRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
   attachmentName: { fontSize: typography.sm, color: colors.textSecondary, flex: 1 },
 
   // ── Audio ─────────────────────────────────────────────────────────────────
@@ -1841,7 +1971,12 @@ const styles = StyleSheet.create({
   },
   waveformRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2, height: 20 },
   waveformBar: { width: 3, borderRadius: radius.full },
-  audioDurationText: { fontSize: typography.xs, color: colors.textSecondary, minWidth: 76, textAlign: 'right' },
+  audioDurationText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    minWidth: 76,
+    textAlign: 'right',
+  },
   removeAudioBtn: { padding: 4 },
   submissionCard: {
     backgroundColor: colors.surface,
@@ -1851,8 +1986,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     ...shadow.sm,
   },
-  submissionTitle: { fontSize: typography.sm, color: colors.text, fontWeight: typography.semibold, marginBottom: spacing.xs },
-  submissionText: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.sm },
+  submissionTitle: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.semibold,
+    marginBottom: spacing.xs,
+  },
+  submissionText: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
 
   // ── Filter Chips ─────────────────────────────────────────────────────────
   filterChipRow: {
@@ -1876,7 +2021,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  filterChipText: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
+  filterChipText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
   filterChipTextActive: { color: colors.textInverse, fontWeight: typography.semibold },
 
   // ── Section Header ───────────────────────────────────────────────────────
@@ -1932,8 +2081,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
   },
-  emptyTimelineText: { fontSize: typography.base, color: colors.textSecondary, fontWeight: typography.medium },
-  emptyTimelineSubtext: { fontSize: typography.sm, color: colors.textDisabled, textAlign: 'center' },
+  emptyTimelineText: {
+    fontSize: typography.base,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
+  emptyTimelineSubtext: {
+    fontSize: typography.sm,
+    color: colors.textDisabled,
+    textAlign: 'center',
+  },
 
   // ── Manager Submission ───────────────────────────────────────────────────
   managerCard: {
@@ -1968,7 +2125,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: colors.surface,
   },
-  managerActionBtnText: { fontSize: typography.xs, color: colors.primaryDark, fontWeight: typography.semibold },
+  managerActionBtnText: {
+    fontSize: typography.xs,
+    color: colors.primaryDark,
+    fontWeight: typography.semibold,
+  },
   uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   uploadingText: { fontSize: typography.xs, color: colors.textSecondary },
   managerTagGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
@@ -1990,7 +2151,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadow.sm,
   },
-  saveManagerBtnText: { fontSize: typography.sm, color: colors.textInverse, fontWeight: typography.semibold },
+  saveManagerBtnText: {
+    fontSize: typography.sm,
+    color: colors.textInverse,
+    fontWeight: typography.semibold,
+  },
   recordingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2086,7 +2251,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  editSheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', marginBottom: 12 },
+  editSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 12,
+  },
   editSheetHeader: {
     width: '100%',
     flexDirection: 'row',
@@ -2098,7 +2269,12 @@ const styles = StyleSheet.create({
   editSheetClose: { padding: 4 },
 
   // ── Image Viewer Modal ───────────────────────────────────────────────────
-  viewerRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  viewerRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   viewerCloseBtn: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 50 : 20,

@@ -55,7 +55,10 @@ function testFrontendDisplaysOnlyUnresolvedCriticalReviews() {
   ];
 
   const filtered = filterOpenCriticalReviews(reviews);
-  assert.deepEqual(filtered.map((review) => review.id), ['open-critical']);
+  assert.deepEqual(
+    filtered.map((review) => review.id),
+    ['open-critical'],
+  );
 }
 
 function testResolvedIssuesDoNotAppearAfterCriticalFilterClick() {

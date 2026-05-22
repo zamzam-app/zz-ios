@@ -134,7 +134,11 @@ export default function ImagePickerButton({
     >
       {displayUri ? (
         <>
-          <Image source={{ uri: displayUri }} style={[StyleSheet.absoluteFill, { borderRadius: size / 8 }]} resizeMode="cover" />
+          <Image
+            source={{ uri: displayUri }}
+            style={[StyleSheet.absoluteFill, { borderRadius: size / 8 }]}
+            resizeMode="cover"
+          />
           {uploading && (
             <View style={styles.uploadOverlay}>
               <ActivityIndicator color="#fff" />

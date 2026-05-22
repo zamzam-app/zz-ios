@@ -165,15 +165,12 @@ function mapForm(raw: RawForm): Form {
 
 export const formsApi = {
   list: () =>
-    client
-      .get<{ data: RawForm[] } | RawForm[]>('/forms', { params: { limit: 100 } })
-      .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawForm[] }).data ?? [];
-        return mapListSafely(raw, 'forms', mapForm);
-      }),
+    client.get<{ data: RawForm[] } | RawForm[]>('/forms', { params: { limit: 100 } }).then((r) => {
+      const raw = Array.isArray(r.data) ? r.data : ((r.data as { data: RawForm[] }).data ?? []);
+      return mapListSafely(raw, 'forms', mapForm);
+    }),
 
-  getById: (id: string) =>
-    client.get<RawForm>(`/forms/${id}`).then((r) => mapForm(r.data)),
+  getById: (id: string) => client.get<RawForm>(`/forms/${id}`).then((r) => mapForm(r.data)),
 
   create: () =>
     client

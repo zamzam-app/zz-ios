@@ -27,7 +27,9 @@ export const outletTypesApi = {
     client
       .get<{ data: RawOutletType[] } | RawOutletType[]>('/outlet-type', { params: { limit: 100 } })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawOutletType[] }).data ?? [];
+        const raw = Array.isArray(r.data)
+          ? r.data
+          : ((r.data as { data: RawOutletType[] }).data ?? []);
         return mapListSafely(raw, 'outlet-types', mapOutletType);
       }),
 

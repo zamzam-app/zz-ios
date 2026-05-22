@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,9 +56,10 @@ function renderUploadedCakeBody(item: UploadedCakeImage) {
 
 export default function StudioDocumentDetailScreen({ route, navigation }: Props) {
   const { type, item } = route.params;
-  const imageUrl = type === 'custom-cake'
-    ? (item as CustomCake).imageUrl
-    : (item as UploadedCakeImage).referenceImageUrl;
+  const imageUrl =
+    type === 'custom-cake'
+      ? (item as CustomCake).imageUrl
+      : (item as UploadedCakeImage).referenceImageUrl;
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>

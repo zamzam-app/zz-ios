@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { tasksApi, TasksQuery, CreateTaskPayload, TaskStatus, UpdateTaskPayload } from '../api/endpoints/tasks';
+import {
+  tasksApi,
+  TasksQuery,
+  CreateTaskPayload,
+  TaskStatus,
+  UpdateTaskPayload,
+} from '../api/endpoints/tasks';
 
 export const useTasks = (query?: TasksQuery) =>
   useQuery({
@@ -48,8 +54,13 @@ export const useCreateTaskCategory = () => {
 export const useUpdateTaskCategory = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { name?: string; description?: string } }) =>
-      tasksApi.updateCategory(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: { name?: string; description?: string };
+    }) => tasksApi.updateCategory(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-categories'] });
     },

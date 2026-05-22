@@ -31,12 +31,8 @@ function TimelineEventStatus({ event }: TimelineEventStatusProps) {
     const prevStatus = data.previousStatus as string | undefined;
     return (
       <View style={styles.container}>
-        <Text style={styles.statusText}>
-          Reopened{prevStatus ? ` from ${prevStatus}` : ''}
-        </Text>
-        {reason ? (
-          <Text style={styles.reasonText}>{reason}</Text>
-        ) : null}
+        <Text style={styles.statusText}>Reopened{prevStatus ? ` from ${prevStatus}` : ''}</Text>
+        {reason ? <Text style={styles.reasonText}>{reason}</Text> : null}
       </View>
     );
   }

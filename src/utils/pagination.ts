@@ -82,9 +82,7 @@ export function cursorPageParam<T>(): (
   _allPages: PaginatedResponse<T>[],
 ) => string | undefined {
   return (lastPage: PaginatedResponse<T>) =>
-    lastPage.hasMore && lastPage.nextCursor != null
-      ? lastPage.nextCursor
-      : undefined;
+    lastPage.hasMore && lastPage.nextCursor != null ? lastPage.nextCursor : undefined;
 }
 
 /**
@@ -112,8 +110,7 @@ export function cursorQueryFn<TData, TParams>(
   apiFn: CursorQueryFn<TData, TParams>,
   params: TParams,
 ): (context: { pageParam: string | undefined }) => Promise<PaginatedResponse<TData>> {
-  return ({ pageParam }: { pageParam: string | undefined }) =>
-    apiFn(pageParam, params);
+  return ({ pageParam }: { pageParam: string | undefined }) => apiFn(pageParam, params);
 }
 
 // ─── Data Flattening ────────────────────────────────────────────────────────
@@ -128,9 +125,7 @@ export function cursorQueryFn<TData, TParams>(
  * // events is T[] — all events from all loaded pages
  * ```
  */
-export function flattenInfiniteData<T>(
-  data: InfiniteData<PaginatedResponse<T>> | undefined,
-): T[] {
+export function flattenInfiniteData<T>(data: InfiniteData<PaginatedResponse<T>> | undefined): T[] {
   if (!data?.pages) return [];
   return data.pages.flatMap((page) => page.data);
 }

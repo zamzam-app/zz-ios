@@ -37,8 +37,7 @@ export const useTaskAttachments = (
       ? ['taskAttachments', taskId, { type: typeParam }]
       : ['taskAttachments', taskId],
     queryFn: cursorQueryFn(
-      (cursor: string | undefined) =>
-        tasksApi.getAttachments(taskId, { cursor, type: typeParam }),
+      (cursor: string | undefined) => tasksApi.getAttachments(taskId, { cursor, type: typeParam }),
       undefined as void,
     ),
     initialPageParam: undefined as string | undefined,
@@ -72,13 +71,8 @@ export const useAddAttachments = () => {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      taskId,
-      payload,
-    }: {
-      taskId: string;
-      payload: AddAttachmentPayload;
-    }) => tasksApi.addAttachments(taskId, payload),
+    mutationFn: ({ taskId, payload }: { taskId: string; payload: AddAttachmentPayload }) =>
+      tasksApi.addAttachments(taskId, payload),
 
     onMutate: async ({ taskId, payload }) => {
       await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });

@@ -98,7 +98,11 @@ function fallbackBadges(task: TaskBadgeTask): TaskBadge[] {
   }
 
   if (categoryName) {
-    badges.push({ key: `category:${categoryName.toLowerCase()}`, label: categoryName, tone: 'success' });
+    badges.push({
+      key: `category:${categoryName.toLowerCase()}`,
+      label: categoryName,
+      tone: 'success',
+    });
   }
 
   if (task.priority === 'HIGH') {
@@ -113,12 +117,16 @@ function fallbackBadges(task: TaskBadgeTask): TaskBadge[] {
 }
 
 export function getTaskBadges(task: TaskBadgeTask): TaskBadge[] {
-  const source = Array.isArray(task.badges) && task.badges.length > 0 ? task.badges : fallbackBadges(task);
-  const seen = new Set<string>()
+  const source =
+    Array.isArray(task.badges) && task.badges.length > 0 ? task.badges : fallbackBadges(task);
+  const seen = new Set<string>();
 
   return source.filter((badge): badge is TaskBadge => {
     if (!badge || typeof badge.label !== 'string' || !badge.label.trim()) return false;
-    const key = typeof badge.key === 'string' && badge.key.trim() ? badge.key : badge.label.trim().toLowerCase();
+    const key =
+      typeof badge.key === 'string' && badge.key.trim()
+        ? badge.key
+        : badge.label.trim().toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

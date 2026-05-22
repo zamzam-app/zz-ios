@@ -28,11 +28,7 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
             <View
               key={att._id}
               style={[styles.attachmentCard, !isAdded && styles.removedCard]}
-              onTouchEnd={
-                isAdded && onAttachmentPress
-                  ? () => onAttachmentPress(att)
-                  : undefined
-              }
+              onTouchEnd={isAdded && onAttachmentPress ? () => onAttachmentPress(att) : undefined}
             >
               <View style={styles.attachmentIconBg}>
                 <Ionicons
@@ -45,21 +41,18 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
                 <Text style={styles.attachmentType} numberOfLines={1}>
                   {att.type.toLowerCase()}
                 </Text>
-                {size != null && (
-                  <Text style={styles.attachmentSize}>
-                    {formatFileSize(size)}
-                  </Text>
-                )}
+                {size != null && <Text style={styles.attachmentSize}>{formatFileSize(size)}</Text>}
               </View>
             </View>
           ))}
         </View>
       ) : (
         <View style={styles.inlineRow}>
-          <Ionicons              name={(isAdded ? 'attach' : 'trash') as any}
-              size={14}
-              color={isAdded ? colors.info : colors.error}
-            />
+          <Ionicons
+            name={(isAdded ? 'attach' : 'trash') as any}
+            size={14}
+            color={isAdded ? colors.info : colors.error}
+          />
           <Text style={styles.inlineText}>
             {isAdded ? 'Added' : 'Removed'} {type?.toLowerCase() ?? 'file'}
             {mimeType ? ` (${mimeType})` : ''}
@@ -68,9 +61,7 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
       )}
 
       {/* Removal reason */}
-      {!isAdded && reason ? (
-        <Text style={styles.reasonText}>{reason}</Text>
-      ) : null}
+      {!isAdded && reason ? <Text style={styles.reasonText}>{reason}</Text> : null}
     </View>
   );
 }

@@ -17,9 +17,7 @@ function TimelineEventComment({ event, onAttachmentPress }: TimelineEventComment
 
   return (
     <View style={styles.container}>
-      {text ? (
-        <Text style={styles.commentText}>{text}</Text>
-      ) : null}
+      {text ? <Text style={styles.commentText}>{text}</Text> : null}
 
       {/* Inline attachment previews */}
       {attachments.length > 0 ? (
@@ -30,11 +28,7 @@ function TimelineEventComment({ event, onAttachmentPress }: TimelineEventComment
               style={styles.attachmentChip}
               onTouchEnd={onAttachmentPress ? () => onAttachmentPress(att) : undefined}
             >
-              <Ionicons
-                name={attachmentIcon(att.type) as any}
-                size={14}
-                color={colors.info}
-              />
+              <Ionicons name={attachmentIcon(att.type) as any} size={14} color={colors.info} />
               <Text style={styles.attachmentLabel} numberOfLines={1}>
                 {att.type.toLowerCase()}
               </Text>

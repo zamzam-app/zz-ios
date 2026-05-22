@@ -167,7 +167,9 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
   return (
     <View style={styles.heatmapRow}>
       <View style={styles.heatmapOutletMeta}>
-        <Text style={styles.heatmapOutletName} numberOfLines={1}>{row.outletName}</Text>
+        <Text style={styles.heatmapOutletName} numberOfLines={1}>
+          {row.outletName}
+        </Text>
       </View>
       <View style={styles.heatmapMetrics}>
         {METRIC_ORDER.map((metric) => {
@@ -178,7 +180,9 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
               key={`${row.outletId}-${metric}`}
               style={[styles.metricCell, { backgroundColor: tone.bg, borderColor: tone.border }]}
             >
-              <Text style={[styles.metricCellLabel, { color: tone.text }]}>{METRIC_LABELS[metric]}</Text>
+              <Text style={[styles.metricCellLabel, { color: tone.text }]}>
+                {METRIC_LABELS[metric]}
+              </Text>
               <Text style={[styles.metricCellValue, { color: tone.text }]}>{percent}%</Text>
             </View>
           );
@@ -288,19 +292,24 @@ export default function ReviewsScreen({ route }: Props) {
 
   const filteredReviews = useMemo(() => {
     if (!reviews) return [];
-    const outletFiltered = selectedOutletId === 'all'
-      ? reviews
-      : reviews.filter((review) => {
-      const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
-      return outletKey === selectedOutletId;
-    });
+    const outletFiltered =
+      selectedOutletId === 'all'
+        ? reviews
+        : reviews.filter((review) => {
+            const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+            return outletKey === selectedOutletId;
+          });
 
     if (statusFilter === 'open') {
-      return outletFiltered.filter((review) => review.isComplaint && isOpenComplaintStatus(review.complaintStatus));
+      return outletFiltered.filter(
+        (review) => review.isComplaint && isOpenComplaintStatus(review.complaintStatus),
+      );
     }
 
     if (statusFilter === 'resolved') {
-      return outletFiltered.filter((review) => review.isComplaint && review.complaintStatus === 'resolved');
+      return outletFiltered.filter(
+        (review) => review.isComplaint && review.complaintStatus === 'resolved',
+      );
     }
 
     return outletFiltered;
@@ -316,12 +325,13 @@ export default function ReviewsScreen({ route }: Props) {
   );
 
   const criticalFeed = useMemo(() => {
-    const outletScopedCriticalReviews = selectedOutletId === 'all'
-      ? criticalReviews ?? []
-      : (criticalReviews ?? []).filter((review) => {
-        const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
-        return outletKey === selectedOutletId;
-      });
+    const outletScopedCriticalReviews =
+      selectedOutletId === 'all'
+        ? (criticalReviews ?? [])
+        : (criticalReviews ?? []).filter((review) => {
+            const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+            return outletKey === selectedOutletId;
+          });
 
     const sorted = [...outletScopedCriticalReviews].sort((a, b) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -331,42 +341,50 @@ export default function ReviewsScreen({ route }: Props) {
   }, [criticalReviews, selectedOutletId]);
 
   const allReviews = useMemo(
-    () => [...filteredReviews].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    () =>
+      [...filteredReviews].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
     [filteredReviews],
   );
 
   const displayedAllReviews = useMemo(() => {
-    return allReviews.filter(review => {
+    return allReviews.filter((review) => {
       // Search filter
       if (debouncedSearchQuery) {
         const comment = review.userResponses
-          ?.map(r => (typeof r.answer === 'string' ? r.answer : ''))
+          ?.map((r) => (typeof r.answer === 'string' ? r.answer : ''))
           .join(' ')
           .toLowerCase();
         const customer = review.customerName?.toLowerCase() || '';
         const outlet = review.outletName?.toLowerCase() || '';
-        
-        const matches = comment.includes(debouncedSearchQuery) || 
-                       customer.includes(debouncedSearchQuery) || 
-                       outlet.includes(debouncedSearchQuery);
-        
+
+        const matches =
+          comment.includes(debouncedSearchQuery) ||
+          customer.includes(debouncedSearchQuery) ||
+          outlet.includes(debouncedSearchQuery);
+
         if (!matches) return false;
       }
 
       // Status filter
       if (allReviewsFilter === 'all') return true;
-      if (allReviewsFilter === 'open') return review.isComplaint && isOpenComplaintStatus(review.complaintStatus);
-      if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
+      if (allReviewsFilter === 'open')
+        return review.isComplaint && isOpenComplaintStatus(review.complaintStatus);
+      if (allReviewsFilter === 'resolved')
+        return review.isComplaint && review.complaintStatus === 'resolved';
       if (allReviewsFilter === 'critical') return isOpenCriticalReview(review);
-      if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
+      if (allReviewsFilter === 'concern')
+        return review.overallRating >= 2.0 && review.overallRating < 3.5;
       return true;
     });
   }, [allReviews, allReviewsFilter, debouncedSearchQuery]);
 
   const heatmapRows = useMemo(() => {
-    const scopedHeatmap = selectedOutletId === 'all'
-      ? heatmap
-      : heatmap.filter((item) => item.outletId === selectedOutletId);
+    const scopedHeatmap =
+      selectedOutletId === 'all'
+        ? heatmap
+        : heatmap.filter((item) => item.outletId === selectedOutletId);
 
     const heatmapByOutlet = new Map(scopedHeatmap.map((item) => [item.outletId, item]));
 
@@ -401,19 +419,18 @@ export default function ReviewsScreen({ route }: Props) {
   }, [heatmapRows, outletOptions, selectedOutletId]);
 
   const refreshing = isReviewsFetching || isCriticalReviewsFetching || isAnalyticsFetching;
-  const activeStatusFilterLabel = statusFilter === 'open'
-    ? 'Open'
-    : statusFilter === 'resolved'
-      ? 'Resolved'
-      : null;
-  const allReviewsEmptyMessage = getCriticalReviewsEmptyStateMessage(allReviewsFilter === 'critical');
+  const activeStatusFilterLabel =
+    statusFilter === 'open' ? 'Open' : statusFilter === 'resolved' ? 'Resolved' : null;
+  const allReviewsEmptyMessage = getCriticalReviewsEmptyStateMessage(
+    allReviewsFilter === 'critical',
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={(
+        refreshControl={
           <RefreshControl
             refreshing={refreshing && !isReviewsLoading}
             onRefresh={() => {
@@ -422,12 +439,14 @@ export default function ReviewsScreen({ route }: Props) {
               void refetchAnalytics();
             }}
           />
-        )}
+        }
       >
         <View style={styles.pageHeader}>
           <View>
             <Text style={styles.heading}>Reviews & Performance</Text>
-            <Text style={styles.subheading}>Real-time franchise health and sentiment analysis.</Text>
+            <Text style={styles.subheading}>
+              Real-time franchise health and sentiment analysis.
+            </Text>
           </View>
 
           <TouchableOpacity style={styles.exportButton} activeOpacity={0.8}>
@@ -462,7 +481,7 @@ export default function ReviewsScreen({ route }: Props) {
                 activeOpacity={0.8}
               >
                 <Text style={styles.outletSelectBtnText} numberOfLines={1}>
-                  {outletOptions.find(opt => opt.id === selectedOutletId)?.label || 'All Outlets'}
+                  {outletOptions.find((opt) => opt.id === selectedOutletId)?.label || 'All Outlets'}
                 </Text>
                 <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -493,7 +512,7 @@ export default function ReviewsScreen({ route }: Props) {
             ) : heatmapRowsWithFallback.length === 0 ? (
               <Text style={styles.emptyText}>No heatmap metrics available.</Text>
             ) : selectedOutletId === 'all' ? (
-              <ScrollView 
+              <ScrollView
                 style={{ maxHeight: 304 }}
                 nestedScrollEnabled={true}
                 showsVerticalScrollIndicator={true}
@@ -553,7 +572,10 @@ export default function ReviewsScreen({ route }: Props) {
                   return (
                     <TouchableOpacity
                       key={review.id}
-                      style={[styles.feedbackItem, index < criticalFeed.length - 1 && styles.feedbackItemBorder]}
+                      style={[
+                        styles.feedbackItem,
+                        index < criticalFeed.length - 1 && styles.feedbackItemBorder,
+                      ]}
                       activeOpacity={0.85}
                       onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
                     >
@@ -561,14 +583,18 @@ export default function ReviewsScreen({ route }: Props) {
                         <View style={styles.feedbackCriticalMeta}>
                           <View style={styles.feedbackStatusRow}>
                             <View style={[styles.severityBadge, { backgroundColor: severity.bg }]}>
-                              <Text style={[styles.severityBadgeText, { color: severity.text }]}>{severity.label}</Text>
+                              <Text style={[styles.severityBadgeText, { color: severity.text }]}>
+                                {severity.label}
+                              </Text>
                             </View>
                           </View>
                           <View style={styles.feedbackIdentityRow}>
                             <Text style={styles.feedbackName}>
                               {isAdmin ? review.customerName : 'Customer'}
                             </Text>
-                            <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
+                            <Text style={styles.feedbackAge}>
+                              • {formatRelativeTime(review.createdAt)}
+                            </Text>
                           </View>
                         </View>
                         <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
@@ -580,7 +606,9 @@ export default function ReviewsScreen({ route }: Props) {
                         <StarRating rating={review.overallRating} size={12} />
                         <View style={styles.feedbackTagRow}>
                           {tags.map((tag) => (
-                            <Text key={`${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
+                            <Text key={`${review.id}-${tag}`} style={styles.feedbackTag}>
+                              {tag}
+                            </Text>
                           ))}
                         </View>
                       </View>
@@ -601,7 +629,12 @@ export default function ReviewsScreen({ route }: Props) {
 
         <View style={styles.controlsRow}>
           <View style={styles.searchWrap}>
-            <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+            <Ionicons
+              name="search"
+              size={16}
+              color={colors.textSecondary}
+              style={styles.searchIcon}
+            />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -648,7 +681,10 @@ export default function ReviewsScreen({ route }: Props) {
               <Text style={styles.metricFilterChipText}>
                 {`Status: ${allReviewsFilter.charAt(0).toUpperCase() + allReviewsFilter.slice(1)}`}
               </Text>
-              <TouchableOpacity onPress={() => setAllReviewsFilter('all')} style={styles.metricFilterChipClear}>
+              <TouchableOpacity
+                onPress={() => setAllReviewsFilter('all')}
+                style={styles.metricFilterChipClear}
+              >
                 <Text style={styles.metricFilterChipClearText}>x</Text>
               </TouchableOpacity>
             </View>
@@ -679,7 +715,9 @@ export default function ReviewsScreen({ route }: Props) {
                       <Text style={styles.feedbackName}>
                         {isAdmin ? review.customerName : 'Customer'}
                       </Text>
-                      <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
+                      <Text style={styles.feedbackAge}>
+                        • {formatRelativeTime(review.createdAt)}
+                      </Text>
                     </View>
                     <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
                   </View>
@@ -690,7 +728,9 @@ export default function ReviewsScreen({ route }: Props) {
                     <StarRating rating={review.overallRating} size={12} />
                     <View style={styles.feedbackTagRow}>
                       {tags.map((tag) => (
-                        <Text key={`all-${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
+                        <Text key={`all-${review.id}-${tag}`} style={styles.feedbackTag}>
+                          {tag}
+                        </Text>
                       ))}
                     </View>
                   </View>
@@ -742,10 +782,14 @@ export default function ReviewsScreen({ route }: Props) {
                           setShowFilterModal(false);
                         }}
                       >
-                        <Text style={[styles.filterOptionText, active && styles.filterOptionTextActive]}>
+                        <Text
+                          style={[styles.filterOptionText, active && styles.filterOptionTextActive]}
+                        >
                           {opt.charAt(0).toUpperCase() + opt.slice(1)}
                         </Text>
-                        {active && <Ionicons name="checkmark-circle" size={16} color={colors.primary} />}
+                        {active && (
+                          <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -795,14 +839,21 @@ export default function ReviewsScreen({ route }: Props) {
             </View>
 
             <View style={[styles.filterBody, { maxHeight: 400, paddingBottom: 0 }]}>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: spacing.xl }}
+              >
                 <View style={styles.filterOptionsGrid}>
                   {outletOptions.map((opt) => {
                     const active = opt.id === selectedOutletId;
                     return (
                       <TouchableOpacity
                         key={opt.id}
-                        style={[styles.filterOption, active && styles.filterOptionActive, { minWidth: '100%' }]}
+                        style={[
+                          styles.filterOption,
+                          active && styles.filterOptionActive,
+                          { minWidth: '100%' },
+                        ]}
                         onPress={() => {
                           setSelectedOutletId(opt.id);
                           if (opt.id === 'all') {
@@ -812,10 +863,14 @@ export default function ReviewsScreen({ route }: Props) {
                           setShowOutletModal(false);
                         }}
                       >
-                        <Text style={[styles.filterOptionText, active && styles.filterOptionTextActive]}>
+                        <Text
+                          style={[styles.filterOptionText, active && styles.filterOptionTextActive]}
+                        >
                           {opt.label}
                         </Text>
-                        {active && <Ionicons name="checkmark-circle" size={16} color={colors.primary} />}
+                        {active && (
+                          <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -825,7 +880,6 @@ export default function ReviewsScreen({ route }: Props) {
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }

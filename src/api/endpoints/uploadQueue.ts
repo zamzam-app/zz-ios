@@ -6,12 +6,7 @@ const DEFAULT_MAX_ATTEMPTS = 4;
 const BASE_RETRY_DELAY_MS = 2_000;
 const MAX_RETRY_DELAY_MS = 30_000;
 
-export type UploadQueueStatus =
-  | 'queued'
-  | 'uploading'
-  | 'uploaded'
-  | 'failed'
-  | 'canceled';
+export type UploadQueueStatus = 'queued' | 'uploading' | 'uploaded' | 'failed' | 'canceled';
 
 export interface UploadQueueJob {
   id: string;
@@ -145,9 +140,12 @@ function scheduleNextRetry() {
 
   if (!nextRetryMs) return;
 
-  retryTimer = setTimeout(() => {
-    void processQueue();
-  }, Math.max(250, nextRetryMs - nowMs));
+  retryTimer = setTimeout(
+    () => {
+      void processQueue();
+    },
+    Math.max(250, nextRetryMs - nowMs),
+  );
 }
 
 async function processQueue() {
@@ -212,7 +210,10 @@ async function processQueue() {
   }
 }
 
-export async function enqueueCloudinaryUpload(localUri: string, folder = 'zam-zam'): Promise<UploadQueueJob> {
+export async function enqueueCloudinaryUpload(
+  localUri: string,
+  folder = 'zam-zam',
+): Promise<UploadQueueJob> {
   await ensureLoaded();
 
   const job: UploadQueueJob = {

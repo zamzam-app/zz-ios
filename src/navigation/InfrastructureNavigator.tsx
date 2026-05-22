@@ -24,10 +24,26 @@ export default function InfrastructureNavigator() {
         headerBackTitle: 'Back',
       }}
     >
-      <Stack.Screen name="OutletsList" component={InfrastructureScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="OutletDetail" component={OutletDetailScreen} options={{ title: 'Outlet Detail' }} />
-      <Stack.Screen name="CreateOutlet" component={CreateOutletScreen} options={{ title: 'New Outlet', presentation: 'modal' }} />
-      <Stack.Screen name="OutletTypes" component={OutletTypesScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="OutletsList"
+        component={InfrastructureScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="OutletDetail"
+        component={OutletDetailScreen}
+        options={{ title: 'Outlet Detail' }}
+      />
+      <Stack.Screen
+        name="CreateOutlet"
+        component={CreateOutletScreen}
+        options={{ title: 'New Outlet', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="OutletTypes"
+        component={OutletTypesScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }

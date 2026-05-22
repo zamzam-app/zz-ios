@@ -43,7 +43,11 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.inner}>
-        <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+        <Image
+          source={require('../../../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
         <Text style={styles.heading}>{isAdminLogin ? 'Admin Portal' : 'Manager Portal'}</Text>
         <Text style={styles.subheading}>Sign in to your account</Text>

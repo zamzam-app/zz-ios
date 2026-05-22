@@ -36,13 +36,8 @@ function TimelineEventDelegation({ event }: TimelineEventDelegationProps) {
         <View style={styles.banner}>
           <Ionicons name="people" size={14} color={colors.warning} />
           <Text style={styles.bannerText}>
-            Delegated to{' '}
-            <Text style={styles.highlight}>
-              {summaryDelegatedTo ?? delegatedTo}
-            </Text>
-            {summaryDelegatedBy ? (
-              <Text> by {summaryDelegatedBy}</Text>
-            ) : null}
+            Delegated to <Text style={styles.highlight}>{summaryDelegatedTo ?? delegatedTo}</Text>
+            {summaryDelegatedBy ? <Text> by {summaryDelegatedBy}</Text> : null}
           </Text>
         </View>
         {note ? <Text style={styles.note}>{note}</Text> : null}

@@ -107,7 +107,9 @@ export const categoriesApi = {
     client
       .get<{ data: RawCategory[] } | RawCategory[]>('/category', { params: { limit: 100 } })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawCategory[] }).data ?? [];
+        const raw = Array.isArray(r.data)
+          ? r.data
+          : ((r.data as { data: RawCategory[] }).data ?? []);
         return mapListSafely(raw, 'categories', mapCategory);
       }),
 
@@ -127,7 +129,9 @@ export const productsApi = {
         params: { limit: 100, ...(categoryId && { categoryId }) },
       })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawProduct[] }).data ?? [];
+        const raw = Array.isArray(r.data)
+          ? r.data
+          : ((r.data as { data: RawProduct[] }).data ?? []);
         return mapListSafely(raw, 'products', mapProduct);
       }),
 
@@ -159,7 +163,7 @@ export const productsApi = {
       isActive?: boolean;
       categoryList?: string[];
       images?: string[];
-    }
+    },
   ) => {
     const { pricing, ...rest } = payload;
     const body = {

@@ -86,7 +86,12 @@ export default function MoreScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.md, paddingTop: spacing.md },
-  heading: { fontSize: typography.xl, fontWeight: typography.bold, color: colors.text, letterSpacing: -0.5 },
+  heading: {
+    fontSize: typography.xl,
+    fontWeight: typography.bold,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
 
   userCard: {
     flexDirection: 'row',

@@ -85,9 +85,7 @@ type RawReviewEnvelope = { data?: RawReview };
 
 function isRawReviewEnvelope(value: unknown): value is RawReviewEnvelope {
   return Boolean(
-    value
-    && typeof value === 'object'
-    && 'data' in (value as Record<string, unknown>),
+    value && typeof value === 'object' && 'data' in (value as Record<string, unknown>),
   );
 }
 
@@ -100,13 +98,14 @@ function unwrapRawReview(value: RawReview | RawReviewEnvelope): RawReview {
 
 function mapReview(raw: RawReview): Review {
   const id = String(raw._id ?? raw.id ?? '');
-  const formId = typeof raw.formId === 'string'
-    ? raw.formId
-    : raw.formId?._id
-      ? String(raw.formId._id)
-      : raw.formId?.id
-        ? String(raw.formId.id)
-        : undefined;
+  const formId =
+    typeof raw.formId === 'string'
+      ? raw.formId
+      : raw.formId?._id
+        ? String(raw.formId._id)
+        : raw.formId?.id
+          ? String(raw.formId.id)
+          : undefined;
 
   let customerName = 'Customer';
   let customerPhone: string | undefined;
@@ -124,16 +123,16 @@ function mapReview(raw: RawReview): Review {
     outletId = raw.outletId;
   }
 
-  const resolvedBy = typeof raw.resolvedBy === 'string'
-    ? raw.resolvedBy
-    : raw.resolvedBy?._id
-      ? String(raw.resolvedBy._id)
-      : raw.resolvedBy?.id
-        ? String(raw.resolvedBy.id)
-        : undefined;
-  const resolvedByName = typeof raw.resolvedBy === 'object' && raw.resolvedBy?.name
-    ? raw.resolvedBy.name
-    : undefined;
+  const resolvedBy =
+    typeof raw.resolvedBy === 'string'
+      ? raw.resolvedBy
+      : raw.resolvedBy?._id
+        ? String(raw.resolvedBy._id)
+        : raw.resolvedBy?.id
+          ? String(raw.resolvedBy.id)
+          : undefined;
+  const resolvedByName =
+    typeof raw.resolvedBy === 'object' && raw.resolvedBy?.name ? raw.resolvedBy.name : undefined;
 
   return {
     id,
@@ -158,20 +157,16 @@ function mapReview(raw: RawReview): Review {
 
 export const reviewsApi = {
   getBadgeStatus: (userId: string) =>
-    client
-      .get<ReviewBadgeStatus>(`/review/badge-status/${userId}`)
-      .then((r) => r.data),
+    client.get<ReviewBadgeStatus>(`/review/badge-status/${userId}`).then((r) => r.data),
 
   markAsRead: (reviewId: string, userId: string) =>
-    client
-      .post<ReviewBadgeStatus>(`/review/${reviewId}/mark-read`, { userId })
-      .then((r) => r.data),
+    client.post<ReviewBadgeStatus>(`/review/${reviewId}/mark-read`, { userId }).then((r) => r.data),
 
   list: (query?: ReviewsQuery) =>
     client
       .get<{ data: RawReview[]; meta?: unknown } | RawReview[]>('/review', { params: query })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawReview[] }).data ?? [];
+        const raw = Array.isArray(r.data) ? r.data : ((r.data as { data: RawReview[] }).data ?? []);
         return mapListSafely(raw, 'reviews', mapReview);
       }),
 
@@ -179,7 +174,9 @@ export const reviewsApi = {
     reviewsApi.list(buildCriticalReviewsQuery(query)).then((reviews) => {
       const filtered = filterOpenCriticalReviews(reviews);
       if (filtered.length !== reviews.length) {
-        console.warn('[reviewsApi.listCriticalOpen] Backend returned resolved or non-critical reviews; filtering client-side safeguard applied.');
+        console.warn(
+          '[reviewsApi.listCriticalOpen] Backend returned resolved or non-critical reviews; filtering client-side safeguard applied.',
+        );
       }
       return filtered;
     }),

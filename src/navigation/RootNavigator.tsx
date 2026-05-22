@@ -20,12 +20,12 @@ export default function RootNavigator() {
     if (data.type === 'task' && data.taskId) {
       navigationRef.navigate('Tasks', {
         screen: 'TaskDetail',
-        params: { taskId: data.taskId }
+        params: { taskId: data.taskId },
       });
     } else if (data.type === 'complaint' && data.reviewId) {
       navigationRef.navigate('Reviews', {
         screen: 'ReviewDetail',
-        params: { reviewId: data.reviewId }
+        params: { reviewId: data.reviewId },
       });
     }
   };
@@ -55,13 +55,15 @@ export default function RootNavigator() {
   useEffect(() => {
     restoreSession();
 
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log('Notification received:', notification);
     });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(
+      handleNotificationResponse,
+    );
 
-    Notifications.getLastNotificationResponseAsync().then(lastResponse => {
+    Notifications.getLastNotificationResponseAsync().then((lastResponse) => {
       if (lastResponse) {
         handleNotificationResponse(lastResponse);
       }
@@ -83,17 +85,21 @@ export default function RootNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: colors.background,
+        }}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer
-      ref={navigationRef}
-      onReady={flushPendingNotificationNavigation}
-    >
+    <NavigationContainer ref={navigationRef} onReady={flushPendingNotificationNavigation}>
       {user ? <AppNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );

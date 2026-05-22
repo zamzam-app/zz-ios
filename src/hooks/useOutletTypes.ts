@@ -19,8 +19,13 @@ export const useCreateOutletType = () => {
 export const useUpdateOutletType = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { name?: string; description?: string } }) =>
-      outletTypesApi.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: { name?: string; description?: string };
+    }) => outletTypesApi.update(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['outlet-types'] }),
   });
 };

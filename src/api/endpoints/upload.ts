@@ -15,7 +15,10 @@ interface SignatureResponse {
   kind?: string;
 }
 
-async function getUploadSignature(folder = 'zam-zam', kind?: 'image' | 'video' | 'audio' | 'file'): Promise<SignatureResponse> {
+async function getUploadSignature(
+  folder = 'zam-zam',
+  kind?: 'image' | 'video' | 'audio' | 'file',
+): Promise<SignatureResponse> {
   const r = await client.get<SignatureResponse>('/upload/signature', { params: { folder, kind } });
   return r.data;
 }
@@ -59,10 +62,10 @@ function inferUploadKind(filename: string): 'image' | 'video' | 'audio' | 'file'
 
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(ext)) return 'image';
   if (['mp4', 'mov', 'webm', 'm4v'].includes(ext)) return 'video';
-  if (['mp3', 'm4a', 'wav', 'aac', '3gp', 'amr', 'caf', 'ogg', 'oga', 'opus'].includes(ext)) return 'audio';
+  if (['mp3', 'm4a', 'wav', 'aac', '3gp', 'amr', 'caf', 'ogg', 'oga', 'opus'].includes(ext))
+    return 'audio';
   return 'file';
 }
-
 
 export async function uploadToCloudinary(localUri: string, folder = 'zam-zam'): Promise<string> {
   const filename = localUri.split('/').pop() ?? 'upload.bin';
@@ -77,7 +80,6 @@ export async function uploadToCloudinary(localUri: string, folder = 'zam-zam'): 
   formData.append('timestamp', String(sig.timestamp));
   formData.append('signature', sig.signature);
   formData.append('folder', sig.folder);
-
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), CLOUDINARY_UPLOAD_TIMEOUT_MS);
@@ -173,15 +175,21 @@ export const cakeApi = {
     client
       .get<{ data: RawCustomCake[] } | RawCustomCake[]>('/custom-cakes', { params: { limit: 50 } })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (((r.data as any).data ?? []) as RawCustomCake[]);
+        const raw = Array.isArray(r.data)
+          ? r.data
+          : (((r.data as any).data ?? []) as RawCustomCake[]);
         return mapListSafely(raw, 'custom-cakes', mapCustomCake);
       }),
 
   listUploadedCakes: () =>
     client
-      .get<{ data: RawUploadedCakeImage[] } | RawUploadedCakeImage[]>('/uploaded-cakes', { params: { limit: 100 } })
+      .get<
+        { data: RawUploadedCakeImage[] } | RawUploadedCakeImage[]
+      >('/uploaded-cakes', { params: { limit: 100 } })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (((r.data as any).data ?? []) as RawUploadedCakeImage[]);
+        const raw = Array.isArray(r.data)
+          ? r.data
+          : (((r.data as any).data ?? []) as RawUploadedCakeImage[]);
         return mapListSafely(raw, 'uploaded-cakes', mapUploadedCakeImage);
       }),
 };

@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
-  Platform,
-} from 'react-native';
+import { View, Text, Modal, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
@@ -66,9 +59,7 @@ export default function DatePickerModal({
 
   // Formatting for the header
   const isTimeMode = mode === 'time';
-  const headerSub = isTimeMode 
-    ? 'Time' 
-    : tempDate.getFullYear().toString();
+  const headerSub = isTimeMode ? 'Time' : tempDate.getFullYear().toString();
   const headerMain = isTimeMode
     ? tempDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     : tempDate.toLocaleDateString('en-US', {
@@ -78,18 +69,9 @@ export default function DatePickerModal({
       });
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.scrim}
-          onPress={onClose}
-        />
+        <TouchableOpacity activeOpacity={1} style={styles.scrim} onPress={onClose} />
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>

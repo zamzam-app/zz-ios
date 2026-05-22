@@ -26,7 +26,12 @@ export interface TimelineEventCardProps {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-function TimelineEventCard({ event, isLast, onAttachmentPress, onActorPress }: TimelineEventCardProps) {
+function TimelineEventCard({
+  event,
+  isLast,
+  onAttachmentPress,
+  onActorPress,
+}: TimelineEventCardProps) {
   const icon = eventTypeIcon(event.type);
   const { nodeBg, nodeFg, actionLabel } = eventColors(event.type);
 
@@ -36,24 +41,14 @@ function TimelineEventCard({ event, isLast, onAttachmentPress, onActorPress }: T
       case TaskEventType.CREATED:
         return <TimelineEventCreated event={event} />;
       case TaskEventType.COMMENTED:
-        return (
-          <TimelineEventComment
-            event={event}
-            onAttachmentPress={onAttachmentPress}
-          />
-        );
+        return <TimelineEventComment event={event} onAttachmentPress={onAttachmentPress} />;
       case TaskEventType.STATUS_CHANGED:
       case TaskEventType.COMPLETED:
       case TaskEventType.REOPENED:
         return <TimelineEventStatus event={event} />;
       case TaskEventType.ATTACHMENT_ADDED:
       case TaskEventType.ATTACHMENT_REMOVED:
-        return (
-          <TimelineEventAttachment
-            event={event}
-            onAttachmentPress={onAttachmentPress}
-          />
-        );
+        return <TimelineEventAttachment event={event} onAttachmentPress={onAttachmentPress} />;
       case TaskEventType.REASSIGNED:
         return <TimelineEventDelegation event={event} />;
       default:

@@ -23,12 +23,20 @@ export function getTaskOutletName(task: TaskLike, legacyTask?: Task): string | u
   return undefined;
 }
 
-export function getTaskAssigneeNames(task: TaskLike, legacyTask?: Task, events?: SerializedTimelineEvent[]): string[] {
+export function getTaskAssigneeNames(
+  task: TaskLike,
+  legacyTask?: Task,
+  events?: SerializedTimelineEvent[],
+): string[] {
   const namesSet = new Set<string>();
 
   // 1. If it has a populated activeOwner object (TaskSummary), add its name
   const activeOwnerObj = (task as any).activeOwner;
-  if (activeOwnerObj && typeof activeOwnerObj === 'object' && typeof activeOwnerObj.name === 'string') {
+  if (
+    activeOwnerObj &&
+    typeof activeOwnerObj === 'object' &&
+    typeof activeOwnerObj.name === 'string'
+  ) {
     namesSet.add(activeOwnerObj.name);
   }
 

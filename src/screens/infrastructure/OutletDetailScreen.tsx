@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-} from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useOutlet } from '../../hooks/useOutlets';
@@ -24,35 +17,42 @@ export default function OutletDetailScreen({ route }: Props) {
   const { data: managers, isLoading: isManagersLoading } = useManagers();
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
   }
 
   if (!outlet) {
-    return <View style={styles.center}><Text style={{ color: colors.textSecondary }}>Outlet not found</Text></View>;
+    return (
+      <View style={styles.center}>
+        <Text style={{ color: colors.textSecondary }}>Outlet not found</Text>
+      </View>
+    );
   }
 
-  const resolvedOutletTypeName = outlet.outletTypeName
-    ?? outletTypes?.find((type) => type.id === outlet.outletTypeId)?.name
-    ?? '—';
+  const resolvedOutletTypeName =
+    outlet.outletTypeName ??
+    outletTypes?.find((type) => type.id === outlet.outletTypeId)?.name ??
+    '—';
 
-  const resolvedManagerNames = outlet.managerNames && outlet.managerNames.length > 0
-    ? outlet.managerNames
-    : (managers ?? [])
-      .filter((manager) => (outlet.managerIds ?? []).includes(manager.id))
-      .map((manager) => manager.name);
+  const resolvedManagerNames =
+    outlet.managerNames && outlet.managerNames.length > 0
+      ? outlet.managerNames
+      : (managers ?? [])
+          .filter((manager) => (outlet.managerIds ?? []).includes(manager.id))
+          .map((manager) => manager.name);
 
   const hasManagerRefs = (outlet.managerIds?.length ?? 0) > 0;
-  const shouldShowManagersRow = !hasManagerRefs || !isManagersLoading || resolvedManagerNames.length > 0;
+  const shouldShowManagersRow =
+    !hasManagerRefs || !isManagersLoading || resolvedManagerNames.length > 0;
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {outlet.images?.[0] && (
-          <Image
-            source={{ uri: outlet.images[0] }}
-            style={styles.outletHero}
-            resizeMode="cover"
-          />
+          <Image source={{ uri: outlet.images[0] }} style={styles.outletHero} resizeMode="cover" />
         )}
 
         <View style={styles.headerRow}>
@@ -79,10 +79,7 @@ export default function OutletDetailScreen({ route }: Props) {
           <Row label="Address" value={outlet.address ?? '—'} />
           <Row label="Outlet Type" value={resolvedOutletTypeName} />
           {shouldShowManagersRow && (
-            <Row
-              label="Managers"
-              value={resolvedManagerNames.join(', ') || '—'}
-            />
+            <Row label="Managers" value={resolvedManagerNames.join(', ') || '—'} />
           )}
         </View>
       </ScrollView>
@@ -135,5 +132,11 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   rowLabel: { fontSize: typography.sm, color: colors.textSecondary },
-  rowValue: { fontSize: typography.sm, color: colors.text, fontWeight: typography.medium, maxWidth: '60%', textAlign: 'right' },
+  rowValue: {
+    fontSize: typography.sm,
+    color: colors.text,
+    fontWeight: typography.medium,
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
 });

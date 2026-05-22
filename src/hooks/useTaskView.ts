@@ -71,8 +71,7 @@ export const useRecentlyViewed = (
   useInfiniteQuery({
     queryKey: ['unread', 'recentlyViewed', query],
     queryFn: cursorQueryFn(
-      (cursor: string | undefined) =>
-        tasksApi.getRecentlyViewed({ ...query, cursor }),
+      (cursor: string | undefined) => tasksApi.getRecentlyViewed({ ...query, cursor }),
       undefined as void,
     ),
     initialPageParam: undefined as string | undefined,
@@ -114,7 +113,8 @@ export const useMarkTaskViewed = () => {
 
       // Optimistically remove taskId from unread IDs set
       if (previousUnreadIds) {
-        qc.setQueryData<string[]>(['unread', 'ids'],
+        qc.setQueryData<string[]>(
+          ['unread', 'ids'],
           previousUnreadIds.filter((id) => id !== taskId),
         );
       }

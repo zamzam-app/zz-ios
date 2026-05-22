@@ -8,24 +8,24 @@ export const colors = {
   primary: '#92400E',
   primaryLight: '#B45309',
   primaryDark: '#78350F',
-  primaryTint: '#FDF4E7',        // warm amber surface
-  primaryTintStrong: '#FAEBD0',  // deeper tint for pressed/active states
+  primaryTint: '#FDF4E7', // warm amber surface
+  primaryTintStrong: '#FAEBD0', // deeper tint for pressed/active states
 
   // Backgrounds
-  background: '#FAF7F2',         // warm cream
-  screenBackground: '#F7F9FB',   // app screen base
+  background: '#FAF7F2', // warm cream
+  screenBackground: '#F7F9FB', // app screen base
   surface: '#FFFFFF',
-  surfaceElevated: '#F5EFE6',    // warm off-white
-  surfaceOverlay: '#F7F9FBD9',   // elevated/translucent sheet cap
+  surfaceElevated: '#F5EFE6', // warm off-white
+  surfaceOverlay: '#F7F9FBD9', // elevated/translucent sheet cap
 
   // Text
-  text: '#1C1917',               // warm near-black
-  textSecondary: '#78716C',      // warm gray
+  text: '#1C1917', // warm near-black
+  textSecondary: '#78716C', // warm gray
   textDisabled: '#D6D3D1',
   textInverse: '#FFFFFF',
 
   // Borders
-  border: '#E7E0D5',             // warm border
+  border: '#E7E0D5', // warm border
   borderFocused: '#92400E',
 
   // Semantic

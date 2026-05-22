@@ -63,7 +63,6 @@ function compareCreatedAtDesc(a: Task, b: Task) {
   return createdB - createdA;
 }
 
-
 function completedTaskSortValue(task: Task) {
   return toTimestamp(task.completedAt ?? task.updatedAt ?? task.createdAt) ?? 0;
 }
@@ -101,7 +100,11 @@ function formatDate(iso?: string | null, dueTime?: string | null) {
   if (!iso) return 'No due date';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'No due date';
-  const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const dateStr = date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
   if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
     const [hours, minutes] = dueTime.split(':');
     const h = parseInt(hours, 10);
@@ -187,11 +190,19 @@ function OpenTaskCard({
     chipBg = '#FEE2E2';
     chipText = '#991B1B';
     chipLabel = 'HIGH PRIORITY';
-  } else if (priority === 'MEDIUM' || upperCategory.includes('ROUTINE') || upperCategory.includes('MEDIUM')) {
+  } else if (
+    priority === 'MEDIUM' ||
+    upperCategory.includes('ROUTINE') ||
+    upperCategory.includes('MEDIUM')
+  ) {
     chipBg = '#DBEAFE';
     chipText = '#1E40AF';
     chipLabel = categoryName || 'ROUTINE';
-  } else if (priority === 'LOW' || upperCategory.includes('VENDOR') || upperCategory.includes('LOW')) {
+  } else if (
+    priority === 'LOW' ||
+    upperCategory.includes('VENDOR') ||
+    upperCategory.includes('LOW')
+  ) {
     chipBg = '#FEF3C7';
     chipText = '#92400E';
     chipLabel = categoryName || 'VENDOR';
@@ -217,12 +228,18 @@ function OpenTaskCard({
       <View style={styles.openCardTopRow}>
         <View style={styles.topRowLeft}>
           {hasUnread && <View style={styles.unreadDot} />}
-          <View style={[styles.openCardPill, { backgroundColor: chipBg, borderColor: 'transparent' }]}>
+          <View
+            style={[styles.openCardPill, { backgroundColor: chipBg, borderColor: 'transparent' }]}
+          >
             <Text style={[styles.openCardPillText, { color: chipText }]}>{chipLabel}</Text>
           </View>
           <Text style={styles.openCardDueText}>{formatDueDisplay(task.dueDate, task.dueTime)}</Text>
         </View>
-        {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
+        {outletName ? (
+          <Text style={styles.openCardOutletName} numberOfLines={1}>
+            {outletName}
+          </Text>
+        ) : null}
       </View>
 
       <Text style={[styles.openTitle, !hasUnread && styles.viewedTitle]} numberOfLines={2}>
@@ -230,7 +247,10 @@ function OpenTaskCard({
       </Text>
 
       {descText ? (
-        <Text style={[styles.openDescription, !hasUnread && styles.viewedDescription]} numberOfLines={3}>
+        <Text
+          style={[styles.openDescription, !hasUnread && styles.viewedDescription]}
+          numberOfLines={3}
+        >
           {descText}
         </Text>
       ) : null}
@@ -238,7 +258,9 @@ function OpenTaskCard({
       <View style={styles.assigneeRow}>
         <Text style={styles.assigneeText}>
           <Text style={styles.assigneeLabel}>Assigned to: </Text>
-          <Text style={styles.assigneeStrong}>{names.length > 0 ? names.join(', ') : 'Unassigned'}</Text>
+          <Text style={styles.assigneeStrong}>
+            {names.length > 0 ? names.join(', ') : 'Unassigned'}
+          </Text>
         </Text>
       </View>
     </TouchableOpacity>
@@ -266,7 +288,11 @@ function CompletedTaskCard({
   const footerModel = buildTaskCardFooterModel(task);
 
   return (
-    <TouchableOpacity style={[styles.completedCard, !hasUnread && styles.viewedCard]} onPress={onPress} activeOpacity={0.78}>
+    <TouchableOpacity
+      style={[styles.completedCard, !hasUnread && styles.viewedCard]}
+      onPress={onPress}
+      activeOpacity={0.78}
+    >
       <View style={styles.openCardTopRow}>
         {hasUnread && (
           <View style={styles.unreadDotWrap}>
@@ -276,7 +302,11 @@ function CompletedTaskCard({
         <View style={styles.openCardPill}>
           <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
         </View>
-        {outletName ? <Text style={styles.openCardOutletName} numberOfLines={1}>{outletName}</Text> : null}
+        {outletName ? (
+          <Text style={styles.openCardOutletName} numberOfLines={1}>
+            {outletName}
+          </Text>
+        ) : null}
       </View>
       <Text style={styles.completedWhen}>{formatRelativeTime(task.completedAt)}</Text>
 
@@ -296,19 +326,31 @@ function CompletedTaskCard({
 
       <View style={styles.openCardFooter}>
         <View style={styles.openCardAttachmentActions}>
-          <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'images')}>
+          <TouchableOpacity
+            style={styles.openCardIconBtn}
+            onPress={() => onOpenAttachment(task, 'images')}
+          >
             <Ionicons name="camera-outline" size={15} color={colors.textSecondary} />
             {imageCount > 0 ? <Text style={styles.openCardIconCount}>{imageCount}</Text> : null}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'videos')}>
+          <TouchableOpacity
+            style={styles.openCardIconBtn}
+            onPress={() => onOpenAttachment(task, 'videos')}
+          >
             <Ionicons name="videocam-outline" size={15} color={colors.textSecondary} />
             {videoCount > 0 ? <Text style={styles.openCardIconCount}>{videoCount}</Text> : null}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'files')}>
+          <TouchableOpacity
+            style={styles.openCardIconBtn}
+            onPress={() => onOpenAttachment(task, 'files')}
+          >
             <Ionicons name="document-outline" size={15} color={colors.textSecondary} />
             {fileCount > 0 ? <Text style={styles.openCardIconCount}>{fileCount}</Text> : null}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.openCardIconBtn} onPress={() => onOpenAttachment(task, 'audios')}>
+          <TouchableOpacity
+            style={styles.openCardIconBtn}
+            onPress={() => onOpenAttachment(task, 'audios')}
+          >
             <Ionicons name="mic-outline" size={15} color={colors.textSecondary} />
             {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
           </TouchableOpacity>
@@ -341,10 +383,15 @@ export default function TasksScreen() {
   const [activeFilterSection, setActiveFilterSection] = useState<FilterSection>('priority');
   const [showDueDatePicker, setShowDueDatePicker] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [attachmentModal, setAttachmentModal] = useState<{ task: Task; type: AttachmentType } | null>(null);
+  const [attachmentModal, setAttachmentModal] = useState<{
+    task: Task;
+    type: AttachmentType;
+  } | null>(null);
   const [lastLoadError, setLastLoadError] = useState('');
 
-  const [activeFilter, setActiveFilter] = useState<'ALL' | 'TODAY' | 'UNREAD' | 'HIGH_PRIORITY'>('ALL');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'TODAY' | 'UNREAD' | 'HIGH_PRIORITY'>(
+    'ALL',
+  );
   const { data: unreadIds = [], refetch: refetchUnreadIds } = useUnreadIds();
   const unreadSet = useMemo(() => new Set(unreadIds), [unreadIds]);
 
@@ -373,45 +420,52 @@ export default function TasksScreen() {
 
   const todayCountQuery = useQuery({
     queryKey: ['tasks-count-today', activeTab, userIdentifier, isAdmin],
-    queryFn: () => tasksApi.listPaginated({
-      status: 'OPEN',
-      dueFrom: todayStart.toISOString(),
-      dueTo: todayEnd.toISOString(),
-      assigneeId: isAdmin ? undefined : userIdentifier,
-      isRecurring: activeTab === 'RECURRING',
-      limit: 1,
-    }),
+    queryFn: () =>
+      tasksApi.listPaginated({
+        status: 'OPEN',
+        dueFrom: todayStart.toISOString(),
+        dueTo: todayEnd.toISOString(),
+        assigneeId: isAdmin ? undefined : userIdentifier,
+        isRecurring: activeTab === 'RECURRING',
+        limit: 1,
+      }),
     staleTime: 10 * 1000,
   });
   const todayCount = todayCountQuery.data?.meta.total ?? 0;
 
   const highPriorityCountQuery = useQuery({
     queryKey: ['tasks-count-high', activeTab, userIdentifier, isAdmin],
-    queryFn: () => tasksApi.listPaginated({
-      status: 'OPEN',
-      priority: 'HIGH',
-      assigneeId: isAdmin ? undefined : userIdentifier,
-      isRecurring: activeTab === 'RECURRING',
-      limit: 1,
-    }),
+    queryFn: () =>
+      tasksApi.listPaginated({
+        status: 'OPEN',
+        priority: 'HIGH',
+        assigneeId: isAdmin ? undefined : userIdentifier,
+        isRecurring: activeTab === 'RECURRING',
+        limit: 1,
+      }),
     staleTime: 10 * 1000,
   });
   const highPriorityCount = highPriorityCountQuery.data?.meta.total ?? 0;
 
-  const effectivePriorityFilter: TaskPriority | undefined = activeFilter === 'HIGH_PRIORITY'
-    ? 'HIGH'
-    : (priorityFilter === 'ALL' ? undefined : priorityFilter);
+  const effectivePriorityFilter: TaskPriority | undefined =
+    activeFilter === 'HIGH_PRIORITY'
+      ? 'HIGH'
+      : priorityFilter === 'ALL'
+        ? undefined
+        : priorityFilter;
 
-  const effectiveOpenDueDateStart = activeFilter === 'TODAY'
-    ? todayStart
-    : (dueDateFilter
-      ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
-      : null);
-  const effectiveOpenDueDateEnd = activeFilter === 'TODAY'
-    ? todayEnd
-    : (effectiveOpenDueDateStart
-      ? new Date(effectiveOpenDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
-      : null);
+  const effectiveOpenDueDateStart =
+    activeFilter === 'TODAY'
+      ? todayStart
+      : dueDateFilter
+        ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
+        : null;
+  const effectiveOpenDueDateEnd =
+    activeFilter === 'TODAY'
+      ? todayEnd
+      : effectiveOpenDueDateStart
+        ? new Date(effectiveOpenDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+        : null;
 
   const effectiveCompletedDueDateStart = dueDateFilter
     ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
@@ -440,7 +494,9 @@ export default function TasksScreen() {
       limit: 20,
       priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
       search: debouncedSearchQuery || undefined,
-      dueFrom: effectiveCompletedDueDateStart ? effectiveCompletedDueDateStart.toISOString() : undefined,
+      dueFrom: effectiveCompletedDueDateStart
+        ? effectiveCompletedDueDateStart.toISOString()
+        : undefined,
       dueTo: effectiveCompletedDueDateEnd ? effectiveCompletedDueDateEnd.toISOString() : undefined,
       assigneeId: isAdmin ? undefined : userIdentifier,
       isRecurring: activeTab === 'RECURRING',
@@ -461,7 +517,7 @@ export default function TasksScreen() {
       completedTasksQuery.refetch,
       todayCountQuery.refetch,
       highPriorityCountQuery.refetch,
-    ])
+    ]),
   );
 
   useEffect(() => {
@@ -493,24 +549,18 @@ export default function TasksScreen() {
     Alert.alert('Could not load tasks', message);
   }, [openTasksQuery.error, completedTasksQuery.error, lastLoadError]);
 
-  const openTasksFromApi = useMemo(
-    () => {
-      const isRecTab = activeTab === 'RECURRING';
-      return (openTasksQuery.data?.pages ?? [])
-        .flatMap((page) => page.data)
-        .filter((task) => !!task.isRecurring === isRecTab);
-    },
-    [openTasksQuery.data?.pages, activeTab],
-  );
-  const completedTasksFromApi = useMemo(
-    () => {
-      const isRecTab = activeTab === 'RECURRING';
-      return (completedTasksQuery.data?.pages ?? [])
-        .flatMap((page) => page.data)
-        .filter((task) => !!task.isRecurring === isRecTab);
-    },
-    [completedTasksQuery.data?.pages, activeTab],
-  );
+  const openTasksFromApi = useMemo(() => {
+    const isRecTab = activeTab === 'RECURRING';
+    return (openTasksQuery.data?.pages ?? [])
+      .flatMap((page) => page.data)
+      .filter((task) => !!task.isRecurring === isRecTab);
+  }, [openTasksQuery.data?.pages, activeTab]);
+  const completedTasksFromApi = useMemo(() => {
+    const isRecTab = activeTab === 'RECURRING';
+    return (completedTasksQuery.data?.pages ?? [])
+      .flatMap((page) => page.data)
+      .filter((task) => !!task.isRecurring === isRecTab);
+  }, [completedTasksQuery.data?.pages, activeTab]);
 
   const openTasks = useMemo(() => {
     let list = [...openTasksFromApi].sort(compareCreatedAtDesc);
@@ -527,11 +577,12 @@ export default function TasksScreen() {
   const openTasksTotal = openTasks.length;
   const completedTasksTotal = completedTasks.length;
 
-  const formatFilterDate = (date: Date) => date.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const formatFilterDate = (date: Date) =>
+    date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
 
   const onDueDateChange = (selectedDate: Date) => {
     setDueDateFilter(selectedDate);
@@ -546,10 +597,10 @@ export default function TasksScreen() {
   };
 
   const isLoading = showOpenSection
-    ? (openTasksQuery.isLoading || (showCompletedSection && completedTasksQuery.isLoading))
+    ? openTasksQuery.isLoading || (showCompletedSection && completedTasksQuery.isLoading)
     : completedTasksQuery.isLoading;
   const isFetching = showOpenSection
-    ? (openTasksQuery.isFetching || (showCompletedSection && completedTasksQuery.isFetching))
+    ? openTasksQuery.isFetching || (showCompletedSection && completedTasksQuery.isFetching)
     : completedTasksQuery.isFetching;
 
   const renderFilterChips = () => {
@@ -597,14 +648,13 @@ export default function TasksScreen() {
           return (
             <TouchableOpacity
               key={f.key}
-              style={[
-                styles.filterChip,
-                { backgroundColor: isActive ? f.activeBg : f.inactiveBg }
-              ]}
+              style={[styles.filterChip, { backgroundColor: isActive ? f.activeBg : f.inactiveBg }]}
               onPress={() => setActiveFilter(isActive ? 'ALL' : f.key)}
               activeOpacity={0.8}
             >
-              <Text style={[styles.filterChipText, { color: isActive ? f.activeText : f.inactiveText }]}>
+              <Text
+                style={[styles.filterChipText, { color: isActive ? f.activeText : f.inactiveText }]}
+              >
                 {f.emoji} {f.label} {f.count > 0 ? ` (${f.count})` : ''}
               </Text>
             </TouchableOpacity>
@@ -631,9 +681,9 @@ export default function TasksScreen() {
       try {
         const fileName = trimmedUrl.split('/').pop()?.split('?')[0] || `document-${Date.now()}`;
         const localUri = `${FileSystem.cacheDirectory}${fileName}`;
-        
+
         const downloadRes = await FileSystem.downloadAsync(trimmedUrl, localUri);
-        
+
         if (downloadRes.status === 200) {
           const sharingAvailable = await Sharing.isAvailableAsync();
           if (sharingAvailable) {
@@ -664,21 +714,25 @@ export default function TasksScreen() {
     ? getTaskAttachmentUrls(attachmentModal.task, attachmentModal.type)
     : [];
   const attachmentModalTitle = attachmentModal
-    ? (attachmentModal.type === 'images'
+    ? attachmentModal.type === 'images'
       ? 'Image Attachments'
       : attachmentModal.type === 'videos'
         ? 'Video Attachments'
         : attachmentModal.type === 'audios'
           ? 'Audio Attachments'
-          : 'File Attachments')
+          : 'File Attachments'
     : '';
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
         <View style={{ flexShrink: 1, marginRight: spacing.sm }}>
-          <Text style={styles.heading} numberOfLines={1}>Task Board</Text>
-          <Text style={styles.subheading} numberOfLines={1}>Manage and assign outlet operations.</Text>
+          <Text style={styles.heading} numberOfLines={1}>
+            Task Board
+          </Text>
+          <Text style={styles.subheading} numberOfLines={1}>
+            Manage and assign outlet operations.
+          </Text>
         </View>
         <View style={styles.headerBtns}>
           {isAdmin && (
@@ -691,7 +745,11 @@ export default function TasksScreen() {
             </TouchableOpacity>
           )}
           {!isManager && (
-            <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.84}>
+            <TouchableOpacity
+              style={styles.createBtn}
+              onPress={() => setShowCreateModal(true)}
+              activeOpacity={0.84}
+            >
               <Text style={styles.createBtnText}>+ New</Text>
             </TouchableOpacity>
           )}
@@ -704,13 +762,17 @@ export default function TasksScreen() {
           style={[styles.tabItem, activeTab === 'NORMAL' && styles.tabItemActive]}
           onPress={() => setActiveTab('NORMAL')}
         >
-          <Text style={[styles.tabText, activeTab === 'NORMAL' && styles.tabTextActive]}>Normal Task</Text>
+          <Text style={[styles.tabText, activeTab === 'NORMAL' && styles.tabTextActive]}>
+            Normal Task
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabItem, activeTab === 'RECURRING' && styles.tabItemActive]}
           onPress={() => setActiveTab('RECURRING')}
         >
-          <Text style={[styles.tabText, activeTab === 'RECURRING' && styles.tabTextActive]}>Recurring Task</Text>
+          <Text style={[styles.tabText, activeTab === 'RECURRING' && styles.tabTextActive]}>
+            Recurring Task
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -721,7 +783,8 @@ export default function TasksScreen() {
             accessibilityLabel="Open filters"
             style={[
               styles.filterIconBtnCompact,
-              (priorityFilter !== 'ALL' || Boolean(dueDateFilter) || metricFilter !== 'all') && styles.filterIconBtnActive,
+              (priorityFilter !== 'ALL' || Boolean(dueDateFilter) || metricFilter !== 'all') &&
+                styles.filterIconBtnActive,
             ]}
             onPress={() => setShowFilterModal(true)}
             activeOpacity={0.82}
@@ -729,13 +792,22 @@ export default function TasksScreen() {
             <Ionicons
               name="options-outline"
               size={18}
-              color={priorityFilter === 'ALL' && !dueDateFilter && metricFilter === 'all' ? colors.textSecondary : colors.primaryDark}
+              color={
+                priorityFilter === 'ALL' && !dueDateFilter && metricFilter === 'all'
+                  ? colors.textSecondary
+                  : colors.primaryDark
+              }
             />
           </TouchableOpacity>
         </View>
 
         <View style={styles.searchWrapCompact}>
-          <Ionicons name="search" size={14} color={colors.textSecondary} style={styles.searchIconCompact} />
+          <Ionicons
+            name="search"
+            size={14}
+            color={colors.textSecondary}
+            style={styles.searchIconCompact}
+          />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -765,7 +837,10 @@ export default function TasksScreen() {
             <Text style={styles.metricFilterChipText}>
               {`Filtered: ${TASK_METRIC_FILTER_LABELS[metricFilter]}`}
             </Text>
-            <TouchableOpacity onPress={() => setMetricFilter('all')} style={styles.metricFilterChipClear}>
+            <TouchableOpacity
+              onPress={() => setMetricFilter('all')}
+              style={styles.metricFilterChipClear}
+            >
               <Text style={styles.metricFilterChipClearText}>x</Text>
             </TouchableOpacity>
           </View>
@@ -778,14 +853,15 @@ export default function TasksScreen() {
             <Text style={styles.metricFilterChipText}>
               {`Due: ${formatFilterDate(dueDateFilter)}`}
             </Text>
-            <TouchableOpacity onPress={() => setDueDateFilter(null)} style={styles.metricFilterChipClear}>
+            <TouchableOpacity
+              onPress={() => setDueDateFilter(null)}
+              style={styles.metricFilterChipClear}
+            >
               <Text style={styles.metricFilterChipClearText}>x</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
-
-
 
       <View style={styles.sectionsContainer}>
         {showOpenSection && (
@@ -808,7 +884,9 @@ export default function TasksScreen() {
                 }
                 showsVerticalScrollIndicator
                 persistentScrollbar
-                refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+                refreshControl={
+                  <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />
+                }
                 onEndReached={() => {
                   if (openTasksQuery.hasNextPage && !openTasksQuery.isFetchingNextPage) {
                     void openTasksQuery.fetchNextPage();
@@ -831,22 +909,23 @@ export default function TasksScreen() {
                     </View>
                   ) : null
                 }
-                ListEmptyComponent={(
+                ListEmptyComponent={
                   isLoading ? (
                     <View style={styles.loadingWrap}>
                       <ActivityIndicator color={colors.primary} />
                     </View>
                   ) : (
                     <View style={styles.emptyWrap}>
-                      <Text style={styles.empty}>{isManager ? 'No open tasks found for you' : 'No open tasks found'}</Text>
+                      <Text style={styles.empty}>
+                        {isManager ? 'No open tasks found for you' : 'No open tasks found'}
+                      </Text>
                     </View>
                   )
-                )}
+                }
               />
             </View>
           </>
         )}
-
       </View>
 
       <Modal
@@ -887,18 +966,34 @@ export default function TasksScreen() {
             <View style={styles.filterBody}>
               <View style={styles.filterSidebar}>
                 <TouchableOpacity
-                  style={[styles.filterSidebarItem, activeFilterSection === 'priority' && styles.filterSidebarItemActive]}
+                  style={[
+                    styles.filterSidebarItem,
+                    activeFilterSection === 'priority' && styles.filterSidebarItemActive,
+                  ]}
                   onPress={() => setActiveFilterSection('priority')}
                 >
-                  <Text style={[styles.filterSidebarItemText, activeFilterSection === 'priority' && styles.filterSidebarItemTextActive]}>
+                  <Text
+                    style={[
+                      styles.filterSidebarItemText,
+                      activeFilterSection === 'priority' && styles.filterSidebarItemTextActive,
+                    ]}
+                  >
                     Priority
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.filterSidebarItem, activeFilterSection === 'dueDate' && styles.filterSidebarItemActive]}
+                  style={[
+                    styles.filterSidebarItem,
+                    activeFilterSection === 'dueDate' && styles.filterSidebarItemActive,
+                  ]}
                   onPress={() => setActiveFilterSection('dueDate')}
                 >
-                  <Text style={[styles.filterSidebarItemText, activeFilterSection === 'dueDate' && styles.filterSidebarItemTextActive]}>
+                  <Text
+                    style={[
+                      styles.filterSidebarItemText,
+                      activeFilterSection === 'dueDate' && styles.filterSidebarItemTextActive,
+                    ]}
+                  >
                     Due Date
                   </Text>
                 </TouchableOpacity>
@@ -939,7 +1034,12 @@ export default function TasksScreen() {
                           onPress={() => setPriorityFilter(option.value)}
                           activeOpacity={0.7}
                         >
-                          <Text style={[styles.priorityOptionText, active && styles.priorityOptionTextActive]}>
+                          <Text
+                            style={[
+                              styles.priorityOptionText,
+                              active && styles.priorityOptionTextActive,
+                            ]}
+                          >
                             {option.label}
                           </Text>
                           {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
@@ -953,7 +1053,9 @@ export default function TasksScreen() {
                   <View style={styles.filterSection}>
                     <Text style={styles.filterSectionTitle}>Filter by due date</Text>
                     <Text style={styles.filterSectionHint}>
-                      {dueDateFilter ? `Selected: ${formatFilterDate(dueDateFilter)}` : 'No date selected'}
+                      {dueDateFilter
+                        ? `Selected: ${formatFilterDate(dueDateFilter)}`
+                        : 'No date selected'}
                     </Text>
 
                     {!showDueDatePicker && (
@@ -962,7 +1064,9 @@ export default function TasksScreen() {
                         onPress={() => setShowDueDatePicker(true)}
                         activeOpacity={0.82}
                       >
-                        <Text style={styles.filterActionBtnText}>{dueDateFilter ? 'Change Date' : 'Select Date'}</Text>
+                        <Text style={styles.filterActionBtnText}>
+                          {dueDateFilter ? 'Change Date' : 'Select Date'}
+                        </Text>
                       </TouchableOpacity>
                     )}
 
@@ -972,7 +1076,11 @@ export default function TasksScreen() {
                         onPress={() => setDueDateFilter(null)}
                         activeOpacity={0.82}
                       >
-                        <Text style={[styles.filterActionBtnText, styles.filterActionBtnSecondaryText]}>Clear Date</Text>
+                        <Text
+                          style={[styles.filterActionBtnText, styles.filterActionBtnSecondaryText]}
+                        >
+                          Clear Date
+                        </Text>
                       </TouchableOpacity>
                     )}
 
@@ -1037,11 +1145,18 @@ export default function TasksScreen() {
         onRequestClose={() => setAttachmentModal(null)}
       >
         <View style={styles.attachModalRoot}>
-          <TouchableOpacity style={styles.attachModalScrim} activeOpacity={1} onPress={() => setAttachmentModal(null)} />
+          <TouchableOpacity
+            style={styles.attachModalScrim}
+            activeOpacity={1}
+            onPress={() => setAttachmentModal(null)}
+          />
           <View style={styles.attachModalCard}>
             <View style={styles.attachModalHeader}>
               <Text style={styles.attachModalTitle}>{attachmentModalTitle}</Text>
-              <TouchableOpacity onPress={() => setAttachmentModal(null)} style={styles.attachModalCloseBtn}>
+              <TouchableOpacity
+                onPress={() => setAttachmentModal(null)}
+                style={styles.attachModalCloseBtn}
+              >
                 <Ionicons name="close" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -1049,41 +1164,49 @@ export default function TasksScreen() {
             <ScrollView contentContainerStyle={styles.attachModalContent}>
               {attachmentModal?.type === 'images'
                 ? attachmentModalUrls.map((url, index) => (
-                  <TouchableOpacity
-                    key={`${url}-${index}`}
-                    onPress={() => { void openExternalAttachment(url, attachmentModal?.type); }}
-                    activeOpacity={0.84}
-                    style={styles.attachImageItem}
-                  >
-                    <Image source={{ uri: url }} style={styles.attachImageThumb} resizeMode="cover" />
-                  </TouchableOpacity>
-                ))
-                : attachmentModalUrls.map((url, index) => (
-                  <TouchableOpacity
-                    key={`${url}-${index}`}
-                    style={styles.attachRow}
-                    onPress={() => { void openExternalAttachment(url, attachmentModal?.type); }}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.attachRowLeft}>
-                      <Ionicons
-                        name={
-                          attachmentModal?.type === 'videos'
-                            ? 'videocam-outline'
-                            : attachmentModal?.type === 'audios'
-                              ? 'mic-outline'
-                              : 'document-outline'
-                        }
-                        size={16}
-                        color={colors.primaryDark}
+                    <TouchableOpacity
+                      key={`${url}-${index}`}
+                      onPress={() => {
+                        void openExternalAttachment(url, attachmentModal?.type);
+                      }}
+                      activeOpacity={0.84}
+                      style={styles.attachImageItem}
+                    >
+                      <Image
+                        source={{ uri: url }}
+                        style={styles.attachImageThumb}
+                        resizeMode="cover"
                       />
-                      <Text style={styles.attachRowText} numberOfLines={1}>
-                        {buildAttachmentName(url, attachmentModal?.type ?? 'file', index)}
-                      </Text>
-                    </View>
-                    <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                  ))
+                : attachmentModalUrls.map((url, index) => (
+                    <TouchableOpacity
+                      key={`${url}-${index}`}
+                      style={styles.attachRow}
+                      onPress={() => {
+                        void openExternalAttachment(url, attachmentModal?.type);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.attachRowLeft}>
+                        <Ionicons
+                          name={
+                            attachmentModal?.type === 'videos'
+                              ? 'videocam-outline'
+                              : attachmentModal?.type === 'audios'
+                                ? 'mic-outline'
+                                : 'document-outline'
+                          }
+                          size={16}
+                          color={colors.primaryDark}
+                        />
+                        <Text style={styles.attachRowText} numberOfLines={1}>
+                          {buildAttachmentName(url, attachmentModal?.type ?? 'file', index)}
+                        </Text>
+                      </View>
+                      <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  ))}
             </ScrollView>
           </View>
         </View>
@@ -1091,24 +1214,28 @@ export default function TasksScreen() {
 
       {/* Persistent Sticky Completed Tasks Accordion */}
       {showCompletedSection && (
-        <View style={[
-          styles.accordionContainer,
-          showCompletedAccordion && styles.accordionContainerExpanded
-        ]}>
+        <View
+          style={[
+            styles.accordionContainer,
+            showCompletedAccordion && styles.accordionContainerExpanded,
+          ]}
+        >
           <TouchableOpacity
             style={styles.completedAccordionToggle}
             onPress={() => setShowCompletedAccordion(!showCompletedAccordion)}
             activeOpacity={0.9}
           >
             <View style={styles.accordionHeaderLeft}>
-              <View style={[styles.sectionDot, styles.sectionDotCompleted, { marginRight: spacing.sm }]} />
+              <View
+                style={[styles.sectionDot, styles.sectionDotCompleted, { marginRight: spacing.sm }]}
+              />
               <Text style={styles.accordionTitle}>Completed Tasks</Text>
               <View style={styles.accordionCountBadge}>
                 <Text style={styles.accordionCountText}>{completedTasksTotal}</Text>
               </View>
             </View>
             <Ionicons
-              name={showCompletedAccordion ? "chevron-down" : "chevron-up"}
+              name={showCompletedAccordion ? 'chevron-down' : 'chevron-up'}
               size={20}
               color={colors.textSecondary}
             />
@@ -1647,15 +1774,27 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
     alignSelf: 'flex-start',
   },
-  completedWhen: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
+  completedWhen: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
 
   loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
   loadingMoreWrap: { paddingVertical: spacing.sm, alignItems: 'center' },
   completedLoadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  completedLoadingMoreWrap: { justifyContent: 'center', alignItems: 'center', paddingRight: spacing.sm },
+  completedLoadingMoreWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingRight: spacing.sm,
+  },
   emptyWrap: { paddingVertical: spacing.xl },
   empty: { textAlign: 'center', color: colors.textSecondary, fontSize: typography.sm },
-  completedEmpty: { color: colors.textSecondary, fontSize: typography.sm, marginBottom: spacing.md },
+  completedEmpty: {
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+    marginBottom: spacing.md,
+  },
 
   createModalRoot: {
     flex: 1,
@@ -1829,7 +1968,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  attachRowLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1, marginRight: spacing.sm },
+  attachRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
   attachRowText: { flex: 1, fontSize: typography.sm, color: colors.text },
   createSheet: {
     height: '92%',

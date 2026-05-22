@@ -47,9 +47,15 @@ function testRecentAndOlderAssignmentFormatting() {
 }
 
 function testMissingTimestampFallback() {
-  assert.equal(getTaskAssignedTimestamp(createTask({ assignedAt: undefined, createdAt: undefined })), undefined);
   assert.equal(
-    formatTaskAssignedTime(createTask({ assignedAt: undefined, createdAt: undefined }), Date.parse('2026-05-19T12:15:00.000Z')),
+    getTaskAssignedTimestamp(createTask({ assignedAt: undefined, createdAt: undefined })),
+    undefined,
+  );
+  assert.equal(
+    formatTaskAssignedTime(
+      createTask({ assignedAt: undefined, createdAt: undefined }),
+      Date.parse('2026-05-19T12:15:00.000Z'),
+    ),
     null,
   );
 }

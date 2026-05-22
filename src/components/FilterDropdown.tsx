@@ -26,7 +26,9 @@ export function FilterDropdown<T>({ options, value, onChange, maxVisible = 6 }: 
   return (
     <View style={styles.wrap}>
       <TouchableOpacity style={styles.pill} onPress={() => setOpen((o) => !o)} activeOpacity={0.8}>
-        <Text style={styles.pillText} numberOfLines={1}>{active.label}</Text>
+        <Text style={styles.pillText} numberOfLines={1}>
+          {active.label}
+        </Text>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={12} color="#fff" />
       </TouchableOpacity>
 
@@ -49,7 +51,10 @@ export function FilterDropdown<T>({ options, value, onChange, maxVisible = 6 }: 
                     i === options.length - 1 && styles.optionLast,
                     isActive && styles.optionActive,
                   ]}
-                  onPress={() => { onChange(opt.value); setOpen(false); }}
+                  onPress={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
                   activeOpacity={0.65}
                 >
                   <Text style={[styles.optionText, isActive && styles.optionTextActive]}>

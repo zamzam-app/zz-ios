@@ -1,8 +1,6 @@
 export type TaskMetricFilter = 'all' | 'open' | 'critical' | 'resolved' | 'due_today';
 
-export type TaskFilterSource =
-  | 'overview_reviews_metric'
-  | 'overview_tasks_metric';
+export type TaskFilterSource = 'overview_reviews_metric' | 'overview_tasks_metric';
 
 export interface TaskFilterParams {
   metric: TaskMetricFilter;

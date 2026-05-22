@@ -51,11 +51,19 @@ function FallbackOutletImage({ name }: { name: string }) {
   );
 }
 
-function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete }: OutletCardProps) {
+function OutletCard({
+  outlet,
+  isAdmin,
+  onPress,
+  onQrPress,
+  onEditPress,
+  onDelete,
+}: OutletCardProps) {
   const imageUri = outlet.images?.[0];
-  const managerLabel = outlet.managerNames && outlet.managerNames.length > 0
-    ? `${outlet.managerNames.length > 1 ? 'Managers' : 'Manager'}: ${outlet.managerNames.join(', ')}`
-    : 'Manager unavailable';
+  const managerLabel =
+    outlet.managerNames && outlet.managerNames.length > 0
+      ? `${outlet.managerNames.length > 1 ? 'Managers' : 'Manager'}: ${outlet.managerNames.join(', ')}`
+      : 'Manager unavailable';
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.88}>
@@ -99,11 +107,15 @@ function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete
           <View style={styles.metaRows}>
             <View style={styles.metaRow}>
               <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.metaText} numberOfLines={1}>{outlet.address ?? 'No address'}</Text>
+              <Text style={styles.metaText} numberOfLines={1}>
+                {outlet.address ?? 'No address'}
+              </Text>
             </View>
             <View style={styles.metaRow}>
               <Ionicons name="person-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.metaText} numberOfLines={1}>{managerLabel}</Text>
+              <Text style={styles.metaText} numberOfLines={1}>
+                {managerLabel}
+              </Text>
             </View>
           </View>
         </View>
@@ -225,7 +237,10 @@ export default function InfrastructureScreen() {
 
         <View style={styles.headerBtns}>
           {isAdmin && (
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate('OutletTypes')}>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => navigation.navigate('OutletTypes')}
+            >
               <Text style={styles.secondaryBtnText}>Type</Text>
             </TouchableOpacity>
           )}
@@ -239,7 +254,12 @@ export default function InfrastructureScreen() {
 
       <View style={styles.controlsRow}>
         <View style={styles.searchWrap}>
-          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+          <Ionicons
+            name="search"
+            size={16}
+            color={colors.textSecondary}
+            style={styles.searchIcon}
+          />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -272,7 +292,9 @@ export default function InfrastructureScreen() {
             screenModel.visibleOutlets.length === 0 && styles.listEmpty,
           ]}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+          refreshControl={
+            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />
+          }
           renderItem={({ item }) => (
             <OutletCard
               outlet={item}
@@ -283,15 +305,17 @@ export default function InfrastructureScreen() {
               onDelete={() => handleDelete(item)}
             />
           )}
-          ListEmptyComponent={(
+          ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="search-outline" size={28} color={colors.textSecondary} />
               <Text style={styles.empty}>{screenModel.emptyMessage}</Text>
               {screenModel.showClearSearch ? (
-                <Text style={styles.emptyHint}>Try a different outlet name, location, or identifier.</Text>
+                <Text style={styles.emptyHint}>
+                  Try a different outlet name, location, or identifier.
+                </Text>
               ) : null}
             </View>
-          )}
+          }
         />
       )}
 
@@ -307,33 +331,33 @@ export default function InfrastructureScreen() {
             style={styles.createModalScrim}
             onPress={() => setShowCreateModal(false)}
           />
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.createSheet}
-            >
-              <View style={styles.createSheetTop}>
-                <View style={styles.createSheetHandle} />
-                <View style={styles.createSheetHeader}>
-                  <Text style={styles.createSheetTitle}>Create Outlet</Text>
-                  <TouchableOpacity
-                    style={styles.createSheetClose}
-                    onPress={() => setShowCreateModal(false)}
-                  >
-                    <Ionicons name="close" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.createSheet}
+          >
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Create Outlet</Text>
+                <TouchableOpacity
+                  style={styles.createSheetClose}
+                  onPress={() => setShowCreateModal(false)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
+            </View>
 
-              <CreateOutletContent
-                onSuccess={() => {
-                  setShowCreateModal(false);
-                  void refetch();
-                }}
-                bottomPadding={20}
-                fill={false}
-                backgroundColor={colors.surface}
-              />
-            </KeyboardAvoidingView>
+            <CreateOutletContent
+              onSuccess={() => {
+                setShowCreateModal(false);
+                void refetch();
+              }}
+              bottomPadding={20}
+              fill={false}
+              backgroundColor={colors.surface}
+            />
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -349,36 +373,36 @@ export default function InfrastructureScreen() {
             style={styles.createModalScrim}
             onPress={() => setEditingOutlet(null)}
           />
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.createSheet}
-            >
-              <View style={styles.createSheetTop}>
-                <View style={styles.createSheetHandle} />
-                <View style={styles.createSheetHeader}>
-                  <Text style={styles.createSheetTitle}>Edit Outlet</Text>
-                  <TouchableOpacity
-                    style={styles.createSheetClose}
-                    onPress={() => setEditingOutlet(null)}
-                  >
-                    <Ionicons name="close" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.createSheet}
+          >
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Edit Outlet</Text>
+                <TouchableOpacity
+                  style={styles.createSheetClose}
+                  onPress={() => setEditingOutlet(null)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
+            </View>
 
-              <CreateOutletContent
-                mode="edit"
-                outletToEdit={editingOutlet}
-                onSuccess={() => {
-                  setEditingOutlet(null);
-                  void refetch();
-                }}
-                submitLabel="Save Changes"
-                bottomPadding={20}
-                fill={false}
-                backgroundColor={colors.surface}
-              />
-            </KeyboardAvoidingView>
+            <CreateOutletContent
+              mode="edit"
+              outletToEdit={editingOutlet}
+              onSuccess={() => {
+                setEditingOutlet(null);
+                void refetch();
+              }}
+              submitLabel="Save Changes"
+              bottomPadding={20}
+              fill={false}
+              backgroundColor={colors.surface}
+            />
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -397,10 +421,7 @@ export default function InfrastructureScreen() {
           <View style={styles.qrModalCard}>
             <View style={styles.qrHeader}>
               <Text style={styles.qrTitle}>{selectedQrOutlet?.name ?? 'Outlet'}</Text>
-              <TouchableOpacity
-                style={styles.qrCloseBtn}
-                onPress={() => setSelectedQrOutlet(null)}
-              >
+              <TouchableOpacity style={styles.qrCloseBtn} onPress={() => setSelectedQrOutlet(null)}>
                 <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -413,7 +434,9 @@ export default function InfrastructureScreen() {
                     size={170}
                     backgroundColor={colors.surface}
                     color="#000000"
-                    getRef={(ref) => { qrRef.current = ref; }}
+                    getRef={(ref) => {
+                      qrRef.current = ref;
+                    }}
                   />
                 </View>
                 <Text style={styles.qrHint}>Scan to access review page</Text>
