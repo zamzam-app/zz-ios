@@ -1,11 +1,12 @@
+import { Ionicons } from '@expo/vector-icons';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { MoreStackParamList } from '../../navigation/MoreNavigator';
+
 import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
+import { MoreStackParamList } from '../../navigation/MoreNavigator';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'StudioDocumentDetail'>;
 

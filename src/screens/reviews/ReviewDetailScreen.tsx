@@ -1,3 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -11,34 +17,28 @@ import {
   Image,
   Linking,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import { useMarkReviewAsRead, useReview, useResolveComplaint } from '../../hooks/useReviews';
-import { useForm } from '../../hooks/useForms';
-import { useUsers } from '../../hooks/useUsers';
-import { useAuthStore } from '../../store/authStore';
-import { Review, UserResponse, ResolutionAttachments } from '../../api/endpoints/reviews';
+
+import { Review, UserResponse } from '../../api/endpoints/reviews';
 import { uploadToCloudinary } from '../../api/endpoints/upload';
-import { getApiErrorMessage } from '../../utils/errors';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import StarRating from '../../components/StarRating';
+import { useForm } from '../../hooks/useForms';
+import { useMarkReviewAsRead, useReview, useResolveComplaint } from '../../hooks/useReviews';
+import { useUsers } from '../../hooks/useUsers';
+import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { getApiErrorMessage } from '../../utils/errors';
 
 type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewDetail'>;
-type ResolvableComplaintStatus = 'resolved' | 'dismissed';
 const COMPLAINT_LABEL_WIDTH = 86;
 
-type ComplaintTone = {
+interface ComplaintTone {
   label: string;
   text: string;
   bg: string;
   border: string;
-};
+}
 
 function formatDate(iso?: string | null, month: 'short' | 'long' = 'long') {
   if (!iso) return 'Not available';
@@ -115,8 +115,8 @@ function ResponseItem({
     if (Array.isArray(answer)) {
       return (
         <View style={styles.answerList}>
-          {answer.map((a, i) => (
-            <Text key={`${questionTitle}-${i}`} style={styles.answerText}>
+          {answer.map((a) => (
+            <Text key={`${questionTitle}-${String(a)}`} style={styles.answerText}>
               · {a}
             </Text>
           ))}
@@ -192,9 +192,9 @@ function SubmissionBlock({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.imageRow}
           >
-            {imageItems.map((url, index) => (
+            {imageItems.map((url) => (
               <TouchableOpacity
-                key={`${title}-image-${url}-${index}`}
+                key={`${title}-image-${url}`}
                 onPress={() => onOpenAttachment(url, 'image')}
                 style={styles.imageItem}
                 activeOpacity={0.85}
@@ -208,7 +208,7 @@ function SubmissionBlock({
 
       {videoItems.map((url, index) => (
         <TouchableOpacity
-          key={`${title}-video-${url}-${index}`}
+          key={`${title}-video-${url}`}
           style={styles.attachmentRow}
           onPress={() => onOpenAttachment(url, 'video')}
           activeOpacity={0.8}
@@ -225,7 +225,7 @@ function SubmissionBlock({
 
       {audioItems.map((url, index) => (
         <TouchableOpacity
-          key={`${title}-audio-${url}-${index}`}
+          key={`${title}-audio-${url}`}
           style={styles.attachmentRow}
           onPress={() => onOpenAttachment(url, 'audio')}
           activeOpacity={0.8}
@@ -242,7 +242,7 @@ function SubmissionBlock({
 
       {fileItems.map((url, index) => (
         <TouchableOpacity
-          key={`${title}-file-${url}-${index}`}
+          key={`${title}-file-${url}`}
           style={styles.attachmentRow}
           onPress={() => onOpenAttachment(url, 'file')}
           activeOpacity={0.8}
@@ -490,7 +490,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
   const hasResolution = Boolean(review.complaintStatus && review.complaintStatus !== 'pending');
   const isMutationPending = resolveComplaint.isPending;
 
-  const resolutionRows: Array<{ label: string; value: string }> = [
+  const resolutionRows: { label: string; value: string }[] = [
     { label: 'Status', value: toSentenceCase(review.complaintStatus ?? 'pending') },
   ];
 
@@ -590,7 +590,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
 
                 return (
                   <ResponseItem
-                    key={`${index}-${String(response.questionId)}`}
+                    key={String(response.questionId)}
                     response={response}
                     isLast={index === review.userResponses.length - 1}
                     questionTitle={questionTitle}
@@ -680,7 +680,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
               <View style={styles.managerTagGroup}>
                 {resolutionAttachments.images.map((url, index) => (
                   <TouchableOpacity
-                    key={`res-image-${index}`}
+                    key={`res-image-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('images', index)}
                   >
@@ -691,7 +691,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                 ))}
                 {resolutionAttachments.videos.map((url, index) => (
                   <TouchableOpacity
-                    key={`res-video-${index}`}
+                    key={`res-video-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('videos', index)}
                   >
@@ -702,7 +702,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                 ))}
                 {resolutionAttachments.audios.map((url, index) => (
                   <TouchableOpacity
-                    key={`res-audio-${index}`}
+                    key={`res-audio-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('audios', index)}
                   >
@@ -713,7 +713,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                 ))}
                 {resolutionAttachments.files.map((url, index) => (
                   <TouchableOpacity
-                    key={`res-file-${index}`}
+                    key={`res-file-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('files', index)}
                   >
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: colors.warmBorderAlpha25,
     ...shadow.sm,
   },
   topRow: {
@@ -836,9 +836,9 @@ const styles = StyleSheet.create({
   },
   feedbackBadge: {
     borderRadius: radius.full,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.uiGray0,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.uiSlate200,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -909,13 +909,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#EAB308',
+    backgroundColor: colors.accentYellow,
   },
   sectionTitle: {
     fontSize: typography.xs,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: '#4F4633',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
   },
   sectionCount: {
@@ -923,7 +923,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.sm,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     color: colors.text,
     textAlign: 'center',
     fontSize: 10,
@@ -943,7 +943,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC70',
+    borderColor: colors.warmBorderAlpha44,
     ...shadow.sm,
   },
   row: {
@@ -996,7 +996,7 @@ const styles = StyleSheet.create({
 
   complaintCard: {
     borderWidth: 1,
-    borderColor: '#D3C5AC70',
+    borderColor: colors.warmBorderAlpha44,
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     padding: spacing.md,
@@ -1028,14 +1028,14 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC70',
+    borderColor: colors.warmBorderAlpha44,
     ...shadow.sm,
   },
   managerTextInput: {
     height: 100,
     fontSize: typography.sm,
     color: colors.text,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.uiGray0,
     borderRadius: radius.md,
     padding: spacing.sm,
     borderWidth: 1,
@@ -1055,7 +1055,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     gap: 4,
   },
   managerActionBtnText: {
@@ -1154,7 +1154,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.uiGray0,
     padding: spacing.sm,
     borderRadius: radius.md,
     marginBottom: spacing.xs,

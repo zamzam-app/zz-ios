@@ -1,4 +1,5 @@
 import client from '../client';
+
 import { mapListSafely } from './mapListSafely';
 
 export interface Outlet {
@@ -48,8 +49,8 @@ interface RawOutlet {
   outletTypeId?: string | { _id?: string; name?: string };
   outletTypeName?: string;
   managerNames?: string[];
-  managerIds?: Array<string | { _id?: string; name?: string }>;
-  managers?: Array<{ _id?: string; name?: string }>;
+  managerIds?: (string | { _id?: string; name?: string })[];
+  managers?: { _id?: string; name?: string }[];
   rating?: number;
   totalFeedback?: number;
   images?: string[];

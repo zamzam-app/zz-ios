@@ -1,12 +1,12 @@
-export type TaskAssignedTimeSource = {
+export interface TaskAssignedTimeSource {
   assignedAt?: string;
   createdAt?: string;
-};
+}
 
-export type TaskCardFooterModel = {
+export interface TaskCardFooterModel {
   assignedTimeLabel: string | null;
   assignedTimePlacement: 'trailing';
-};
+}
 
 function parseIsoTimestamp(value?: string | null): number | null {
   if (!value) return null;

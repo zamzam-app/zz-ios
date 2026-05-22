@@ -1,10 +1,14 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { formatFileSize } from './TimelineEventShared';
+
 import { colors, spacing, radius, typography } from '../theme/theme';
 import { TaskEventType, AttachmentType } from '../types/task';
 import type { SerializedTimelineEvent, AttachmentPreview } from '../types/task';
+
+import { formatFileSize } from './TimelineEventShared';
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface TimelineEventAttachmentProps {
   event: SerializedTimelineEvent;
@@ -17,7 +21,6 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
   const size = event.data.size as number | undefined;
   const mimeType = event.data.mimeType as string | undefined;
   const reason = event.data.reason as string | undefined;
-  const attachmentId = event.data.attachmentId as string | undefined;
 
   return (
     <View style={styles.container}>
@@ -32,7 +35,7 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
             >
               <View style={styles.attachmentIconBg}>
                 <Ionicons
-                  name={attachmentIcon(att.type) as any}
+                  name={attachmentIcon(att.type) as IoniconName}
                   size={18}
                   color={isAdded ? colors.info : colors.error}
                 />
@@ -49,7 +52,7 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
       ) : (
         <View style={styles.inlineRow}>
           <Ionicons
-            name={(isAdded ? 'attach' : 'trash') as any}
+            name={(isAdded ? 'attach' : 'trash') as IoniconName}
             size={14}
             color={isAdded ? colors.info : colors.error}
           />
@@ -107,7 +110,7 @@ const styles = StyleSheet.create({
   },
   removedCard: {
     opacity: 0.6,
-    borderColor: '#FEE2E2',
+    borderColor: colors.errorLight,
   },
   attachmentIconBg: {
     width: 32,

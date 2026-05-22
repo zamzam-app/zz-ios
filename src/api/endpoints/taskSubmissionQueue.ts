@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CreateTaskPayload, tasksApi } from './tasks';
-import { waitForUploadJob, removeUploadJob } from './uploadQueue';
+
 import { queryClient } from '../queryClient';
+
+import { CreateTaskPayload, UpdateTaskPayload, tasksApi } from './tasks';
+import { waitForUploadJob, removeUploadJob } from './uploadQueue';
 
 const TASK_QUEUE_STORAGE_KEY = 'task_submission_queue_v1';
 const MAX_ATTEMPTS = 5;
@@ -10,7 +12,7 @@ const RETRY_DELAY_BASE = 5000; // 5 seconds
 export interface TaskSubmissionJob {
   id: string;
   taskId?: string; // If present, this is an update job
-  payload: any; // Can be CreateTaskPayload or UpdateTaskPayload
+  payload: CreateTaskPayload | UpdateTaskPayload;
   attachmentJobs: {
     id: string;
     type: 'image' | 'video' | 'audio' | 'file';
@@ -79,7 +81,7 @@ async function processQueue() {
     await persistQueue();
 
     // 1. Wait for all uploads
-    const attachments: any = {
+    const attachments: { images: string[]; videos: string[]; audios: string[]; files: string[] } = {
       images: [],
       videos: [],
       audios: [],
@@ -102,23 +104,28 @@ async function processQueue() {
 
     // 2. Prepare final payload
     const payloadAttachments = nextJob.payload.adminSubmission?.attachments;
-    const finalPayload: CreateTaskPayload = {
-      ...nextJob.payload,
-      adminSubmission: {
-        ...nextJob.payload.adminSubmission,
-        attachments: {
-          images: [...(payloadAttachments?.images ?? []), ...attachments.images].filter(Boolean),
-          videos: [...(payloadAttachments?.videos ?? []), ...attachments.videos].filter(Boolean),
-          audios: [...(payloadAttachments?.audios ?? []), ...attachments.audios].filter(Boolean),
-          files: [...(payloadAttachments?.files ?? []), ...attachments.files].filter(Boolean),
-        },
+    const updatedAdminSubmission = {
+      ...nextJob.payload.adminSubmission,
+      attachments: {
+        images: [...(payloadAttachments?.images ?? []), ...attachments.images].filter(Boolean),
+        videos: [...(payloadAttachments?.videos ?? []), ...attachments.videos].filter(Boolean),
+        audios: [...(payloadAttachments?.audios ?? []), ...attachments.audios].filter(Boolean),
+        files: [...(payloadAttachments?.files ?? []), ...attachments.files].filter(Boolean),
       },
     };
 
     // 3. Create or Update Task
     if (nextJob.taskId) {
+      const finalPayload: UpdateTaskPayload = {
+        ...nextJob.payload,
+        adminSubmission: updatedAdminSubmission,
+      };
       await tasksApi.update(nextJob.taskId, finalPayload);
     } else {
+      const finalPayload: CreateTaskPayload = {
+        ...(nextJob.payload as CreateTaskPayload),
+        adminSubmission: updatedAdminSubmission,
+      };
       await tasksApi.create(finalPayload);
     }
 
@@ -142,8 +149,12 @@ async function processQueue() {
 
     // Treat certain 4xx errors as permanent failures (no point retrying bad payloads).
     // Exclude 401 (token expiry — retry after re-auth) and 429 (rate-limited — let backoff handle it).
-    const responseStatus = (error as any)?.response?.status;
-    const isPermanentClientError = [400, 403, 404, 409, 410, 422].includes(responseStatus);
+    const responseStatus =
+      typeof error === 'object' && error && 'response' in error
+        ? (error as { response?: { status?: number } }).response?.status
+        : undefined;
+    const isPermanentClientError =
+      responseStatus !== undefined && [400, 403, 404, 409, 410, 422].includes(responseStatus);
     if (isPermanentClientError) {
       nextJob.attempts = MAX_ATTEMPTS;
     } else {
@@ -160,7 +171,7 @@ async function processQueue() {
 }
 
 export async function enqueueTaskSubmission(
-  payload: any,
+  payload: CreateTaskPayload | UpdateTaskPayload,
   attachmentJobs: { id: string; type: 'image' | 'video' | 'audio' | 'file' }[],
   taskId?: string,
 ) {

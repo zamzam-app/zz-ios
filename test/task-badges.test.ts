@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import {
   buildTaskBarModel,
   getTaskBadges,
@@ -58,7 +59,7 @@ function testOldBadgeBehaviorRemoval() {
   const task = createTask({
     badges: [{ key: 'category:hygiene', label: 'Hygiene', tone: 'success' }],
   });
-  const badges = getTaskBadges(task) as Array<{ badge?: string }>;
+  const badges = getTaskBadges(task) as { badge?: string }[];
   assert.equal(
     badges.some((badge) => typeof badge.badge === 'string'),
     false,
@@ -87,7 +88,6 @@ function run() {
   testRecurringTaskBadgeRendering();
   testOldBadgeBehaviorRemoval();
   testTaskBarRegressionCoverage();
-  console.log('task-badges.test.ts: ok');
 }
 
 run();

@@ -55,6 +55,71 @@ export const colors = {
   priorityLow: '#15803D',
   priorityMedium: '#D97706',
   priorityHigh: '#DC2626',
+
+  // Common literals (kept as tokens to satisfy lint rules)
+  transparent: 'transparent',
+  black: '#000',
+  ink: '#191C1E',
+  white: '#FFFFFF',
+  whiteAlpha50: '#FFFFFF80',
+
+  // Neutrals / surfaces used across screens
+  uiGray0: '#F8FAFC',
+  uiGray1: '#F2F4F6',
+  uiGray2: '#F1F3F5',
+  uiGray3: '#EEF1F4',
+  uiGray4: '#E6E8EA',
+  uiSlate200: '#E2E8F0',
+  uiSlate400: '#94A3B8',
+  uiSlate600: '#475569',
+
+  // Warm borders used in sheets/cards
+  warmBorder: '#D3C5AC',
+  warmBorderAlpha16: '#D3C5AC26',
+  warmBorderAlpha17: '#D3C5AC2A',
+  warmBorderAlpha20: '#D3C5AC33',
+  warmBorderAlpha18: '#D3C5AC30',
+  warmBorderAlpha25: '#D3C5AC40',
+  warmBorderAlpha33: '#D3C5AC55',
+  warmBorderAlpha36: '#D3C5AC5C',
+  warmBorderAlpha44: '#D3C5AC70',
+  warmBorderAlpha50: '#D3C5AC80',
+  warmBorderAlpha60: '#D3C5AC99',
+  warmBorderAlpha19: 'rgba(211, 197, 172, 0.25)',
+
+  // Scrims / overlays
+  scrimDark40: 'rgba(25, 28, 30, 0.4)',
+  scrimDark48: 'rgba(25, 28, 30, 0.48)',
+  scrimBlack40: 'rgba(0, 0, 0, 0.4)',
+  scrimBlack45: 'rgba(0,0,0,0.45)',
+  scrimBlack50: 'rgba(0,0,0,0.5)',
+  scrimBlack35: 'rgba(0, 0, 0, 0.35)',
+  scrimBlack05: 'rgba(0, 0, 0, 0.05)',
+  scrimBlack90: 'rgba(0,0,0,0.9)',
+  scrimWhite70: 'rgba(255, 255, 255, 0.7)',
+  overlayBlack33: '#00000055',
+
+  // Accent helpers
+  accentYellow: '#EAB308',
+  accentGold: '#F59E0B',
+  accentRed: '#EF4444',
+  accentGreen: '#16A34A',
+  accentGreenBright: '#22C55E',
+  accentGreenLight: '#DCFCE7',
+  accentBlue: '#3B82F6',
+  accentBlueBorder: '#C2E0FF',
+  accentRedBorder: '#FFCCC7',
+  accentRedBorderSoft: '#FBCACA',
+  accentRoseBg: '#FFEBEE',
+  accentRoseBgSoft: '#FFF1F1',
+  accentStone50: '#F5F5F4',
+  accentNeutral50: '#F9FAFB',
+  accentBrownText: '#4F4633',
+  accentBrownTextMuted: '#545F73',
+  accentCaramelText: '#A87E3B',
+  accentCoffee: '#5A4300',
+  accentSteel: '#4B6584',
+  accentCharcoalAlpha: '#393c3fff',
 };
 
 export const spacing = {

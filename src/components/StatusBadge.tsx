@@ -1,14 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, typography, radius } from '../theme/theme';
-import { TaskStatus } from '../api/endpoints/tasks';
 
-type StatusBadgeConfig = {
+import { TaskStatus } from '../api/endpoints/tasks';
+import { colors, typography, radius } from '../theme/theme';
+
+interface StatusBadgeConfig {
   label: string;
   color: string;
   backgroundColor: string;
   borderColor: string;
-};
+}
 
 const STATUS_CONFIG: Record<string, StatusBadgeConfig> = {
   OPEN: {

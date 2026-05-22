@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -11,19 +14,16 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import { useCriticalReviews, useReviews } from '../../hooks/useReviews';
-import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
-import { Review } from '../../api/endpoints/reviews';
+
 import { FranchiseRankingItem, MetricsHeatmapItem } from '../../api/endpoints/analytics';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { useAuthStore } from '../../store/authStore';
-import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
-import { ReviewMetricFilter } from '../../constants/reviewFilters';
+import { Review } from '../../api/endpoints/reviews';
 import StarRating from '../../components/StarRating';
+import { ReviewMetricFilter } from '../../constants/reviewFilters';
+import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
+import { useCriticalReviews, useReviews } from '../../hooks/useReviews';
+import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import {
   filterOpenCriticalReviews,
   getCriticalReviewsEmptyStateMessage,
@@ -34,13 +34,16 @@ import {
 type Nav = NativeStackNavigationProp<ReviewsStackParamList, 'ReviewsList'>;
 type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewsList'>;
 type MetricKey = keyof MetricsHeatmapItem['metrics'];
-type OutletOption = { id: string; label: string };
+interface OutletOption {
+  id: string;
+  label: string;
+}
 
-type MetricTone = {
+interface MetricTone {
   bg: string;
   border: string;
   text: string;
-};
+}
 
 const METRIC_ORDER: MetricKey[] = ['staff', 'speed', 'clean', 'quality', 'overall'];
 const METRIC_LABELS: Record<MetricKey, string> = {
@@ -215,15 +218,15 @@ export default function ReviewsScreen({ route }: Props) {
   useEffect(() => {
     const incomingMetric = route.params?.initialReviewFilter?.metric;
     if (incomingMetric) {
-      setStatusFilter(incomingMetric);
+      queueMicrotask(() => setStatusFilter(incomingMetric));
     }
     const incomingTypeFilter = route.params?.initialReviewFilter?.typeFilter;
     if (incomingTypeFilter) {
-      setAllReviewsFilter(incomingTypeFilter);
+      queueMicrotask(() => setAllReviewsFilter(incomingTypeFilter));
     }
     const incomingOutletId = route.params?.initialReviewFilter?.outletId;
     if (incomingOutletId) {
-      setSelectedOutletId(incomingOutletId);
+      queueMicrotask(() => setSelectedOutletId(incomingOutletId));
     }
   }, [
     route.params?.initialReviewFilter?.metric,
@@ -252,8 +255,8 @@ export default function ReviewsScreen({ route }: Props) {
     refetch: refetchAnalytics,
   } = useFranchiseAnalytics();
 
-  const ranking = analytics?.franchiseRanking ?? [];
-  const heatmap = analytics?.metricsHeatmap ?? [];
+  const ranking = useMemo(() => analytics?.franchiseRanking ?? [], [analytics]);
+  const heatmap = useMemo(() => analytics?.metricsHeatmap ?? [], [analytics]);
   const topRanking = ranking.slice(0, 3);
 
   const outletOptions = useMemo<OutletOption[]>(() => {
@@ -286,7 +289,7 @@ export default function ReviewsScreen({ route }: Props) {
   useEffect(() => {
     if (selectedOutletId === 'all') return;
     if (!outletOptions.some((option) => option.id === selectedOutletId)) {
-      setSelectedOutletId('all');
+      queueMicrotask(() => setSelectedOutletId('all'));
     }
   }, [outletOptions, selectedOutletId]);
 
@@ -493,15 +496,15 @@ export default function ReviewsScreen({ route }: Props) {
               <Text style={styles.sectionEyebrow}>Outlet Performance Heatmap</Text>
               <View style={styles.legendRow}>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
+                  <View style={[styles.legendDot, { backgroundColor: colors.accentGreenBright }]} />
                   <Text style={styles.legendText}>Good</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
+                  <View style={[styles.legendDot, { backgroundColor: colors.accentGold }]} />
                   <Text style={styles.legendText}>Mid</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+                  <View style={[styles.legendDot, { backgroundColor: colors.accentRed }]} />
                   <Text style={styles.legendText}>Alert</Text>
                 </View>
               </View>
@@ -942,17 +945,17 @@ const styles = StyleSheet.create({
     fontWeight: typography.bold,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    color: '#4F4633',
+    color: colors.accentBrownText,
   },
 
   rankList: {
     gap: spacing.sm,
   },
   rankRow: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC26',
+    borderColor: colors.warmBorderAlpha16,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     flexDirection: 'row',
@@ -970,7 +973,7 @@ const styles = StyleSheet.create({
     width: 28,
     fontSize: typography.lg,
     fontWeight: typography.bold,
-    color: '#D3C5AC',
+    color: colors.warmBorder,
     fontStyle: 'italic',
   },
   rankOutletName: {
@@ -989,7 +992,7 @@ const styles = StyleSheet.create({
   },
   rankScoreText: {
     fontSize: 10,
-    color: '#4F4633',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
   },
 
@@ -1019,7 +1022,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   heatmapRow: {
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.sm,
@@ -1092,59 +1095,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF80',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xs,
-  },
-  filterPillsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xs,
-  },
-  filterPillsRowScrollable: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingLeft: 118, // Width of sticky chip (110) + gap (8)
-    paddingRight: spacing.md,
-    paddingVertical: 2,
-  },
-  outletFilterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  stickyChipWrapper: {
-    position: 'absolute',
-    left: 0,
-    zIndex: 10,
-    backgroundColor: colors.screenBackground,
-    paddingRight: 4,
-  },
-  filterPill: {
-    height: 34,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-  },
-  filterPillActive: {
-    backgroundColor: colors.primaryTint,
-    borderColor: colors.primaryTintStrong,
-  },
-  filterPillText: {
-    fontSize: typography.sm,
-    color: colors.text,
-    fontWeight: typography.medium,
-  },
-  filterPillTextActive: {
-    color: colors.primaryDark,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.whiteAlpha50,
   },
   urgentBadge: {
     backgroundColor: colors.errorLight,
@@ -1174,10 +1125,10 @@ const styles = StyleSheet.create({
   },
 
   feedbackContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#D3C5AC26',
+    borderColor: colors.warmBorderAlpha16,
     overflow: 'hidden',
     ...shadow.sm,
   },
@@ -1188,7 +1139,7 @@ const styles = StyleSheet.create({
   },
   feedbackItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F4F6',
+    borderBottomColor: colors.uiGray1,
   },
   feedbackTopRow: {
     flexDirection: 'row',
@@ -1246,7 +1197,7 @@ const styles = StyleSheet.create({
   },
   feedbackBody: {
     fontSize: typography.sm,
-    color: '#4F4633',
+    color: colors.accentBrownText,
     lineHeight: 20,
   },
   feedbackFooterRow: {
@@ -1266,7 +1217,7 @@ const styles = StyleSheet.create({
   feedbackTag: {
     fontSize: 10,
     color: colors.textSecondary,
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -1379,7 +1330,7 @@ const styles = StyleSheet.create({
   },
   filterModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.scrimBlack50,
   },
   filterSheet: {
     backgroundColor: colors.screenBackground,
@@ -1468,7 +1419,7 @@ const styles = StyleSheet.create({
   filterClearBtn: {
     height: 48,
     borderRadius: radius.md,
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import {
   buildTaskCardFooterModel,
   formatTaskAssignedTime,
@@ -75,7 +76,6 @@ function run() {
   testRecentAndOlderAssignmentFormatting();
   testMissingTimestampFallback();
   testRegressionCoverageForCreatedAtFallback();
-  console.log('task-assigned-time.test.ts: ok');
 }
 
 run();

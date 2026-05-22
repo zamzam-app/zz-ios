@@ -1,4 +1,5 @@
 import client from '../client';
+
 import { mapListSafely } from './mapListSafely';
 
 export interface OutletType {

@@ -7,6 +7,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+
 import { colors } from '../theme/theme';
 
 type StarRatingMode = 'display' | 'interactive';
@@ -69,7 +70,7 @@ export default function StarRating({
         return (
           <Text
             key={index + 1}
-            style={{ fontSize: size, color: isFilled ? '#f59e0b' : colors.border }}
+            style={{ fontSize: size, color: isFilled ? colors.accentGold : colors.border }}
             accessible={false}
           >
             ★

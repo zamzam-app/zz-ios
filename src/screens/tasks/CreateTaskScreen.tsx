@@ -1,3 +1,18 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -16,40 +31,26 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DatePickerModal from '../../components/DatePickerModal';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import * as ImagePicker from 'expo-image-picker';
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioPlayer,
-  useAudioPlayerStatus,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from 'expo-audio';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import {
-  cancelUploadJob,
-  enqueueCloudinaryUpload,
-  removeUploadJob,
-  waitForUploadJob,
-} from '../../api/endpoints/uploadQueue';
-import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
-import { useOutlets } from '../../hooks/useOutlets';
-import { useManagers } from '../../hooks/useUsers';
+
 import {
   TaskPriority,
   TaskCategoryOption,
   CreateTaskPayload,
   Task,
 } from '../../api/endpoints/tasks';
-import { colors, spacing, radius, typography } from '../../theme/theme';
-import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { enqueueTaskSubmission } from '../../api/endpoints/taskSubmissionQueue';
+import {
+  cancelUploadJob,
+  enqueueCloudinaryUpload,
+  removeUploadJob,
+  waitForUploadJob,
+} from '../../api/endpoints/uploadQueue';
+import DatePickerModal from '../../components/DatePickerModal';
+import { useOutlets } from '../../hooks/useOutlets';
+import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
+import { useManagers } from '../../hooks/useUsers';
+import { TasksStackParamList } from '../../navigation/TasksNavigator';
+import { colors, spacing, radius, typography } from '../../theme/theme';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
 const WEEK_DAYS = [
@@ -66,12 +67,13 @@ const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({
   name: String(i + 1),
 }));
 const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
+const WAVEFORM_BAR_SPECS = WAVEFORM_BARS.map((height, index) => ({ id: `wave_${index}`, height }));
 const AUDIO_FILE_WAIT_RETRIES = 25;
 const AUDIO_FILE_WAIT_DELAY_MS = 120;
 
 type AttachmentType = 'image' | 'video' | 'audio' | 'file';
 
-type AttachmentItem = {
+interface AttachmentItem {
   id: string;
   type: AttachmentType;
   name: string;
@@ -81,7 +83,7 @@ type AttachmentItem = {
   remoteUrl?: string;
   error?: string;
   durationMillis?: number;
-};
+}
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -151,7 +153,7 @@ function PickerModal({
   selected,
   onSelect,
   onClose,
-  multi,
+  multi: _multi,
 }: {
   visible: boolean;
   title: string;
@@ -203,7 +205,7 @@ function isReleasedAudioPlayerError(error: unknown) {
   );
 }
 
-type CreateTaskContentProps = {
+interface CreateTaskContentProps {
   onSuccess: () => void;
   submitLabel?: string;
   bottomPadding?: number;
@@ -212,7 +214,7 @@ type CreateTaskContentProps = {
   initialIsRecurring?: boolean;
   hideRecurringToggle?: boolean;
   editTask?: Task;
-};
+}
 
 export function CreateTaskContent({
   onSuccess,
@@ -234,7 +236,6 @@ export function CreateTaskContent({
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [userPickedTime, setUserPickedTime] = useState(!!editTask?.dueTime);
   const [isRecurring, setIsRecurring] = useState(editTask?.isRecurring ?? initialIsRecurring);
   const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>(
     editTask?.recurrenceType ?? 'WEEKLY',
@@ -247,7 +248,6 @@ export function CreateTaskContent({
     setTaskCategoryId(editTask.taskCategory?._id ?? editTask.category);
     setPriority(editTask.priority);
     setDueDate(new Date(editTask.dueDate));
-    setUserPickedTime(!!editTask.dueTime);
     setIsRecurring(!!editTask.isRecurring);
     setRecurrenceType(editTask.recurrenceType ?? 'WEEKLY');
     setRecurrenceDays(editTask.recurrenceDays ?? []);
@@ -300,7 +300,7 @@ export function CreateTaskContent({
       );
     }
     setAttachments(existing);
-  }, [editTask?.id]);
+  }, [editTask]);
 
   useEffect(() => {
     setIsRecurring(initialIsRecurring);
@@ -1112,9 +1112,9 @@ export function CreateTaskContent({
                             />
                           </TouchableOpacity>
                           <View style={styles.waveformRow}>
-                            {WAVEFORM_BARS.map((barHeight, index) => (
+                            {WAVEFORM_BAR_SPECS.map(({ id, height: barHeight }, index) => (
                               <View
-                                key={`${item.id}-wave-${index}`}
+                                key={id}
                                 style={[
                                   styles.waveformBar,
                                   {
@@ -1230,7 +1230,6 @@ export function CreateTaskContent({
             const newDate = new Date(dueDate);
             newDate.setHours(date.getHours(), date.getMinutes(), 0, 0);
             setDueDate(newDate);
-            setUserPickedTime(true);
           }}
         />
 
@@ -1240,7 +1239,7 @@ export function CreateTaskContent({
             <ChipGroup
               options={['WEEKLY', 'MONTHLY']}
               value={recurrenceType}
-              onChange={(val: any) => {
+              onChange={(val: 'WEEKLY' | 'MONTHLY') => {
                 setRecurrenceType(val);
                 setRecurrenceDays([]);
               }}
@@ -1517,13 +1516,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-  },
-  attachmentInlineIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   attachmentInlineDropdownText: {
     color: colors.text,

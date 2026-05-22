@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import {
   buildOutletsScreenModel,
   filterOutletsByQuery,
@@ -116,7 +117,6 @@ function run() {
   testEmptySearchResultState();
   testClearingSearchInput();
   testRegressionCoverageForExistingOutletListBehavior();
-  console.log('outlet-search.test.ts: ok');
 }
 
 run();

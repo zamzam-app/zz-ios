@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,9 +13,11 @@ import {
   Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useNavigation } from '@react-navigation/native';
 import Svg, { Polyline, Line, Text as SvgText, Circle } from 'react-native-svg';
+
+import { Period } from '../../api/endpoints/analytics';
+import { ReviewMetricFilter, ReviewTypeFilter } from '../../constants/reviewFilters';
+import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
 import {
   useQuickInsights,
   useGlobalCsat,
@@ -22,11 +26,9 @@ import {
   useOutletFeedbackSummary,
   useTasksOverview,
 } from '../../hooks/useAnalytics';
-import { Period } from '../../api/endpoints/analytics';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { AppTabParamList } from '../../navigation/AppNavigator';
-import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
-import { ReviewMetricFilter, ReviewTypeFilter } from '../../constants/reviewFilters';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+
 import { buildOpenReviewOverviewModel, getOpenReviewsEmptyStateMessage } from './reviewOverview';
 
 const PERIODS: { label: string; value: Period }[] = [
@@ -42,26 +44,26 @@ const FEEDBACK_HEADER_HEIGHT = 54;
 type OverviewTopTab = 'reviews' | 'tasks';
 type OverviewNav = BottomTabNavigationProp<AppTabParamList, 'Overview'>;
 
-type SummaryMetricItem = {
+interface SummaryMetricItem {
   key: TaskMetricFilter;
   label: string;
   value: number | string;
   color: string;
   onPress?: () => void;
-};
+}
 
-type CsatBreakdownItem = {
+interface CsatBreakdownItem {
   questionId: string;
   title: string;
   score: number;
   totalRatings: number;
-};
+}
 
-type CsatBreakdown = {
+interface CsatBreakdown {
   score: string;
   ratings: string;
   items: CsatBreakdownItem[];
-};
+}
 
 function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Period) => void }) {
   return (
@@ -87,7 +89,7 @@ function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Pe
 
 function CsatFlipCard({ breakdown }: { breakdown: CsatBreakdown }) {
   const [flipped, setFlipped] = useState(false);
-  const flipAnim = useRef(new Animated.Value(0)).current;
+  const flipAnim = useMemo(() => new Animated.Value(0), []);
   const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearInactivityTimeout = () => {
@@ -298,7 +300,7 @@ function InsightRow({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.insightScroll}
     >
-      {insights.map((item, i) => {
+      {insights.map((item) => {
         const Content = (
           <>
             <Text style={styles.insightTitle}>{item.title}</Text>
@@ -307,7 +309,7 @@ function InsightRow({
         );
         return item.onPress ? (
           <TouchableOpacity
-            key={i}
+            key={item.title}
             style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}
             onPress={item.onPress}
             activeOpacity={0.8}
@@ -315,7 +317,10 @@ function InsightRow({
             {Content}
           </TouchableOpacity>
         ) : (
-          <View key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}>
+          <View
+            key={item.title}
+            style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}
+          >
             {Content}
           </View>
         );
@@ -467,8 +472,8 @@ function FeedbackCard({
           <Text style={[styles.feedbackTitle, { color: accent }]}>{title}</Text>
           <Text style={styles.feedbackSubtext}>{subtext}</Text>
         </View>
-        {items.map((item, i) => (
-          <View key={i} style={styles.feedbackRow}>
+        {items.map((item) => (
+          <View key={`${item.name}-${item.value}`} style={styles.feedbackRow}>
             <Text style={styles.feedbackName} numberOfLines={1}>
               {item.name}
             </Text>
@@ -761,7 +766,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: colors.warmBorderAlpha25,
     padding: spacing.md,
     gap: spacing.sm,
     ...shadow.sm,
@@ -810,7 +815,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
   },
   topTabBtnActive: {
     backgroundColor: colors.primaryTint,
@@ -836,7 +841,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#D3C5AC5C',
+    borderColor: colors.warmBorderAlpha36,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
@@ -905,11 +910,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
     color: colors.text,
   },
-  flipHint: {
-    marginTop: spacing.xs,
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-  },
   flipEmpty: {
     fontSize: typography.xs,
     color: colors.textSecondary,
@@ -925,7 +925,7 @@ const styles = StyleSheet.create({
     minHeight: 46,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC5C',
+    borderColor: colors.warmBorderAlpha36,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
     justifyContent: 'center',
@@ -981,7 +981,11 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendLine: { width: 18, height: 2, borderRadius: radius.full },
-  legendLineDashed: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed' },
+  legendLineDashed: {
+    backgroundColor: colors.transparent,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
   legendText: { fontSize: typography.xs, color: colors.textSecondary },
 
   feedbackCard: {

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import { getReviewTabBadgeModel } from '../src/navigation/reviewBadgeState';
 
 function testNavbarBadgeRendering() {
@@ -35,7 +36,6 @@ function run() {
   testBadgeHiddenStateWhenNoNewReviewsExist();
   testBadgeUpdateAfterReviewViewedOrHandled();
   testRegressionCoverageForReviewBadgeModel();
-  console.log('review-badges.test.ts: ok');
 }
 
 run();

@@ -1,3 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
+import { RouteProp, useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQuery } from '@tanstack/react-query';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -15,35 +21,30 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp, useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useInfiniteTasks } from '../../hooks/useTasks';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import DatePickerModal from '../../components/DatePickerModal';
+
 import { Task, TaskPriority, tasksApi } from '../../api/endpoints/tasks';
-import { useQuery } from '@tanstack/react-query';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { TasksStackParamList } from '../../navigation/TasksNavigator';
-import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
-import TaskBadgeRow from './TaskBadgeRow';
-import { buildTaskBarModel } from './taskBadges';
-import { CreateTaskContent } from './CreateTaskScreen';
-import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
-import { getApiErrorMessage } from '../../utils/errors';
-import { useAuthStore } from '../../store/authStore';
-import { useUnreadIds } from '../../hooks/useTaskView';
-import UnreadBadge from '../../components/UnreadBadge';
+import DatePickerModal from '../../components/DatePickerModal';
 import TaskQueueStatusBanner from '../../components/TaskQueueStatusBanner';
+import UnreadBadge from '../../components/UnreadBadge';
+import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
+import { useInfiniteTasks } from '../../hooks/useTasks';
+import { useUnreadIds } from '../../hooks/useTaskView';
+import { TasksStackParamList } from '../../navigation/TasksNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { getApiErrorMessage } from '../../utils/errors';
+
+import { CreateTaskContent } from './CreateTaskScreen';
 import { buildTaskCardFooterModel } from './taskAssignedTime';
+import { buildTaskBarModel } from './taskBadges';
+import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
 type PriorityFilter = TaskPriority | 'ALL';
 type FilterSection = 'priority' | 'dueDate';
 
-const PRIORITY_FILTERS: Array<{ label: string; value: PriorityFilter }> = [
+const PRIORITY_FILTERS: { label: string; value: PriorityFilter }[] = [
   { label: 'All priorities', value: 'ALL' },
   { label: 'High', value: 'HIGH' },
   { label: 'Medium', value: 'MEDIUM' },
@@ -182,29 +183,29 @@ function OpenTaskCard({
   const upperCategory = (categoryName || '').toUpperCase();
   const priority = task.priority;
 
-  let chipBg = '#E2E8F0';
-  let chipText = '#475569';
+  let chipBg = colors.uiSlate200;
+  let chipText = colors.uiSlate600;
   let chipLabel = categoryName || 'Task';
 
   if (priority === 'HIGH' || upperCategory.includes('HIGH')) {
-    chipBg = '#FEE2E2';
-    chipText = '#991B1B';
+    chipBg = colors.errorLight;
+    chipText = colors.error;
     chipLabel = 'HIGH PRIORITY';
   } else if (
     priority === 'MEDIUM' ||
     upperCategory.includes('ROUTINE') ||
     upperCategory.includes('MEDIUM')
   ) {
-    chipBg = '#DBEAFE';
-    chipText = '#1E40AF';
+    chipBg = colors.infoLight;
+    chipText = colors.info;
     chipLabel = categoryName || 'ROUTINE';
   } else if (
     priority === 'LOW' ||
     upperCategory.includes('VENDOR') ||
     upperCategory.includes('LOW')
   ) {
-    chipBg = '#FEF3C7';
-    chipText = '#92400E';
+    chipBg = colors.warningLight;
+    chipText = colors.primary;
     chipLabel = categoryName || 'VENDOR';
   }
 
@@ -229,7 +230,10 @@ function OpenTaskCard({
         <View style={styles.topRowLeft}>
           {hasUnread && <View style={styles.unreadDot} />}
           <View
-            style={[styles.openCardPill, { backgroundColor: chipBg, borderColor: 'transparent' }]}
+            style={[
+              styles.openCardPill,
+              { backgroundColor: chipBg, borderColor: colors.transparent },
+            ]}
           >
             <Text style={[styles.openCardPillText, { color: chipText }]}>{chipLabel}</Text>
           </View>
@@ -280,7 +284,7 @@ function CompletedTaskCard({
 }) {
   const outletName = getTaskOutletName(task);
   const categoryName = getTaskCategoryName(task);
-  const taskBar = buildTaskBarModel(task as any);
+  const taskBar = buildTaskBarModel(task);
   const imageCount = getTaskAttachmentUrls(task, 'images').length;
   const videoCount = getTaskAttachmentUrls(task, 'videos').length;
   const audioCount = getTaskAttachmentUrls(task, 'audios').length;
@@ -398,9 +402,9 @@ export default function TasksScreen() {
   useEffect(() => {
     const incomingMetric = route.params?.initialTaskFilter?.metric;
     if (incomingMetric === 'critical') {
-      setActiveFilter('HIGH_PRIORITY');
+      queueMicrotask(() => setActiveFilter('HIGH_PRIORITY'));
     } else if (incomingMetric === 'due_today') {
-      setActiveFilter('TODAY');
+      queueMicrotask(() => setActiveFilter('TODAY'));
     }
   }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
 
@@ -504,26 +508,31 @@ export default function TasksScreen() {
     { enabled: showCompletedSection },
   );
 
+  const { refetch: refetchOpen } = openTasksQuery;
+  const { refetch: refetchCompleted } = completedTasksQuery;
+  const { refetch: refetchTodayCount } = todayCountQuery;
+  const { refetch: refetchHighPriorityCount } = highPriorityCountQuery;
+
   useFocusEffect(
     React.useCallback(() => {
       void refetchUnreadIds();
-      void openTasksQuery.refetch();
-      void completedTasksQuery.refetch();
-      void todayCountQuery.refetch();
-      void highPriorityCountQuery.refetch();
+      void refetchOpen();
+      void refetchCompleted();
+      void refetchTodayCount();
+      void refetchHighPriorityCount();
     }, [
       refetchUnreadIds,
-      openTasksQuery.refetch,
-      completedTasksQuery.refetch,
-      todayCountQuery.refetch,
-      highPriorityCountQuery.refetch,
+      refetchOpen,
+      refetchCompleted,
+      refetchTodayCount,
+      refetchHighPriorityCount,
     ]),
   );
 
   useEffect(() => {
     const incomingMetric = route.params?.initialTaskFilter?.metric;
     if (!incomingMetric) return;
-    setMetricFilter(incomingMetric);
+    queueMicrotask(() => setMetricFilter(incomingMetric));
   }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
 
   useEffect(() => {
@@ -537,7 +546,7 @@ export default function TasksScreen() {
     const openError = openTasksQuery.error;
     const completedError = completedTasksQuery.error;
     if (!openError && !completedError) {
-      if (lastLoadError) setLastLoadError('');
+      if (lastLoadError) queueMicrotask(() => setLastLoadError(''));
       return;
     }
     const message = getApiErrorMessage(
@@ -545,7 +554,7 @@ export default function TasksScreen() {
       'Could not apply filters. Please try again.',
     );
     if (message === lastLoadError) return;
-    setLastLoadError(message);
+    queueMicrotask(() => setLastLoadError(message));
     Alert.alert('Could not load tasks', message);
   }, [openTasksQuery.error, completedTasksQuery.error, lastLoadError]);
 
@@ -589,7 +598,7 @@ export default function TasksScreen() {
   };
 
   const refetch = async () => {
-    const refetchers: Array<() => Promise<unknown>> = [];
+    const refetchers: (() => Promise<unknown>)[] = [];
     if (showOpenSection) refetchers.push(() => openTasksQuery.refetch());
     if (showCompletedSection) refetchers.push(() => completedTasksQuery.refetch());
     refetchers.push(() => refetchUnreadIds());
@@ -673,13 +682,22 @@ export default function TasksScreen() {
     setAttachmentModal({ task, type });
   };
 
+  const getDeterministicFileNameFromUrl = (value: string) => {
+    let hash = 0;
+    for (let i = 0; i < value.length; i += 1) {
+      hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+    }
+    return `document-${hash}`;
+  };
+
   const openExternalAttachment = async (url: string, type?: AttachmentType) => {
     const trimmedUrl = url.trim();
     // Handle PDF and other files specifically to open in-app
     const isPdf = trimmedUrl.toLowerCase().split('?')[0].endsWith('.pdf');
     if (isPdf || type === 'files') {
       try {
-        const fileName = trimmedUrl.split('/').pop()?.split('?')[0] || `document-${Date.now()}`;
+        const fileName =
+          trimmedUrl.split('/').pop()?.split('?')[0] || getDeterministicFileNameFromUrl(trimmedUrl);
         const localUri = `${FileSystem.cacheDirectory}${fileName}`;
 
         const downloadRes = await FileSystem.downloadAsync(trimmedUrl, localUri);
@@ -1163,9 +1181,9 @@ export default function TasksScreen() {
 
             <ScrollView contentContainerStyle={styles.attachModalContent}>
               {attachmentModal?.type === 'images'
-                ? attachmentModalUrls.map((url, index) => (
+                ? attachmentModalUrls.map((url) => (
                     <TouchableOpacity
-                      key={`${url}-${index}`}
+                      key={url}
                       onPress={() => {
                         void openExternalAttachment(url, attachmentModal?.type);
                       }}
@@ -1181,7 +1199,7 @@ export default function TasksScreen() {
                   ))
                 : attachmentModalUrls.map((url, index) => (
                     <TouchableOpacity
-                      key={`${url}-${index}`}
+                      key={url}
                       style={styles.attachRow}
                       onPress={() => {
                         void openExternalAttachment(url, attachmentModal?.type);
@@ -1311,7 +1329,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     backgroundColor: colors.buttonLightBg,
   },
   secondaryBtnText: {
@@ -1340,57 +1358,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
     paddingTop: spacing.sm,
-  },
-  searchWrap: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  searchIcon: {
-    position: 'absolute',
-    left: 12,
-    zIndex: 2,
-  },
-  searchInput: {
-    height: 40,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingLeft: 38,
-    paddingRight: 34,
-    fontSize: typography.sm,
-    color: colors.text,
-    backgroundColor: colors.surface,
-  },
-  searchClearBtn: {
-    position: 'absolute',
-    right: 8,
-    width: 22,
-    height: 22,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
-  },
-  searchClearText: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.bold,
-    lineHeight: 16,
-    includeFontPadding: false,
-  },
-  filterMenuWrap: {
-    position: 'relative',
-  },
-  filterIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.sm,
   },
   filterIconBtnActive: {
     borderColor: colors.primaryTintStrong,
@@ -1448,7 +1415,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   metricFilterChipClearText: {
     fontSize: 11,
@@ -1469,20 +1436,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionHeadingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionDot: { width: 6, height: 6, borderRadius: radius.full, backgroundColor: '#EAB308' },
+  sectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.accentYellow,
+  },
   sectionDotCompleted: { backgroundColor: colors.textSecondary },
   sectionTitle: {
     fontSize: typography.xs,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: '#4F4633',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
   },
   sectionCount: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.sm,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     color: colors.text,
     textTransform: 'uppercase',
     fontSize: 10,
@@ -1501,17 +1473,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   unreadCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
+    backgroundColor: colors.surface,
+    borderColor: colors.uiSlate200,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
   readCard: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
+    backgroundColor: colors.uiGray0,
+    borderColor: colors.uiSlate200,
     elevation: 0,
   },
   topRowLeft: {
@@ -1523,7 +1495,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3B82F6',
+    backgroundColor: colors.accentBlue,
     marginRight: 4,
   },
   openCardPill: {
@@ -1576,33 +1548,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     gap: spacing.sm,
   },
-  avatarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarMini: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#EEF1F4',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarMiniText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-  },
-  avatarMiniMore: {
-    backgroundColor: '#E2E8F0',
-  },
-  avatarMiniMoreText: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-  },
   assigneeText: {
     flex: 1,
     fontSize: typography.xs,
@@ -1644,7 +1589,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   searchClearTextCompact: {
     fontSize: typography.xs,
@@ -1666,7 +1611,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.transparent,
   },
   filterChipText: {
     fontSize: typography.xs,
@@ -1686,11 +1631,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   viewedTitle: {
-    color: '#393c3fff',
+    color: colors.accentCharcoalAlpha,
     fontWeight: '400',
   },
   viewedDescription: {
-    color: '#94A3B8',
+    color: colors.uiSlate400,
     fontWeight: '400',
   },
   viewedCard: {
@@ -1702,7 +1647,7 @@ const styles = StyleSheet.create({
   },
   openCardDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC55',
+    borderBottomColor: colors.warmBorderAlpha33,
     marginVertical: spacing.xs,
   },
   openCardFooter: {
@@ -1737,7 +1682,7 @@ const styles = StyleSheet.create({
   },
   openMetaLabel: {
     fontSize: typography.sm,
-    color: '#4B6584',
+    color: colors.accentSteel,
     fontWeight: typography.semibold,
   },
   openMetaStrong: {
@@ -1749,12 +1694,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
 
-  completedSection: {
-    marginTop: spacing.md,
-    minHeight: 210,
-    maxHeight: 250,
-  },
-  completedSectionHeader: { marginBottom: spacing.sm },
   completedRow: {
     gap: spacing.sm,
     paddingHorizontal: spacing.md, // Added horizontal padding for first/last card
@@ -1763,13 +1702,13 @@ const styles = StyleSheet.create({
   },
   completedCard: {
     width: 280,
-    backgroundColor: '#F0F2F5',
+    backgroundColor: colors.uiGray3,
     borderRadius: radius.lg,
     paddingTop: spacing.md,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: '#D3C5AC2A',
+    borderColor: colors.warmBorderAlpha17,
     gap: spacing.xs,
     marginRight: spacing.sm,
     alignSelf: 'flex-start',
@@ -1782,7 +1721,6 @@ const styles = StyleSheet.create({
 
   loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
   loadingMoreWrap: { paddingVertical: spacing.sm, alignItems: 'center' },
-  completedLoadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   completedLoadingMoreWrap: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -1790,11 +1728,6 @@ const styles = StyleSheet.create({
   },
   emptyWrap: { paddingVertical: spacing.xl },
   empty: { textAlign: 'center', color: colors.textSecondary, fontSize: typography.sm },
-  completedEmpty: {
-    color: colors.textSecondary,
-    fontSize: typography.sm,
-    marginBottom: spacing.md,
-  },
 
   createModalRoot: {
     flex: 1,
@@ -1802,7 +1735,7 @@ const styles = StyleSheet.create({
   },
   createModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+    backgroundColor: colors.scrimDark40,
   },
   filterSheet: {
     maxHeight: '88%',
@@ -1851,7 +1784,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 12,
     borderLeftWidth: 3,
-    borderLeftColor: 'transparent',
+    borderLeftColor: colors.transparent,
   },
   filterSidebarItemActive: {
     backgroundColor: colors.primaryTint,
@@ -1912,7 +1845,7 @@ const styles = StyleSheet.create({
   },
   attachModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#00000055',
+    backgroundColor: colors.overlayBlack33,
   },
   attachModalCard: {
     backgroundColor: colors.surface,
@@ -1942,7 +1875,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EEF1F4',
+    backgroundColor: colors.uiGray3,
   },
   attachModalContent: {
     padding: spacing.md,
@@ -1983,7 +1916,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
-    shadowColor: '#191c1e',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.14,
     shadowRadius: 20,
@@ -1994,7 +1927,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC40',
+    borderBottomColor: colors.warmBorderAlpha25,
     backgroundColor: colors.surfaceOverlay,
   },
   createSheetHandle: {
@@ -2002,7 +1935,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     marginBottom: spacing.sm,
   },
   createSheetHeader: {
@@ -2022,19 +1955,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
-  },
-  createSheetCloseText: {
-    color: colors.textSecondary,
-    fontSize: typography.base,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.uiGray1,
   },
   tabBar: {
     flexDirection: 'row',
     marginHorizontal: spacing.md,
     marginTop: spacing.sm,
     marginBottom: spacing.md,
-    backgroundColor: '#F1F3F5',
+    backgroundColor: colors.uiGray2,
     borderRadius: radius.lg,
     padding: 4,
   },
@@ -2045,8 +1973,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   tabItemActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    backgroundColor: colors.surface,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -2058,7 +1986,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   tabTextActive: {
-    color: '#A87E3B',
+    color: colors.accentCaramelText,
     fontWeight: typography.bold,
   },
   accordionContainer: {
@@ -2069,7 +1997,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -2101,7 +2029,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   accordionCountBadge: {
-    backgroundColor: '#EEF1F4',
+    backgroundColor: colors.uiGray3,
     paddingHorizontal: spacing.xs,
     paddingVertical: 2,
     borderRadius: radius.full,
@@ -2111,27 +2039,5 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
     fontWeight: typography.bold,
     color: colors.textSecondary,
-  },
-  accordionModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  accordionCloseBtn: {
-    padding: spacing.xs,
-  },
-  accordionModalTitle: {
-    fontSize: typography.lg,
-    fontWeight: typography.bold,
-    color: colors.text,
-  },
-  accordionListContent: {
-    padding: spacing.md,
-    paddingBottom: spacing.xl * 2,
   },
 });

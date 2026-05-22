@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
@@ -10,13 +11,12 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useUsers } from '../hooks/useUsers';
-import { useDelegateTask } from '../hooks/useTaskDelegation';
-import { colors, spacing, radius, typography, shadow } from '../theme/theme';
+
 import type { User } from '../api/endpoints/users';
+import { useDelegateTask } from '../hooks/useTaskDelegation';
+import { useUsers } from '../hooks/useUsers';
+import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 interface DelegationSheetProps {
   visible: boolean;
@@ -27,7 +27,7 @@ interface DelegationSheetProps {
   /** User IDs to exclude from the list (already attached / current user) */
   excludeUserIds?: string[];
   /** Outlet ID associated with the task, if any */
-  outletId?: string | any;
+  outletId?: string | null;
 }
 
 function UserRow({
@@ -101,17 +101,10 @@ export default function DelegationSheet({
     );
 
     // If task has an outlet, only include users associated with that outlet
-    let targetOutletId: string | undefined;
-    if (outletId) {
-      if (typeof outletId === 'string') {
-        targetOutletId = outletId;
-      } else if (typeof outletId === 'object') {
-        targetOutletId = outletId._id ?? outletId.id;
-      }
-    }
+    const targetOutletId = outletId || undefined;
 
     if (targetOutletId) {
-      result = result.filter((u) => u.outlets?.includes(targetOutletId!));
+      result = result.filter((u) => u.outlets?.includes(targetOutletId));
     }
 
     // Filter out already attached people & current user
@@ -296,7 +289,7 @@ const styles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: colors.scrimBlack45,
   },
   sheet: {
     backgroundColor: colors.screenBackground,
@@ -349,12 +342,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? spacing.xl + 16 : spacing.xl,
     gap: spacing.md,
-  },
-  modeDescription: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    lineHeight: 16,
-    paddingHorizontal: 2,
   },
   searchWrap: {
     flexDirection: 'row',

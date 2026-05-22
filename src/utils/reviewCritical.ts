@@ -1,6 +1,6 @@
 export type ComplaintStatusLike = 'pending' | 'resolved' | 'dismissed';
 
-export type ReviewQueryLike = {
+export interface ReviewQueryLike {
   page?: number;
   limit?: number;
   outletId?: string;
@@ -9,16 +9,16 @@ export type ReviewQueryLike = {
   severity?: 'critical' | 'concern';
   unresolvedOnly?: boolean;
   excludeResolved?: boolean;
-};
+}
 
-export type CriticalReviewLike = {
+export interface CriticalReviewLike {
   id?: string;
   outletId?: string;
   outletName?: string;
   isComplaint?: boolean;
   overallRating?: number;
   complaintStatus?: ComplaintStatusLike;
-};
+}
 
 export type CriticalFocusAreaModel = {
   outletId: string;

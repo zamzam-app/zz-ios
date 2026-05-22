@@ -1,12 +1,13 @@
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
 import { useOutlet } from '../../hooks/useOutlets';
 import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 type Props = NativeStackScreenProps<InfrastructureStackParamList, 'OutletDetail'>;
 

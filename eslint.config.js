@@ -91,6 +91,7 @@ module.exports = tseslint.config(
       ],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'no-debugger': 'error',
+      '@typescript-eslint/consistent-type-definitions': 'off',
     },
   },
 );

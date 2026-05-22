@@ -1,6 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 import { tasksApi } from '../api/endpoints/tasks';
-import { cursorPageParam, cursorQueryFn, flattenInfiniteData } from '../utils/pagination';
 import type {
   UnreadTaskCount,
   AggregatedUnread,
@@ -8,6 +8,7 @@ import type {
   RecentlyViewedQuery,
   TaskDetailTimelineResponse,
 } from '../types/task';
+import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
 
 // ─── Unread Queries ─────────────────────────────────────────────────────────
 

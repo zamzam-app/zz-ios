@@ -1,6 +1,8 @@
 import axios, { AxiosError } from 'axios';
-import { tokenStorage } from './storage';
+
 import { API_URL } from '../config/env';
+
+import { tokenStorage } from './storage';
 
 const client = axios.create({
   baseURL: API_URL,
@@ -25,10 +27,10 @@ client.interceptors.request.use(async (config) => {
 // transient failures (timeouts/5xx) do not force logout.
 
 let isRefreshing = false;
-let pendingRequests: Array<{
+let pendingRequests: {
   resolve: (token: string) => void;
   reject: (error: unknown) => void;
-}> = [];
+}[] = [];
 
 const flushPendingSuccess = (token: string) => {
   pendingRequests.forEach(({ resolve }) => resolve(token));

@@ -1,11 +1,17 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
+
 import { colors, spacing, radius } from '../theme/theme';
 
 // ─── Skeleton Config ────────────────────────────────────────────────────────
 
 const SKELETON_DURATION = 900;
 const CARD_EVENTS = 3;
+const EVENT_SKELETON_KEYS = Array.from(
+  { length: CARD_EVENTS },
+  (_unused, index) => `skel_${index}`,
+);
 
 const pulse = (value: Animated.Value) =>
   Animated.loop(
@@ -25,8 +31,8 @@ const pulse = (value: Animated.Value) =>
 
 // ─── Skeleton Block ─────────────────────────────────────────────────────────
 
-function SkeletonBlock({ style }: { style?: any }) {
-  const opacity = useRef(new Animated.Value(1)).current;
+function SkeletonBlock({ style }: { style?: StyleProp<ViewStyle> }) {
+  const [opacity] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     const anim = pulse(opacity);
@@ -93,8 +99,8 @@ function TimelineSkeleton() {
   return (
     <View style={styles.container}>
       <SummaryCardSkeleton />
-      {Array.from({ length: CARD_EVENTS }).map((_, i) => (
-        <EventCardSkeleton key={`skel-${i}`} />
+      {EVENT_SKELETON_KEYS.map((key) => (
+        <EventCardSkeleton key={key} />
       ))}
     </View>
   );
@@ -124,7 +130,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: colors.warmBorderAlpha25,
     gap: spacing.sm,
   },
   summaryTopRow: {

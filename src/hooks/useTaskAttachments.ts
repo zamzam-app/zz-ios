@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+
 import { tasksApi } from '../api/endpoints/tasks';
-import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
 import type {
   AddAttachmentPayload,
   RemoveAttachmentPayload,
@@ -8,6 +8,7 @@ import type {
   AttachmentQuery,
   TaskDetailTimelineResponse,
 } from '../types/task';
+import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
 
 // ─── Attachment Paginated Query ─────────────────────────────────────────────
 
@@ -139,7 +140,7 @@ export const useRemoveAttachment = () => {
       payload?: RemoveAttachmentPayload;
     }) => tasksApi.removeAttachment(taskId, attachmentId, payload),
 
-    onMutate: async ({ taskId, attachmentId }) => {
+    onMutate: async ({ taskId }) => {
       await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });
       await qc.cancelQueries({ queryKey: ['taskAttachments', taskId] });
 

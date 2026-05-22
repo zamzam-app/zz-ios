@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 import {
   getTaskQueueStatus,
   retryFailedJobs,
@@ -117,12 +118,12 @@ const styles = StyleSheet.create({
     ...shadow.sm,
   },
   pendingBanner: {
-    backgroundColor: '#F0F7FF',
-    borderColor: '#C2E0FF',
+    backgroundColor: colors.infoLight,
+    borderColor: colors.accentBlueBorder,
   },
   failedBanner: {
-    backgroundColor: '#FFF1F0',
-    borderColor: '#FFCCC7',
+    backgroundColor: colors.accentRoseBgSoft,
+    borderColor: colors.accentRedBorder,
   },
   icon: {
     marginRight: spacing.sm,
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
   divider: {
     width: 1,
     height: 12,
-    backgroundColor: '#FFCCC7',
+    backgroundColor: colors.accentRedBorder,
     marginHorizontal: spacing.sm,
   },
 });

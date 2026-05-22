@@ -1,11 +1,12 @@
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+import { MoreStackParamList } from '../../navigation/MoreNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { MoreStackParamList } from '../../navigation/MoreNavigator';
 
 type Nav = NativeStackNavigationProp<MoreStackParamList, 'MoreMenu'>;
 
@@ -64,7 +65,7 @@ export default function MoreScreen() {
             <TouchableOpacity
               key={item.screen}
               style={[styles.menuItem, index < visibleItems.length - 1 && styles.menuItemBorder]}
-              onPress={() => navigation.navigate(item.screen as any)}
+              onPress={() => navigation.navigate(item.screen as never)}
               activeOpacity={0.7}
             >
               <Text style={styles.menuIcon}>{item.icon}</Text>

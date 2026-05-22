@@ -1,12 +1,13 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+
 import { tasksApi } from '../api/endpoints/tasks';
-import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
 import type {
   SerializedTimelineEvent,
   TaskDetailTimelineResponse,
   EventTypeCounts,
   TimelineQuery,
 } from '../types/task';
+import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
 
 // ─── Task Detail (Summary + First Timeline Page) ────────────────────────────
 

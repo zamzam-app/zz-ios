@@ -1,18 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius, typography } from '../theme/theme';
+
+import { colors, spacing, typography } from '../theme/theme';
 import { TaskEventType } from '../types/task';
 import type { SerializedTimelineEvent, AttachmentPreview } from '../types/task';
-import { eventTypeIcon, eventColors, formatRelativeTime } from './TimelineEventShared';
-import TimelineEventCreated from './TimelineEventCreated';
-import TimelineEventComment from './TimelineEventComment';
-import TimelineEventStatus from './TimelineEventStatus';
+
 import TimelineEventAttachment from './TimelineEventAttachment';
+import TimelineEventComment from './TimelineEventComment';
+import TimelineEventCreated from './TimelineEventCreated';
 import TimelineEventDelegation from './TimelineEventDelegation';
 import TimelineEventGeneric from './TimelineEventGeneric';
+import { eventTypeIcon, eventColors, formatRelativeTime } from './TimelineEventShared';
+import TimelineEventStatus from './TimelineEventStatus';
 
 // ─── Props ──────────────────────────────────────────────────────────────────
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 export interface TimelineEventCardProps {
   event: SerializedTimelineEvent;
@@ -64,7 +68,7 @@ function TimelineEventCard({
         {!isLast && <View style={styles.railLine} />}
         {/* Icon node circle */}
         <View style={[styles.iconNode, { backgroundColor: nodeBg }]}>
-          <Ionicons name={icon as any} size={14} color={nodeFg} />
+          <Ionicons name={icon as IoniconName} size={14} color={nodeFg} />
         </View>
       </View>
 

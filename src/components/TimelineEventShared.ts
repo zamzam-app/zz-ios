@@ -1,5 +1,5 @@
-import { TaskEventType } from '../types/task';
 import { colors } from '../theme/theme';
+import { TaskEventType } from '../types/task';
 
 // ─── Event Type Icon Mapping ────────────────────────────────────────────────
 

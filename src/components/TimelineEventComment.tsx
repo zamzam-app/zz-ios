@@ -1,9 +1,12 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 import { colors, spacing, radius, typography } from '../theme/theme';
 import { AttachmentType } from '../types/task';
 import type { SerializedTimelineEvent, AttachmentPreview } from '../types/task';
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface TimelineEventCommentProps {
   event: SerializedTimelineEvent;
@@ -12,7 +15,6 @@ interface TimelineEventCommentProps {
 
 function TimelineEventComment({ event, onAttachmentPress }: TimelineEventCommentProps) {
   const text = event.data.text as string | undefined;
-  const attachmentIds = event.data.attachmentIds as string[] | undefined;
   const attachments = event.attachmentPreviews ?? [];
 
   return (
@@ -28,7 +30,11 @@ function TimelineEventComment({ event, onAttachmentPress }: TimelineEventComment
               style={styles.attachmentChip}
               onTouchEnd={onAttachmentPress ? () => onAttachmentPress(att) : undefined}
             >
-              <Ionicons name={attachmentIcon(att.type) as any} size={14} color={colors.info} />
+              <Ionicons
+                name={attachmentIcon(att.type) as IoniconName}
+                size={14}
+                color={colors.info}
+              />
               <Text style={styles.attachmentLabel} numberOfLines={1}>
                 {att.type.toLowerCase()}
               </Text>

@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import {
   View,
@@ -13,20 +16,18 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+
+import { User, UpdateManagerPayload } from '../../api/endpoints/users';
 import {
   useManagers,
   useUpdateManager,
   useCreateManager,
   useDeleteManager,
 } from '../../hooks/useUsers';
-import { User, UpdateManagerPayload } from '../../api/endpoints/users';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 function getInitial(value: string) {
   return value.trim().charAt(0).toUpperCase() || 'M';
@@ -440,13 +441,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  eyebrow: {
-    fontSize: typography.xs,
-    fontWeight: typography.semibold,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.primary,
-  },
   title: {
     fontSize: 34,
     lineHeight: 40,
@@ -510,7 +504,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },

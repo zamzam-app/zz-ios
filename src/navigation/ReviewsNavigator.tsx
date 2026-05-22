@@ -1,9 +1,10 @@
-import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import ReviewsScreen from '../screens/reviews/ReviewsScreen';
-import ReviewDetailScreen from '../screens/reviews/ReviewDetailScreen';
-import { colors, typography } from '../theme/theme';
+import React from 'react';
+
 import { ReviewFilterParams } from '../constants/reviewFilters';
+import ReviewDetailScreen from '../screens/reviews/ReviewDetailScreen';
+import ReviewsScreen from '../screens/reviews/ReviewsScreen';
+import { colors, typography } from '../theme/theme';
 
 export type ReviewsStackParamList = {
   ReviewsList: { initialReviewFilter?: ReviewFilterParams } | undefined;

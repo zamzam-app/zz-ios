@@ -1,6 +1,7 @@
-import client from '../client';
-import { mapListSafely } from './mapListSafely';
 import { buildCriticalReviewsQuery, filterOpenCriticalReviews } from '../../utils/reviewCritical';
+import client from '../client';
+
+import { mapListSafely } from './mapListSafely';
 
 export type ComplaintStatus = 'pending' | 'resolved' | 'dismissed';
 
@@ -81,7 +82,9 @@ interface RawReview {
   createdAt?: string;
 }
 
-type RawReviewEnvelope = { data?: RawReview };
+interface RawReviewEnvelope {
+  data?: RawReview;
+}
 
 function isRawReviewEnvelope(value: unknown): value is RawReviewEnvelope {
   return Boolean(
@@ -111,7 +114,9 @@ function mapReview(raw: RawReview): Review {
   let customerPhone: string | undefined;
   if (typeof raw.userId === 'object' && raw.userId) {
     if (raw.userId.name) customerName = raw.userId.name;
-    if ((raw.userId as any).phoneNumber) customerPhone = (raw.userId as any).phoneNumber;
+    if ('phoneNumber' in raw.userId && typeof raw.userId.phoneNumber === 'string') {
+      customerPhone = raw.userId.phoneNumber;
+    }
   }
 
   let outletId = '';

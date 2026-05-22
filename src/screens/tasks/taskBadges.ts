@@ -2,17 +2,17 @@ import { colors, radius, spacing, typography } from '../../theme/theme';
 
 export type TaskBadgeTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
-export type TaskBadge = {
+export interface TaskBadge {
   key: string;
   label: string;
   tone: TaskBadgeTone;
-};
+}
 
-export type TaskBadgeStyle = {
+export interface TaskBadgeStyle {
   backgroundColor: string;
   borderColor: string;
   textColor: string;
-};
+}
 
 const BADGE_TONE_STYLES: Record<TaskBadgeTone, TaskBadgeStyle> = {
   neutral: {
@@ -62,8 +62,9 @@ export const taskBadgeStyles = {
   } as const,
 };
 
-export type TaskBadgeTask = {
-  [key: string]: unknown;
+export interface TaskBadgeTask {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
   id?: string;
   title?: string;
   description: string;
@@ -74,11 +75,11 @@ export type TaskBadgeTask = {
   taskCategory?: { _id?: string; name?: string; description?: string };
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   assigneeNames?: string[];
-  assignees?: Array<{ _id?: string; name?: string }>;
+  assignees?: { _id?: string; name?: string }[];
   isRecurring?: boolean;
   recurrenceType?: 'WEEKLY' | 'MONTHLY';
   badges?: TaskBadge[];
-};
+}
 
 function fallbackBadges(task: TaskBadgeTask): TaskBadge[] {
   const badges: TaskBadge[] = [];

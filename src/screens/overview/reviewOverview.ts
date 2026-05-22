@@ -1,15 +1,15 @@
 import type { OutletFeedbackItem } from '../../api/endpoints/analytics';
 
-export type OverviewOutletCount = {
+export interface OverviewOutletCount {
   name: string;
   value: number;
-};
+}
 
-export type OpenReviewOverviewModel = {
+export interface OpenReviewOverviewModel {
   criticalItems: OverviewOutletCount[];
   openItems: OverviewOutletCount[];
   hasOpenReviews: boolean;
-};
+}
 
 function toSortedCounts(
   items: OutletFeedbackItem[],

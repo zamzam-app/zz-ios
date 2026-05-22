@@ -1,4 +1,5 @@
 import client from '../client';
+
 import { mapListSafely } from './mapListSafely';
 
 const CLOUDINARY_UPLOAD_TIMEOUT_MS = 60_000;
@@ -75,7 +76,7 @@ export async function uploadToCloudinary(localUri: string, folder = 'zam-zam'): 
   const resolvedResourceType = sig.resourceType ?? sig.resource_type ?? 'auto';
 
   const formData = new FormData();
-  formData.append('file', { uri: localUri, name: filename, type: mimeType } as any);
+  formData.append('file', { uri: localUri, name: filename, type: mimeType } as unknown as Blob);
   formData.append('api_key', sig.apiKey);
   formData.append('timestamp', String(sig.timestamp));
   formData.append('signature', sig.signature);
@@ -177,7 +178,7 @@ export const cakeApi = {
       .then((r) => {
         const raw = Array.isArray(r.data)
           ? r.data
-          : (((r.data as any).data ?? []) as RawCustomCake[]);
+          : ((r.data as { data: RawCustomCake[] }).data ?? []);
         return mapListSafely(raw, 'custom-cakes', mapCustomCake);
       }),
 
@@ -189,7 +190,7 @@ export const cakeApi = {
       .then((r) => {
         const raw = Array.isArray(r.data)
           ? r.data
-          : (((r.data as any).data ?? []) as RawUploadedCakeImage[]);
+          : ((r.data as { data: RawUploadedCakeImage[] }).data ?? []);
         return mapListSafely(raw, 'uploaded-cakes', mapUploadedCakeImage);
       }),
 };

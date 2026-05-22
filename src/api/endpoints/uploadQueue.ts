@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { uploadToCloudinary } from './upload';
 
 const UPLOAD_QUEUE_STORAGE_KEY = 'upload_queue_v1';
@@ -154,7 +155,6 @@ async function processQueue() {
 
   isProcessing = true;
   try {
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const next = findNextJob(Date.now());
       if (!next) break;

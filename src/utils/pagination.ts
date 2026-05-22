@@ -58,7 +58,8 @@ export function decodeCursor<T = Record<string, unknown>>(
 
 // ─── React Query Integration ────────────────────────────────────────────────
 
-import type { InfiniteData, QueryKey } from '@tanstack/react-query';
+import type { InfiniteData } from '@tanstack/react-query';
+
 import type { PaginatedResponse } from '../types/task';
 
 /**

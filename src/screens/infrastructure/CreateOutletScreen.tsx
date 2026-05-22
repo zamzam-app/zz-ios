@@ -1,3 +1,4 @@
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   View,
@@ -12,19 +13,19 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import { Outlet } from '../../api/endpoints/outlets';
+import { useForms } from '../../hooks/useForms';
 import { useCreateOutlet, useUpdateOutlet } from '../../hooks/useOutlets';
 import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';
-import { useForms } from '../../hooks/useForms';
-import { useAuthStore } from '../../store/authStore';
-import { Outlet } from '../../api/endpoints/outlets';
-import { colors, spacing, radius, typography } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography } from '../../theme/theme';
 import { getApiErrorMessage } from '../../utils/errors';
 
 type Props = NativeStackScreenProps<InfrastructureStackParamList, 'CreateOutlet'>;
-type CreateOutletContentProps = {
+interface CreateOutletContentProps {
   mode?: 'create' | 'edit';
   outletToEdit?: Outlet | null;
   onSuccess: () => void;
@@ -32,7 +33,7 @@ type CreateOutletContentProps = {
   bottomPadding?: number;
   fill?: boolean;
   backgroundColor?: string;
-};
+}
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -50,7 +51,7 @@ function PickerModal({
   selected,
   onSelect,
   onClose,
-  multi,
+  multi: _multi,
 }: {
   visible: boolean;
   title: string;
@@ -125,22 +126,33 @@ export function CreateOutletContent({
     if (mode !== 'edit' || !outletToEdit) {
       return;
     }
-    setName(outletToEdit.name ?? '');
-    setDescription(outletToEdit.description ?? '');
-    setAddress(outletToEdit.address ?? '');
-    setOutletTypeId(outletToEdit.outletTypeId ?? '');
-    setFormId(outletToEdit.formId ?? '');
-    setManagerIds(outletToEdit.managerIds ?? []);
+    const nextName = outletToEdit.name ?? '';
+    const nextDescription = outletToEdit.description ?? '';
+    const nextAddress = outletToEdit.address ?? '';
+    const nextOutletTypeId = outletToEdit.outletTypeId ?? '';
+    const nextFormId = outletToEdit.formId ?? '';
+    const nextManagerIds = outletToEdit.managerIds ?? [];
+
+    queueMicrotask(() => {
+      setName(nextName);
+      setDescription(nextDescription);
+      setAddress(nextAddress);
+      setOutletTypeId(nextOutletTypeId);
+      setFormId(nextFormId);
+      setManagerIds(nextManagerIds);
+    });
   }, [mode, outletToEdit]);
 
   React.useEffect(() => {
     if (mode !== 'create') return;
-    setName('');
-    setDescription('');
-    setAddress('');
-    setOutletTypeId('');
-    setFormId('');
-    setManagerIds([]);
+    queueMicrotask(() => {
+      setName('');
+      setDescription('');
+      setAddress('');
+      setOutletTypeId('');
+      setFormId('');
+      setManagerIds([]);
+    });
   }, [mode]);
 
   const selectedType = outletTypes?.find((t) => t.id === outletTypeId);

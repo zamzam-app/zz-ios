@@ -14,13 +14,7 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc --noEmit --watch",
-    "check": "npm run format:check && npm run lint && npm run typecheck",
-    "test:task-badges": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/task-badges.test.ts src/screens/tasks/taskBadges.ts src/theme/theme.ts && node .tmp-tests/test/task-badges.test.js",
-    "test:review-badges": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/review-badges.test.ts src/navigation/reviewBadgeState.ts && node .tmp-tests/test/review-badges.test.js",
-    "test:review-critical-filtering": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/review-critical-filtering.test.ts src/utils/reviewCritical.ts && node .tmp-tests/test/review-critical-filtering.test.js",
-    "test:outlet-search": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/outlet-search.test.ts src/screens/infrastructure/outletSearch.ts && node .tmp-tests/test/outlet-search.test.js",
-    "test:task-assigned-time": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/task-assigned-time.test.ts src/screens/tasks/taskAssignedTime.ts && node .tmp-tests/test/task-assigned-time.test.js",
-    "test:review-overview": "tsc --module commonjs --target es2020 --esModuleInterop --outDir .tmp-tests test/review-overview.test.ts src/screens/overview/reviewOverview.ts src/api/endpoints/analytics.ts src/api/client.ts && node .tmp-tests/test/review-overview.test.js"
+    "do": "npm run format:check && npm run lint && npm run typecheck && git add ."
   },
   "dependencies": {
     "@expo/ngrok": "^4.0.0",

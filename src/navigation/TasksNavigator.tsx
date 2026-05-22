@@ -1,11 +1,12 @@
-import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import TasksScreen from '../screens/tasks/TasksScreen';
-import TaskDetailScreen from '../screens/tasks/TaskDetailScreen';
+import React from 'react';
+
+import { TaskFilterParams } from '../constants/taskFilters';
 import CreateTaskScreen from '../screens/tasks/CreateTaskScreen';
 import TaskCategoriesScreen from '../screens/tasks/TaskCategoriesScreen';
+import TaskDetailScreen from '../screens/tasks/TaskDetailScreen';
+import TasksScreen from '../screens/tasks/TasksScreen';
 import { colors, typography } from '../theme/theme';
-import { TaskFilterParams } from '../constants/taskFilters';
 
 export type TasksStackParamList = {
   TasksList: { initialTaskFilter?: TaskFilterParams } | undefined;

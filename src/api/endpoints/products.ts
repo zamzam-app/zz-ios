@@ -1,4 +1,5 @@
 import client from '../client';
+
 import { mapListSafely } from './mapListSafely';
 
 export interface Category {
@@ -35,13 +36,13 @@ interface RawProduct {
   _id?: string;
   id?: string;
   name?: string;
-  price?: any; // TEMPORARY MIGRATION SUPPORT
-  pricing?: Array<{
-    quantityValue?: any;
-    quantityUnit?: any;
-    amount?: any;
-    currency?: any;
-  }>;
+  price?: unknown; // TEMPORARY MIGRATION SUPPORT
+  pricing?: {
+    quantityValue?: unknown;
+    quantityUnit?: unknown;
+    amount?: unknown;
+    currency?: unknown;
+  }[];
   description?: string;
   isActive?: boolean;
   categoryList?: string[];
@@ -137,7 +138,7 @@ export const productsApi = {
 
   create: (payload: {
     name: string;
-    pricing: Array<{ quantityValue: number; amount: number }>;
+    pricing: { quantityValue: number; amount: number }[];
     description: string;
     categoryList?: string[];
     images?: string[];
@@ -158,7 +159,7 @@ export const productsApi = {
     id: string,
     payload: {
       name?: string;
-      pricing?: Array<{ quantityValue: number; amount: number }>;
+      pricing?: { quantityValue: number; amount: number }[];
       description?: string;
       isActive?: boolean;
       categoryList?: string[];

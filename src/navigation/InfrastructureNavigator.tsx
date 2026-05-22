@@ -1,8 +1,9 @@
-import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React from 'react';
+
+import CreateOutletScreen from '../screens/infrastructure/CreateOutletScreen';
 import InfrastructureScreen from '../screens/infrastructure/InfrastructureScreen';
 import OutletDetailScreen from '../screens/infrastructure/OutletDetailScreen';
-import CreateOutletScreen from '../screens/infrastructure/CreateOutletScreen';
 import OutletTypesScreen from '../screens/infrastructure/OutletTypesScreen';
 import { colors, typography } from '../theme/theme';
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import {
   buildCriticalReviewsQuery,
   filterOpenCriticalReviews,
@@ -8,7 +9,7 @@ import {
   isOpenCriticalReview,
 } from '../src/utils/reviewCritical';
 
-type TestReview = {
+interface TestReview {
   id: string;
   customerName: string;
   outletId: string;
@@ -18,7 +19,7 @@ type TestReview = {
   isComplaint: boolean;
   complaintStatus?: 'pending' | 'resolved' | 'dismissed';
   createdAt: string;
-};
+}
 
 function createReview(overrides: Partial<TestReview> = {}): TestReview {
   return {
@@ -114,7 +115,6 @@ function run() {
   testQuickInsightsCountMatchesFilteredList();
   testEmptyStateWhenAllCriticalReviewsAreResolved();
   testRegressionCoverageForExistingReviewBehavior();
-  console.log('review-critical-filtering.test.ts: ok');
 }
 
 run();

@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export interface FilterOption<T> {
@@ -87,7 +88,7 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: typography.sm,
     fontWeight: typography.semibold,
-    color: '#fff',
+    color: colors.textInverse,
     flexShrink: 1,
   },
 

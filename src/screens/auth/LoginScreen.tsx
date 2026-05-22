@@ -12,8 +12,10 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import { useAuthStore } from '../../store/authStore';
+
+import logo from '../../../assets/logo.png';
 import { ADMIN_EMAIL } from '../../config/env';
+import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 
 export default function LoginScreen() {
@@ -43,11 +45,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.inner}>
-        <Image
-          source={require('../../../assets/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <Image source={logo} style={styles.logo} resizeMode="contain" />
 
         <Text style={styles.heading}>{isAdminLogin ? 'Admin Portal' : 'Manager Portal'}</Text>
         <Text style={styles.subheading}>Sign in to your account</Text>
@@ -170,7 +168,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   inputDisabled: {
-    backgroundColor: '#F5F5F4',
+    backgroundColor: colors.accentStone50,
     color: colors.textSecondary,
   },
   button: {

@@ -1,4 +1,5 @@
 import client from '../client';
+
 import { mapListSafely } from './mapListSafely';
 
 export interface User {
@@ -40,7 +41,7 @@ interface RawUser {
   userName?: string;
   phoneNumber?: string;
   role?: string;
-  outlets?: Array<string | { _id?: string; id?: string }>;
+  outlets?: (string | { _id?: string; id?: string })[];
   isActive?: boolean;
 }
 

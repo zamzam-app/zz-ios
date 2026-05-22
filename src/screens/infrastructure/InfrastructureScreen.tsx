@@ -1,3 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import React from 'react';
 import {
   View,
@@ -15,32 +20,29 @@ import {
   Platform,
   TextInput,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useOutlets, useDeleteOutlet } from '../../hooks/useOutlets';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Outlet } from '../../api/endpoints/outlets';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { QR_REVIEW_BASE_URL } from '../../config/env';
+import { useOutlets, useDeleteOutlet } from '../../hooks/useOutlets';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+
 import { CreateOutletContent } from './CreateOutletScreen';
-import { QR_REVIEW_BASE_URL } from '../../config/env';
 import { buildOutletsScreenModel, OUTLET_SEARCH_DEBOUNCE_MS } from './outletSearch';
 
 type Nav = NativeStackNavigationProp<InfrastructureStackParamList, 'OutletsList'>;
 
-type OutletCardProps = {
+interface OutletCardProps {
   outlet: Outlet;
   isAdmin: boolean;
   onPress: () => void;
   onQrPress: () => void;
   onEditPress: () => void;
   onDelete: () => void;
-};
+}
 
 function FallbackOutletImage({ name }: { name: string }) {
   const letter = name.trim().charAt(0).toUpperCase() || 'O';
@@ -147,7 +149,10 @@ export default function InfrastructureScreen() {
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [editingOutlet, setEditingOutlet] = React.useState<Outlet | null>(null);
   const [selectedQrOutlet, setSelectedQrOutlet] = React.useState<Outlet | null>(null);
-  const qrRef = React.useRef<any>(null);
+  interface QrCodeRef {
+    toDataURL: (callback: (base64Data: string) => void) => void;
+  }
+  const qrRef = React.useRef<QrCodeRef | null>(null);
   const outletList = React.useMemo(() => outlets ?? [], [outlets]);
 
   React.useEffect(() => {
@@ -516,7 +521,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   searchClearText: {
     fontSize: typography.sm,
@@ -530,7 +535,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     backgroundColor: colors.buttonLightBg,
   },
   secondaryBtnText: {
@@ -554,11 +559,11 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: 120 },
   listEmpty: { flexGrow: 1 },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC26',
+    borderColor: colors.warmBorderAlpha16,
     ...shadow.sm,
     gap: spacing.sm,
   },
@@ -571,7 +576,7 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: radius.md,
     overflow: 'hidden',
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     flexShrink: 0,
   },
   outletImage: {
@@ -582,12 +587,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   outletImageFallbackText: {
     fontSize: typography.lg,
     fontWeight: typography.bold,
-    color: '#5A4300',
+    color: colors.accentCoffee,
   },
 
   cardContent: {
@@ -611,13 +616,13 @@ const styles = StyleSheet.create({
   },
   typeChip: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FDF4E7',
+    backgroundColor: colors.primaryTint,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   typeChipText: {
-    color: '#92400E',
+    color: colors.primary,
     fontSize: 10,
     fontWeight: typography.bold,
     textTransform: 'uppercase',
@@ -632,7 +637,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: colors.successLight,
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -641,12 +646,12 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: radius.full,
-    backgroundColor: '#16A34A',
+    backgroundColor: colors.accentGreen,
   },
   activeText: {
     fontSize: 10,
     fontWeight: typography.bold,
-    color: '#15803D',
+    color: colors.success,
     letterSpacing: 0.3,
   },
   deleteBtn: {
@@ -655,7 +660,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F5EFE6',
+    backgroundColor: colors.surfaceElevated,
   },
 
   metaRows: {
@@ -722,7 +727,7 @@ const styles = StyleSheet.create({
   },
   createModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+    backgroundColor: colors.scrimDark40,
   },
   createSheet: {
     maxHeight: '92%',
@@ -730,7 +735,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
-    shadowColor: '#191c1e',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.14,
     shadowRadius: 20,
@@ -741,7 +746,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC40',
+    borderBottomColor: colors.warmBorderAlpha25,
     backgroundColor: colors.surfaceOverlay,
   },
   createSheetHandle: {
@@ -749,7 +754,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     marginBottom: spacing.sm,
   },
   createSheetHeader: {
@@ -769,12 +774,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
-  },
-  createSheetCloseText: {
-    color: colors.textSecondary,
-    fontSize: typography.base,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.uiGray1,
   },
 
   qrModalRoot: {
@@ -785,16 +785,16 @@ const styles = StyleSheet.create({
   },
   qrModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.48)',
+    backgroundColor: colors.scrimDark48,
   },
   qrModalCard: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: colors.warmBorderAlpha25,
     ...shadow.md,
   },
   qrHeader: {
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC33',
+    borderBottomColor: colors.warmBorderAlpha20,
   },
   qrTitle: {
     flex: 1,
@@ -818,12 +818,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
-  },
-  qrCloseText: {
-    fontSize: typography.base,
-    color: colors.textSecondary,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.uiGray1,
   },
   qrCanvasWrap: {
     marginTop: spacing.lg,
@@ -832,8 +827,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D3C5AC99',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.warmBorderAlpha60,
+    backgroundColor: colors.surface,
   },
   qrHint: {
     marginTop: spacing.sm,
@@ -854,8 +849,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.warmBorderAlpha50,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },

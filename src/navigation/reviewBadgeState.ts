@@ -7,10 +7,10 @@ export type ReviewBadgeSnapshot =
   | null
   | undefined;
 
-export type ReviewTabBadgeModel = {
+export interface ReviewTabBadgeModel {
   visible: boolean;
   count: number;
-};
+}
 
 export function getReviewTabBadgeModel(status: ReviewBadgeSnapshot): ReviewTabBadgeModel {
   const count = Math.max(0, status?.unreadCount ?? 0);

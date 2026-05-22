@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import {
   View,
@@ -16,9 +19,10 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+import { Product, Category } from '../../api/endpoints/products';
+import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
+import ImagePickerButton from '../../components/ImagePickerButton';
 import {
   useProducts,
   useCategories,
@@ -31,12 +35,11 @@ import {
   useCustomCakes,
   useUploadedCakes,
 } from '../../hooks/useProducts';
-import { Product, Category } from '../../api/endpoints/products';
-import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
-import ImagePickerButton from '../../components/ImagePickerButton';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+
+const newPricingId = () => `pricing_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
 type StudioNav = NativeStackNavigationProp<MoreStackParamList, 'Studio'>;
 type StudioTab = 'catalogue' | 'ai' | 'uploads';
@@ -59,8 +62,12 @@ function CategoryModal({
 
   React.useEffect(() => {
     if (visible) {
-      setName(initial?.name ?? '');
-      setDesc(initial?.description ?? '');
+      const nextName = initial?.name ?? '';
+      const nextDesc = initial?.description ?? '';
+      queueMicrotask(() => {
+        setName(nextName);
+        setDesc(nextDesc);
+      });
     }
   }, [visible, initial]);
 
@@ -118,7 +125,7 @@ function ProductModal({
   onClose: () => void;
   onSubmit: (
     name: string,
-    pricing: Array<{ quantityValue: string; amount: string }>,
+    pricing: { quantityValue: string; amount: string }[],
     description: string,
     categoryList: string[],
     images: string[],
@@ -126,8 +133,8 @@ function ProductModal({
   submitting: boolean;
 }) {
   const [name, setName] = useState('');
-  const [pricing, setPricing] = useState<Array<{ quantityValue: string; amount: string }>>([
-    { quantityValue: '', amount: '' },
+  const [pricing, setPricing] = useState<{ id: string; quantityValue: string; amount: string }[]>([
+    { id: newPricingId(), quantityValue: '', amount: '' },
   ]);
   const [description, setDescription] = useState('');
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
@@ -136,21 +143,27 @@ function ProductModal({
 
   React.useEffect(() => {
     if (visible) {
-      setName(initial?.name ?? '');
-      if (initial?.pricing && initial.pricing.length > 0) {
-        setPricing(
-          initial.pricing.map((p) => ({
-            quantityValue: p.quantityValue.toString(),
-            amount: p.amount.toString(),
-          })),
-        );
-      } else {
-        setPricing([{ quantityValue: '', amount: '' }]);
-      }
-      setDescription(initial?.description ?? '');
-      setSelectedCats(initial?.categoryList ?? []);
-      setImageUrl(initial?.images?.[0] ?? '');
-      setImageUploading(false);
+      const nextName = initial?.name ?? '';
+      const nextPricing =
+        initial?.pricing && initial.pricing.length > 0
+          ? initial.pricing.map((p) => ({
+              id: newPricingId(),
+              quantityValue: p.quantityValue.toString(),
+              amount: p.amount.toString(),
+            }))
+          : [{ id: newPricingId(), quantityValue: '', amount: '' }];
+      const nextDescription = initial?.description ?? '';
+      const nextSelectedCats = initial?.categoryList ?? [];
+      const nextImageUrl = initial?.images?.[0] ?? '';
+
+      queueMicrotask(() => {
+        setName(nextName);
+        setPricing(nextPricing);
+        setDescription(nextDescription);
+        setSelectedCats(nextSelectedCats);
+        setImageUrl(nextImageUrl);
+        setImageUploading(false);
+      });
     }
   }, [visible, initial]);
 
@@ -171,7 +184,13 @@ function ProductModal({
             <Text style={styles.modalTitle}>{initial ? 'Edit Cake' : 'New Cake'}</Text>
             <TouchableOpacity
               onPress={() =>
-                onSubmit(name, pricing, description, selectedCats, imageUrl ? [imageUrl] : [])
+                onSubmit(
+                  name,
+                  pricing.map(({ id: _id, ...rest }) => rest),
+                  description,
+                  selectedCats,
+                  imageUrl ? [imageUrl] : [],
+                )
               }
               disabled={submitting || imageUploading}
             >
@@ -208,7 +227,12 @@ function ProductModal({
                 <Text style={styles.label}>Pricing Options *</Text>
                 <TouchableOpacity
                   style={styles.addPricingBtn}
-                  onPress={() => setPricing((prev) => [...prev, { quantityValue: '', amount: '' }])}
+                  onPress={() =>
+                    setPricing((prev) => [
+                      ...prev,
+                      { id: newPricingId(), quantityValue: '', amount: '' },
+                    ])
+                  }
                   activeOpacity={0.7}
                 >
                   <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
@@ -226,7 +250,7 @@ function ProductModal({
 
                 {/* Unified Table Rows */}
                 {pricing.map((row, index) => (
-                  <View key={index} style={styles.pricingTableRow}>
+                  <View key={row.id} style={styles.pricingTableRow}>
                     {/* Quantity Column */}
                     <View style={{ flex: 1.2 }}>
                       <View style={styles.inputContainer}>
@@ -488,7 +512,7 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
                     borderRadius: 14,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: '#F2F4F6',
+                    backgroundColor: colors.uiGray1,
                   }}
                 >
                   <Ionicons name="close" size={20} color={colors.textSecondary} />
@@ -708,7 +732,7 @@ function UploadedImagesTab({
                     borderRadius: 14,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: '#F2F4F6',
+                    backgroundColor: colors.uiGray1,
                   }}
                 >
                   <Ionicons name="close" size={20} color={colors.textSecondary} />
@@ -902,7 +926,7 @@ export default function StudioScreen() {
 
   const handleProductSubmit = (
     name: string,
-    pricingState: Array<{ quantityValue: string; amount: string }>,
+    pricingState: { quantityValue: string; amount: string }[],
     description: string,
     categoryList: string[],
     images: string[],
@@ -1686,7 +1710,7 @@ const styles = StyleSheet.create({
     padding: 0,
     margin: 0,
     borderWidth: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: colors.transparent,
   },
   inputPrefix: {
     fontSize: typography.sm,
@@ -1704,7 +1728,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: radius.md,
-    backgroundColor: '#FFEBEE',
+    backgroundColor: colors.accentRoseBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1819,7 +1843,7 @@ const aiStyles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   ageChipClearText: {
     fontSize: 11,
@@ -1832,7 +1856,7 @@ const aiStyles = StyleSheet.create({
   },
   filterModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+    backgroundColor: colors.scrimDark40,
   },
   filterSheet: {
     maxHeight: '55%',
@@ -1847,7 +1871,7 @@ const aiStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC40',
+    borderBottomColor: colors.warmBorderAlpha25,
     backgroundColor: colors.surfaceElevated,
   },
   filterSheetHandle: {
@@ -1855,7 +1879,7 @@ const aiStyles = StyleSheet.create({
     width: 48,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     marginBottom: spacing.sm,
   },
   filterSheetHeader: {
@@ -1867,11 +1891,6 @@ const aiStyles = StyleSheet.create({
     fontSize: typography.lg,
     fontWeight: typography.bold,
     color: colors.text,
-  },
-  filterSheetClose: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.bold,
   },
   filterSheetBody: {
     padding: spacing.md,

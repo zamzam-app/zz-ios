@@ -1,5 +1,3 @@
-import client from '../client';
-import { mapListSafely } from './mapListSafely';
 import type {
   SerializedTimelineEvent,
   TaskDetailTimelineResponse,
@@ -20,6 +18,9 @@ import type {
   RecentlyViewedQuery,
   PaginatedResponse,
 } from '../../types/task';
+import client from '../client';
+
+import { mapListSafely } from './mapListSafely';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ export interface Task {
   outlet?: { _id: string; name?: string } | null;
   assigneeIds: string[];
   assigneeNames?: string[];
-  assignees?: Array<{ _id: string; name?: string }>;
+  assignees?: { _id: string; name?: string }[];
   imageUrls?: string[];
   attachments?: TaskAttachments;
   adminSubmission?: TaskSubmission;
@@ -185,9 +186,9 @@ interface RawTask {
   outletId?: string | { _id?: string; name?: string };
   outlet?: { _id?: string; name?: string };
   outletName?: string;
-  assigneeIds?: Array<string | { _id?: string }>;
+  assigneeIds?: (string | { _id?: string })[];
   assigneeNames?: string[];
-  assignees?: Array<{ _id?: string; name?: string }>;
+  assignees?: { _id?: string; name?: string }[];
   imageUrls?: string[];
   videoUrls?: string[];
   audioUrls?: string[];
@@ -225,7 +226,7 @@ interface RawTask {
   created_at?: string;
   updatedAt?: string;
   completedAt?: string | null;
-  badges?: Array<{ key?: string; label?: string; tone?: TaskBadgeTone }>;
+  badges?: { key?: string; label?: string; tone?: TaskBadgeTone }[];
 }
 
 interface RawTaskCategory {
@@ -549,5 +550,5 @@ export const tasksApi = {
       .then((r) => r.data),
 
   addComment: (taskId: string, payload: { text: string; attachmentIds?: string[] }) =>
-    client.post<any>(`/tasks/${taskId}/comment`, payload).then((r) => r.data),
+    client.post<unknown>(`/tasks/${taskId}/comment`, payload).then((r) => r.data),
 };

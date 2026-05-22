@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,9 +17,13 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+import {
+  Question,
+  QuestionType,
+  QUESTION_TYPE_OPTIONS,
+  SupportedQuestion,
+} from '../../api/endpoints/forms';
 import {
   useForms,
   useCreateForm,
@@ -24,14 +31,8 @@ import {
   useDeleteForm,
   useForm,
 } from '../../hooks/useForms';
-import {
-  Question,
-  QuestionType,
-  QUESTION_TYPE_OPTIONS,
-  SupportedQuestion,
-} from '../../api/endpoints/forms';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 // ─── Form Editor Modal ────────────────────────────────────────────────────────
 
@@ -52,6 +53,26 @@ function FormEditorModal({
   const [title, setTitle] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
+  const tempIdCounterRef = useRef(0);
+  const nextTempId = useCallback(() => {
+    tempIdCounterRef.current += 1;
+    return tempIdCounterRef.current;
+  }, []);
+
+  const ensureOptionIds = useCallback(
+    (input: Question[]): Question[] =>
+      input.map((q) => {
+        if (!Array.isArray(q.options) || q.options.length === 0) return q;
+        return {
+          ...q,
+          options: q.options.map((opt) => ({
+            ...opt,
+            _id: opt._id ?? `temp_opt_${q._id}_${nextTempId()}`,
+          })),
+        };
+      }),
+    [nextTempId],
+  );
 
   const isDefaultPlaceholderQuestion = (question: Question) => {
     const title = question.title.trim().toLowerCase();
@@ -77,16 +98,17 @@ function FormEditorModal({
 
   useEffect(() => {
     if (form) {
-      setTitle(form.title);
-      if (hideDefaultQuestions) {
-        // For brand-new forms, backend may seed default questions.
-        // Start editor with an empty list so user adds their own questions.
-        setQuestions([]);
-      } else {
-        setQuestions(form.questions.filter((question) => !isDefaultPlaceholderQuestion(question)));
-      }
+      const nextTitle = form.title;
+      const nextQuestions = hideDefaultQuestions
+        ? []
+        : form.questions.filter((question) => !isDefaultPlaceholderQuestion(question));
+
+      queueMicrotask(() => {
+        setTitle(nextTitle);
+        setQuestions(ensureOptionIds(nextQuestions));
+      });
     }
-  }, [form, hideDefaultQuestions]);
+  }, [form, hideDefaultQuestions, ensureOptionIds]);
 
   const handleSave = () => {
     if (!formId || !title.trim()) return Alert.alert('Required', 'Form title is required.');
@@ -97,12 +119,15 @@ function FormEditorModal({
   };
 
   const addQuestion = (type: QuestionType) => {
+    const tempId = nextTempId();
     const newQ: Question = {
-      _id: `temp_${Date.now()}`,
+      _id: `temp_${tempId}`,
       type,
       title: '',
       isRequired: false,
-      ...(type === 'multiple_choice' || type === 'checkbox' ? { options: [{ text: '' }] } : {}),
+      ...(type === 'multiple_choice' || type === 'checkbox'
+        ? { options: [{ _id: `temp_opt_temp_${tempId}_${nextTempId()}`, text: '' }] }
+        : {}),
       ...(type === 'rating' ? { maxRatings: 5 } : {}),
     };
     setQuestions((prev) => [...prev, newQ]);
@@ -203,8 +228,8 @@ function FormEditorModal({
                       />
                       {(q.type === 'multiple_choice' || q.type === 'checkbox') && (
                         <View style={{ gap: spacing.xs }}>
-                          {(q.options ?? []).map((opt, oi) => (
-                            <View key={oi} style={styles.optionRow}>
+                          {(q.options ?? []).map((opt) => (
+                            <View key={opt._id ?? `${q._id}-${opt.text}`} style={styles.optionRow}>
                               <TextInput
                                 style={[
                                   styles.input,
@@ -218,16 +243,22 @@ function FormEditorModal({
                                 editable={!q.isDefault}
                                 onChangeText={(v) => {
                                   const newOptions = [...(q.options ?? [])];
-                                  newOptions[oi] = { ...newOptions[oi], text: v };
+                                  const targetIndex = newOptions.findIndex(
+                                    (o) => o._id === opt._id,
+                                  );
+                                  if (targetIndex === -1) return;
+                                  newOptions[targetIndex] = { ...newOptions[targetIndex], text: v };
                                   updateQuestion(index, { options: newOptions });
                                 }}
-                                placeholder={`Option ${oi + 1}`}
+                                placeholder="Option..."
                                 placeholderTextColor={colors.textDisabled}
                               />
                               {!q.isDefault && (
                                 <TouchableOpacity
                                   onPress={() => {
-                                    const newOptions = (q.options ?? []).filter((_, i) => i !== oi);
+                                    const newOptions = (q.options ?? []).filter(
+                                      (o) => o._id !== opt._id,
+                                    );
                                     updateQuestion(index, { options: newOptions });
                                   }}
                                 >
@@ -240,7 +271,10 @@ function FormEditorModal({
                             <TouchableOpacity
                               onPress={() =>
                                 updateQuestion(index, {
-                                  options: [...(q.options ?? []), { text: '' }],
+                                  options: [
+                                    ...(q.options ?? []),
+                                    { _id: `temp_opt_${q._id}_${nextTempId()}`, text: '' },
+                                  ],
                                 })
                               }
                             >
@@ -557,7 +591,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#D3C5AC30',
+    borderColor: colors.warmBorderAlpha18,
     padding: spacing.sm,
     ...shadow.sm,
   },
@@ -571,14 +605,14 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: '#4F4633',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
   },
   totalChip: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.sm,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   totalChipText: {
     color: colors.text,
@@ -595,7 +629,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#D3C5AC30',
+    borderColor: colors.warmBorderAlpha18,
   },
   itemName: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
   itemDesc: { fontSize: typography.sm, color: colors.textSecondary, marginTop: 2 },

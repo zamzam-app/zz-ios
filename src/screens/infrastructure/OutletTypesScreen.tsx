@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   View,
@@ -13,20 +16,18 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+
+import { OutletType } from '../../api/endpoints/outletTypes';
 import {
   useOutletTypes,
   useCreateOutletType,
   useUpdateOutletType,
   useDeleteOutletType,
 } from '../../hooks/useOutletTypes';
-import { OutletType } from '../../api/endpoints/outletTypes';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { useAuthStore } from '../../store/authStore';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 function TypeFormModal({
   visible,
@@ -48,10 +49,14 @@ function TypeFormModal({
 
   React.useEffect(() => {
     if (visible) {
-      setName(initial?.name ?? '');
-      setDescription(initial?.description ?? '');
-      setNameError(null);
-      setDescriptionError(null);
+      const nextName = initial?.name ?? '';
+      const nextDescription = initial?.description ?? '';
+      queueMicrotask(() => {
+        setName(nextName);
+        setDescription(nextDescription);
+        setNameError(null);
+        setDescriptionError(null);
+      });
     }
   }, [visible, initial]);
 
@@ -367,12 +372,12 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: 120 },
 
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#D3C5AC26',
+    borderColor: colors.warmBorderAlpha16,
     ...shadow.sm,
   },
   cardRow: {
@@ -407,12 +412,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   editBtn: {
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     backgroundColor: colors.buttonLightBg,
   },
   deleteBtn: {
-    borderColor: '#FBCACA',
-    backgroundColor: '#FFF1F1',
+    borderColor: colors.accentRedBorderSoft,
+    backgroundColor: colors.accentRoseBgSoft,
   },
   empty: {
     textAlign: 'center',
@@ -427,7 +432,7 @@ const styles = StyleSheet.create({
   },
   createModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+    backgroundColor: colors.scrimDark40,
   },
   createSheet: {
     maxHeight: '92%',
@@ -435,7 +440,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
-    shadowColor: '#191c1e',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.14,
     shadowRadius: 20,
@@ -446,7 +451,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC40',
+    borderBottomColor: colors.warmBorderAlpha25,
     backgroundColor: colors.surfaceOverlay,
   },
   createSheetHandle: {
@@ -454,7 +459,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     marginBottom: spacing.sm,
   },
   createSheetHeader: {
@@ -476,12 +481,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
-  },
-  createSheetCloseText: {
-    color: colors.textSecondary,
-    fontSize: typography.base,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.uiGray1,
   },
 
   formInner: {
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     backgroundColor: colors.buttonLightBg,
     alignItems: 'center',
     justifyContent: 'center',

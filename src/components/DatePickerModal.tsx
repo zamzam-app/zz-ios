@@ -1,6 +1,7 @@
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, Platform } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 interface DatePickerModalProps {
@@ -24,6 +25,7 @@ export default function DatePickerModal({
 
   useEffect(() => {
     if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTempDate(value);
     }
   }, [visible, value]);
@@ -115,7 +117,7 @@ const styles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: colors.scrimBlack40,
   },
   container: {
     width: '100%',
@@ -132,7 +134,7 @@ const styles = StyleSheet.create({
   },
   headerYear: {
     fontSize: typography.sm,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.scrimWhite70,
     fontWeight: typography.medium,
     textTransform: 'uppercase',
   },
@@ -152,7 +154,7 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     gap: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+    borderTopColor: colors.scrimBlack05,
   },
   button: {
     paddingHorizontal: spacing.md,

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import {
   buildOpenReviewOverviewModel,
   getOpenReviewsEmptyStateMessage,
@@ -75,7 +76,6 @@ function run() {
   testOpenOverviewUsesOnlyOpenReviewCounts();
   testEmptyStateWhenNoOpenReviewsExist();
   testRegressionSortingIsStable();
-  console.log('review-overview.test.ts: ok');
 }
 
 run();

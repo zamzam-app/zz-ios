@@ -1,3 +1,21 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { FlashList } from '@shopify/flash-list';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+} from 'expo-audio';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Image as ExpoImage } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
@@ -16,46 +34,28 @@ import {
   ScrollView,
   KeyboardAvoidingView,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as WebBrowser from 'expo-web-browser';
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-  useAudioPlayer,
-  useAudioPlayerStatus,
-} from 'expo-audio';
-import { useFocusEffect } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useTask, useUpdateTaskStatus, useDeleteTask, useUpdateTask } from '../../hooks/useTasks';
-import { useTaskDetail, useTaskTimeline, useEventTypeCounts } from '../../hooks/useTaskTimeline';
-import { useAddAttachments, useAddComment } from '../../hooks/useTaskAttachments';
-import { useMarkTaskViewed } from '../../hooks/useTaskView';
+
 import { TaskStatus } from '../../api/endpoints/tasks';
-import { AttachmentType } from '../../types/task';
+import { uploadToCloudinary } from '../../api/endpoints/upload';
+import DelegationSheet from '../../components/DelegationSheet';
 import StatusBadge from '../../components/StatusBadge';
 import TimelineEventCard from '../../components/TimelineEventCard';
 import TimelineSkeleton from '../../components/TimelineSkeleton';
-import DelegationSheet from '../../components/DelegationSheet';
-import { useClearDelegation } from '../../hooks/useTaskDelegation';
-import { flattenInfiniteData } from '../../utils/pagination';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { useAddAttachments, useAddComment } from '../../hooks/useTaskAttachments';
+import { useTask, useUpdateTaskStatus, useDeleteTask } from '../../hooks/useTasks';
+import { useTaskDetail, useTaskTimeline, useEventTypeCounts } from '../../hooks/useTaskTimeline';
+import { useMarkTaskViewed } from '../../hooks/useTaskView';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
-import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
-import { uploadToCloudinary } from '../../api/endpoints/upload';
-import { getApiErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { AttachmentType, TaskEventType } from '../../types/task';
+import type { SerializedTimelineEvent, AttachmentPreview, TaskAttachment } from '../../types/task';
+import { getApiErrorMessage } from '../../utils/errors';
+import { flattenInfiniteData } from '../../utils/pagination';
+
 import { CreateTaskContent } from './CreateTaskScreen';
-import { TaskEventType } from '../../types/task';
-import type { SerializedTimelineEvent, AttachmentPreview } from '../../types/task';
+import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
 
@@ -71,15 +71,8 @@ const PRIORITY_COLORS: Record<string, string> = {
   LOW: colors.priorityLow,
 };
 
-const EVENT_TYPE_FILTERS: { label: string; type: TaskEventType | 'ALL' }[] = [
-  { label: 'All', type: 'ALL' },
-  { label: 'Comments', type: TaskEventType.COMMENTED },
-  { label: 'Status', type: TaskEventType.STATUS_CHANGED },
-  { label: 'Attachments', type: TaskEventType.ATTACHMENT_ADDED },
-  { label: 'Delegations', type: TaskEventType.REASSIGNED },
-];
-
 const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
+const WAVEFORM_BAR_SPECS = WAVEFORM_BARS.map((height, index) => ({ id: `wave_${index}`, height }));
 
 const AUDIO_FILE_WAIT_RETRIES = 25;
 const AUDIO_FILE_WAIT_DELAY_MS = 120;
@@ -127,6 +120,39 @@ function formatDuration(ms: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | null {
+  return value && typeof value === 'object' ? (value as UnknownRecord) : null;
+}
+
+function readStringId(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return '';
+}
+
+function getTaskIdFromSource(sourceValue: unknown): string {
+  const rec = asRecord(sourceValue);
+  if (!rec) return '';
+  return readStringId(rec._id ?? rec.id);
+}
+
+function getAxiosLikeErrorDetails(error: unknown) {
+  const rec = asRecord(error);
+  const response = rec ? asRecord(rec.response) : null;
+  const config = rec ? asRecord(rec.config) : null;
+  return {
+    message: rec && typeof rec.message === 'string' ? rec.message : undefined,
+    status: response && typeof response.status === 'number' ? response.status : undefined,
+    statusText:
+      response && typeof response.statusText === 'string' ? response.statusText : undefined,
+    responseData: response ? response.data : undefined,
+    url: config && typeof config.url === 'string' ? config.url : undefined,
+    method: config && typeof config.method === 'string' ? config.method : undefined,
+  };
 }
 
 function buildAttachmentName(url: string, prefix: string, index: number) {
@@ -177,7 +203,7 @@ function SubmissionBlock({
   onOpenAttachment: (url: string, type?: 'image' | 'video' | 'audio' | 'file') => void;
   onRemoveAttachment?: (type: 'images' | 'videos' | 'audios' | 'files', index: number) => void;
   audioAttachmentMeta?: { id: string; url: string }[];
-  audioPlayerStatus?: any;
+  audioPlayerStatus?: ReturnType<typeof useAudioPlayerStatus>;
   activeAudioAttachmentId?: string | null;
   audioDurationById?: Record<string, number>;
   onAudioPress?: (id: string, url: string) => void;
@@ -207,9 +233,9 @@ function SubmissionBlock({
             horizontal
             showsHorizontalScrollIndicator={false}
             data={imageItems}
-            keyExtractor={(url, index) => `${title}-image-${url}-${index}`}
+            keyExtractor={(url) => `${title}-image-${url}`}
             contentContainerStyle={styles.imageRow}
-            renderItem={({ item: url, index }) => (
+            renderItem={({ item: url }) => (
               <TouchableOpacity
                 onPress={() => onOpenAttachment(url, 'image')}
                 style={styles.imageItem}
@@ -229,7 +255,7 @@ function SubmissionBlock({
 
       {videoItems.map((url, index) => (
         <TouchableOpacity
-          key={`${title}-video-${url}-${index}`}
+          key={`${title}-video-${url}`}
           style={styles.attachmentRow}
           onPress={() => onOpenAttachment(url, 'video')}
           activeOpacity={0.8}
@@ -265,12 +291,12 @@ function SubmissionBlock({
             const durationLabel = liveDurationMs > 0 ? formatDuration(remainingMillis) : '--:--';
 
             return (
-              <View key={`${title}-audio-${url}-${index}`} style={styles.audioAttachmentCard}>
+              <View key={`${title}-audio-${url}`} style={styles.audioAttachmentCard}>
                 <View style={styles.audioPreviewRow}>
                   <View style={styles.waveformRow}>
-                    {WAVEFORM_BARS.map((barHeight, barIndex) => (
+                    {WAVEFORM_BAR_SPECS.map(({ id, height: barHeight }, barIndex) => (
                       <View
-                        key={`${title}-audio-wave-${url}-${barIndex}`}
+                        key={id}
                         style={[
                           styles.waveformBar,
                           {
@@ -311,7 +337,7 @@ function SubmissionBlock({
 
       {fileItems.map((url, index) => (
         <TouchableOpacity
-          key={`${title}-file-${url}-${index}`}
+          key={`${title}-file-${url}`}
           style={styles.attachmentRow}
           onPress={() => onOpenAttachment(url, 'file')}
           activeOpacity={0.8}
@@ -346,14 +372,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const addAttachmentsMutation = useAddAttachments();
   const addCommentMutation = useAddComment();
   const markTaskViewed = useMarkTaskViewed();
-  const clearDelegation = useClearDelegation();
 
   // ─── Legacy fallback fetch ────────────────────────────────────────────────
   const { data: legacyTask } = useTask(taskId);
 
   // ─── Action mutations ─────────────────────────────────────────────────────
   const updateStatus = useUpdateTaskStatus();
-  const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
 
   // ─── Audio state (preserved) ──────────────────────────────────────────────
@@ -364,7 +388,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const isRecordingAudio = recorderState.isRecording;
   const recordingMillis = recorderState.durationMillis;
   const isRecordingRef = useRef(false);
-  isRecordingRef.current = isRecordingAudio;
 
   const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
   const [pendingPlayAudioId, setPendingPlayAudioId] = useState<string | null>(null);
@@ -386,74 +409,84 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const [showDelegationSheet, setShowDelegationSheet] = useState(false);
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
 
+  const { mutate: mutateMarkTaskViewed } = markTaskViewed;
+
   // ─── Effect: mark task viewed on focus ─────────────────────────────────
   useFocusEffect(
     useCallback(() => {
-      markTaskViewed.mutate(taskId);
-    }, [taskId]),
+      mutateMarkTaskViewed(taskId);
+    }, [mutateMarkTaskViewed, taskId]),
   );
 
   // ─── Effect: Log screen entry and data loading/errors ──────────────────
   useEffect(() => {
-    console.log('[TaskDetailScreen] Navigated to TaskDetailScreen. taskId:', taskId);
+    if (__DEV__) console.warn('[TaskDetailScreen] Navigated to TaskDetailScreen. taskId:', taskId);
   }, [taskId]);
 
   useEffect(() => {
+    isRecordingRef.current = isRecordingAudio;
+  }, [isRecordingAudio]);
+
+  useEffect(() => {
     if (taskDetail) {
-      console.log('[TaskDetailScreen] Fetched taskDetail successfully for taskId:', taskId, {
-        summary: taskDetail.summary,
-        timelinePage: taskDetail.timeline,
-      });
+      if (__DEV__) {
+        console.warn('[TaskDetailScreen] Fetched taskDetail successfully for taskId:', taskId, {
+          summary: taskDetail.summary,
+          timelinePage: taskDetail.timeline,
+        });
+      }
     }
   }, [taskDetail, taskId]);
 
   useEffect(() => {
     if (legacyTask) {
-      console.log(
-        '[TaskDetailScreen] Fetched legacyTask successfully for taskId:',
-        taskId,
-        legacyTask,
-      );
+      if (__DEV__) {
+        console.warn(
+          '[TaskDetailScreen] Fetched legacyTask successfully for taskId:',
+          taskId,
+          legacyTask,
+        );
+      }
     }
   }, [legacyTask, taskId]);
 
   useEffect(() => {
     if (detailError) {
-      const err = detailError as any;
+      const err = getAxiosLikeErrorDetails(detailError);
       console.error('[TaskDetailScreen] Error fetching task detail for taskId:', taskId, {
         message: err.message,
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        responseData: err.response?.data,
-        url: err.config?.url,
-        method: err.config?.method,
-        error: err,
+        status: err.status,
+        statusText: err.statusText,
+        responseData: err.responseData,
+        url: err.url,
+        method: err.method,
+        error: detailError,
       });
     }
   }, [detailError, taskId]);
 
   useEffect(() => {
     if (timelineQuery.error) {
-      const err = timelineQuery.error as any;
+      const err = getAxiosLikeErrorDetails(timelineQuery.error);
       console.error('[TaskDetailScreen] Error fetching timeline for taskId:', taskId, {
         message: err.message,
-        status: err.response?.status,
-        responseData: err.response?.data,
-        url: err.config?.url,
-        method: err.config?.method,
+        status: err.status,
+        responseData: err.responseData,
+        url: err.url,
+        method: err.method,
       });
     }
   }, [timelineQuery.error, taskId]);
 
   useEffect(() => {
     if (eventTypeCountsQuery.error) {
-      const err = eventTypeCountsQuery.error as any;
+      const err = getAxiosLikeErrorDetails(eventTypeCountsQuery.error);
       console.error('[TaskDetailScreen] Error fetching event type counts for taskId:', taskId, {
         message: err.message,
-        status: err.response?.status,
-        responseData: err.response?.data,
-        url: err.config?.url,
-        method: err.config?.method,
+        status: err.status,
+        responseData: err.responseData,
+        url: err.url,
+        method: err.method,
       });
     }
   }, [eventTypeCountsQuery.error, taskId]);
@@ -468,6 +501,18 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   // ─── Derived: task data ──────────────────────────────────────────────────
   const source = taskDetail?.summary ?? legacyTask;
+  const completedAtIso = useMemo(() => {
+    const rec = asRecord(source);
+    return rec && typeof rec.completedAt === 'string' ? rec.completedAt : null;
+  }, [source]);
+  const resolvedOutletId = useMemo(() => {
+    const rec = asRecord(source);
+    if (!rec) return '';
+    if (typeof rec.outletId === 'string' && rec.outletId) return rec.outletId;
+    const outlet = asRecord(rec.outlet);
+    const outletId = outlet ? readStringId(outlet._id) : '';
+    return outletId || '';
+  }, [source]);
   const timelineEvents = useMemo(() => {
     const rawEvents = flattenInfiniteData(timelineQuery.data);
     const clubbed: typeof rawEvents = [];
@@ -523,7 +568,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const handleStatusChange = () => {
     if (!source) return;
 
-    const taskIdForUpdate = (source as any)._id ?? '';
+    const taskIdForUpdate = getTaskIdFromSource(source);
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -564,96 +609,140 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     ]);
   };
 
-  const openAttachment = async (url: string, type?: 'image' | 'video' | 'audio' | 'file') => {
-    const trimmedUrl = url.trim();
-    if (type === 'image') {
-      setViewerImageUrl(trimmedUrl);
-      return;
-    }
-
-    if (probingAudioAttachmentId) {
-      setProbingAudioAttachmentId(null);
-    }
-
-    if (activeAudioAttachmentId) {
-      if (previewPlayerStatus.playing) {
-        runPreviewPlayerActionSafely(() => previewPlayer.pause());
-      }
-      setActiveAudioAttachmentId(null);
-    }
-    try {
-      const isHttpUrl = /^https?:\/\//i.test(trimmedUrl);
-      if (type === 'file' && isHttpUrl) {
-        await WebBrowser.openBrowserAsync(trimmedUrl, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-          controlsColor: colors.primary,
-        });
+  const openAttachment = useCallback(
+    async (url: string, type?: 'image' | 'video' | 'audio' | 'file') => {
+      const trimmedUrl = url.trim();
+      if (type === 'image') {
+        setViewerImageUrl(trimmedUrl);
         return;
       }
-      const canOpen = await Linking.canOpenURL(trimmedUrl);
-      if (!canOpen) {
+
+      if (probingAudioAttachmentId) {
+        setProbingAudioAttachmentId(null);
+      }
+
+      if (activeAudioAttachmentId) {
+        if (previewPlayerStatus.playing) {
+          runPreviewPlayerActionSafely(() => previewPlayer.pause());
+        }
+        setActiveAudioAttachmentId(null);
+      }
+      try {
+        const isHttpUrl = /^https?:\/\//i.test(trimmedUrl);
+        if (type === 'file' && isHttpUrl) {
+          await WebBrowser.openBrowserAsync(trimmedUrl, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            controlsColor: colors.primary,
+          });
+          return;
+        }
+        const canOpen = await Linking.canOpenURL(trimmedUrl);
+        if (!canOpen) {
+          Alert.alert('Attachment unavailable', 'Could not open this attachment.');
+          return;
+        }
+        await Linking.openURL(trimmedUrl);
+      } catch {
         Alert.alert('Attachment unavailable', 'Could not open this attachment.');
-        return;
       }
-      await Linking.openURL(trimmedUrl);
-    } catch {
-      Alert.alert('Attachment unavailable', 'Could not open this attachment.');
-    }
-  };
+    },
+    [
+      activeAudioAttachmentId,
+      previewPlayer,
+      previewPlayerStatus.playing,
+      probingAudioAttachmentId,
+      runPreviewPlayerActionSafely,
+    ],
+  );
 
   // ─── Attachment helpers (preserved) ──────────────────────────────────────
-  const getSourceAttachments = (source: any) => {
-    const adminAttachments = source?.adminSubmission?.attachments;
-    const images = Array.from(
-      new Set([
-        ...(source?.attachments?.images ?? source?.imageUrls ?? []),
-        ...(adminAttachments?.images ?? []),
-      ]),
-    );
-    const videos = Array.from(
-      new Set([...(source?.attachments?.videos ?? []), ...(adminAttachments?.videos ?? [])]),
-    );
-    const savedAudios = Array.from(
-      new Set([...(source?.attachments?.audios ?? []), ...(adminAttachments?.audios ?? [])]),
-    );
-    const audios = Array.from(new Set([...savedAudios, ...managerAttachments.audios]));
-    const files = Array.from(
-      new Set([...(source?.attachments?.files ?? []), ...(adminAttachments?.files ?? [])]),
-    );
-    const audioMeta = audios.map((url: string, index: number) => ({
-      id: `audio-${index}-${url}`,
-      url,
-    }));
-    const audioIds = audioMeta.map((item: any) => item.id);
-    const audioIdsKey = audioIds.join('|');
-    const count = images.length + videos.length + savedAudios.length + files.length;
-    return {
-      images,
-      videos,
-      savedAudios,
-      audios,
-      files,
-      audioMeta,
-      audioIdsKey,
-      count,
-      hasAny: count > 0,
-    };
-  };
+  const getSourceAttachments = useCallback(
+    (sourceValue: unknown) => {
+      const rec = asRecord(sourceValue) ?? {};
+      const attachments = asRecord(rec.attachments) ?? {};
+      const adminSubmission = asRecord(rec.adminSubmission) ?? {};
+      const adminAttachments = asRecord(adminSubmission.attachments) ?? {};
+      const imageUrls = Array.isArray(rec.imageUrls) ? rec.imageUrls : [];
+
+      const images = Array.from(
+        new Set([
+          ...(Array.isArray(attachments.images) ? (attachments.images as string[]) : imageUrls),
+          ...(Array.isArray(adminAttachments.images) ? (adminAttachments.images as string[]) : []),
+        ]),
+      );
+      const videos = Array.from(
+        new Set([
+          ...(Array.isArray(attachments.videos) ? (attachments.videos as string[]) : []),
+          ...(Array.isArray(adminAttachments.videos) ? (adminAttachments.videos as string[]) : []),
+        ]),
+      );
+      const savedAudios = Array.from(
+        new Set([
+          ...(Array.isArray(attachments.audios) ? (attachments.audios as string[]) : []),
+          ...(Array.isArray(adminAttachments.audios) ? (adminAttachments.audios as string[]) : []),
+        ]),
+      );
+      const audios = Array.from(new Set([...savedAudios, ...managerAttachments.audios]));
+      const files = Array.from(
+        new Set([
+          ...(Array.isArray(attachments.files) ? (attachments.files as string[]) : []),
+          ...(Array.isArray(adminAttachments.files) ? (adminAttachments.files as string[]) : []),
+        ]),
+      );
+      const audioMeta = audios.map((url: string, index: number) => ({
+        id: `audio-${index}-${url}`,
+        url,
+      }));
+      const audioIds = audioMeta.map((item) => item.id);
+      const audioIdsKey = audioIds.join('|');
+      const count = images.length + videos.length + savedAudios.length + files.length;
+      return {
+        images,
+        videos,
+        savedAudios,
+        audios,
+        files,
+        audioMeta,
+        audioIdsKey,
+        count,
+        hasAny: count > 0,
+      };
+    },
+    [managerAttachments.audios],
+  );
 
   const sourceAttachments = useMemo(
     () => getSourceAttachments(source),
-    [source, managerAttachments.audios],
+    [getSourceAttachments, source],
   );
 
   // ─── Manager submission setup ────────────────────────────────────────────
   useEffect(() => {
     if (!source) return;
-    setManagerText((source as any).managerSubmission?.text ?? '');
-    setManagerAttachments({
-      images: (source as any).managerSubmission?.attachments?.images ?? [],
-      videos: (source as any).managerSubmission?.attachments?.videos ?? [],
-      audios: (source as any).managerSubmission?.attachments?.audios ?? [],
-      files: (source as any).managerSubmission?.attachments?.files ?? [],
+    const rec = asRecord(source);
+    const managerSubmission = rec ? asRecord(rec.managerSubmission) : null;
+    const managerAttachmentsValue = managerSubmission
+      ? asRecord(managerSubmission.attachments)
+      : null;
+    const nextText =
+      managerSubmission && typeof managerSubmission.text === 'string' ? managerSubmission.text : '';
+    const nextAttachments = {
+      images: Array.isArray(managerAttachmentsValue?.images)
+        ? (managerAttachmentsValue?.images as string[])
+        : [],
+      videos: Array.isArray(managerAttachmentsValue?.videos)
+        ? (managerAttachmentsValue?.videos as string[])
+        : [],
+      audios: Array.isArray(managerAttachmentsValue?.audios)
+        ? (managerAttachmentsValue?.audios as string[])
+        : [],
+      files: Array.isArray(managerAttachmentsValue?.files)
+        ? (managerAttachmentsValue?.files as string[])
+        : [],
+    };
+    queueMicrotask(() => {
+      setManagerText(nextText);
+      setManagerAttachments(nextAttachments);
     });
   }, [source]);
 
@@ -826,7 +915,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   const saveManagerSubmission = async () => {
     if (!source) return;
-    const taskId = (source as any)._id ?? (source as any).id ?? '';
+    const taskId = getTaskIdFromSource(source);
 
     const hasText = managerText.trim().length > 0;
     const files: { url: string; type: AttachmentType }[] = [];
@@ -845,7 +934,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
 
     try {
-      let uploadedAttachments: any[] = [];
+      let uploadedAttachments: TaskAttachment[] = [];
       if (hasAttachments) {
         uploadedAttachments = await addAttachmentsMutation.mutateAsync({
           taskId,
@@ -854,7 +943,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       }
 
       if (hasText) {
-        const attachmentIds = uploadedAttachments.map((att) => att._id ?? att.id).filter(Boolean);
+        const attachmentIds = uploadedAttachments
+          .map((att) => readStringId(att._id))
+          .filter(Boolean);
         await addCommentMutation.mutateAsync({
           taskId,
           payload: {
@@ -888,7 +979,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               console.warn('[TaskDetail] Cleanup: Failed to stop recorder', err);
             });
           }
-        } catch (err) {
+        } catch {
           // Catch silently if the native Shared Object has already been released
         }
       }
@@ -904,29 +995,30 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     const durationMillis = Math.max(0, Math.floor(previewPlayerStatus.duration * 1000));
     if (durationMillis <= 0) return;
 
-    setAudioDurationById((prev) => {
-      if (prev[durationTargetAudioId] === durationMillis) return prev;
-      return { ...prev, [durationTargetAudioId]: durationMillis };
+    queueMicrotask(() => {
+      setAudioDurationById((prev) => {
+        if (prev[durationTargetAudioId] === durationMillis) return prev;
+        return { ...prev, [durationTargetAudioId]: durationMillis };
+      });
+      if (probingAudioAttachmentId === durationTargetAudioId) {
+        setProbingAudioAttachmentId(null);
+      }
     });
-    if (probingAudioAttachmentId === durationTargetAudioId) {
-      setProbingAudioAttachmentId(null);
-    }
   }, [activeAudioAttachmentId, probingAudioAttachmentId, previewPlayerStatus.duration]);
 
   useEffect(() => {
     if (activeAudioAttachmentId || previewPlayerStatus.playing || probingAudioAttachmentId) return;
-    const nextToProbe = sourceAttachments.audioMeta.find(
-      (item: any) => !audioDurationById[item.id],
-    );
+    const nextToProbe = sourceAttachments.audioMeta.find((item) => !audioDurationById[item.id]);
     if (!nextToProbe) return;
 
     const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(nextToProbe.url));
     if (!replaced) return;
-    setProbingAudioAttachmentId(nextToProbe.id);
+    queueMicrotask(() => setProbingAudioAttachmentId(nextToProbe.id));
   }, [
     activeAudioAttachmentId,
     previewPlayerStatus.playing,
     probingAudioAttachmentId,
+    sourceAttachments.audioMeta,
     sourceAttachments.audioIdsKey,
     audioDurationById,
     previewPlayer,
@@ -935,13 +1027,16 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     if (!activeAudioAttachmentId) return;
-    if (!sourceAttachments.audioMeta.some((m: any) => m.id === activeAudioAttachmentId)) {
+    if (!sourceAttachments.audioMeta.some((m) => m.id === activeAudioAttachmentId)) {
       runPreviewPlayerActionSafely(() => previewPlayer.pause());
-      setActiveAudioAttachmentId(null);
-      setPendingPlayAudioId(null);
+      queueMicrotask(() => {
+        setActiveAudioAttachmentId(null);
+        setPendingPlayAudioId(null);
+      });
     }
   }, [
     activeAudioAttachmentId,
+    sourceAttachments.audioMeta,
     sourceAttachments.audioIdsKey,
     previewPlayer,
     runPreviewPlayerActionSafely,
@@ -949,15 +1044,15 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     if (!probingAudioAttachmentId) return;
-    if (!sourceAttachments.audioMeta.some((m: any) => m.id === probingAudioAttachmentId)) {
-      setProbingAudioAttachmentId(null);
+    if (!sourceAttachments.audioMeta.some((m) => m.id === probingAudioAttachmentId)) {
+      queueMicrotask(() => setProbingAudioAttachmentId(null));
     }
-  }, [probingAudioAttachmentId, sourceAttachments.audioIdsKey]);
+  }, [probingAudioAttachmentId, sourceAttachments.audioMeta, sourceAttachments.audioIdsKey]);
 
   useEffect(() => {
     if (!pendingPlayAudioId || !previewPlayerStatus.isLoaded) return;
     runPreviewPlayerActionSafely(() => previewPlayer.play());
-    setPendingPlayAudioId(null);
+    queueMicrotask(() => setPendingPlayAudioId(null));
   }, [
     pendingPlayAudioId,
     previewPlayerStatus.isLoaded,
@@ -965,31 +1060,43 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     runPreviewPlayerActionSafely,
   ]);
 
-  const handleAudioAttachmentPress = (audioId: string, url: string) => {
-    if (probingAudioAttachmentId) setProbingAudioAttachmentId(null);
+  const handleAudioAttachmentPress = useCallback(
+    (audioId: string, url: string) => {
+      if (probingAudioAttachmentId) setProbingAudioAttachmentId(null);
 
-    if (activeAudioAttachmentId !== audioId) {
-      const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(url));
-      if (!replaced) return;
-      setPendingPlayAudioId(audioId);
-      setActiveAudioAttachmentId(audioId);
-      return;
-    }
+      if (activeAudioAttachmentId !== audioId) {
+        const replaced = runPreviewPlayerActionSafely(() => previewPlayer.replace(url));
+        if (!replaced) return;
+        setPendingPlayAudioId(audioId);
+        setActiveAudioAttachmentId(audioId);
+        return;
+      }
 
-    if (previewPlayerStatus.playing) {
-      runPreviewPlayerActionSafely(() => previewPlayer.pause());
-      return;
-    }
+      if (previewPlayerStatus.playing) {
+        runPreviewPlayerActionSafely(() => previewPlayer.pause());
+        return;
+      }
 
-    const shouldRestart =
-      previewPlayerStatus.didJustFinish ||
-      (previewPlayerStatus.duration > 0 &&
-        previewPlayerStatus.currentTime >= previewPlayerStatus.duration);
-    if (shouldRestart) {
-      void previewPlayer.seekTo(0).catch(() => undefined);
-    }
-    runPreviewPlayerActionSafely(() => previewPlayer.play());
-  };
+      const shouldRestart =
+        previewPlayerStatus.didJustFinish ||
+        (previewPlayerStatus.duration > 0 &&
+          previewPlayerStatus.currentTime >= previewPlayerStatus.duration);
+      if (shouldRestart) {
+        void previewPlayer.seekTo(0).catch(() => undefined);
+      }
+      runPreviewPlayerActionSafely(() => previewPlayer.play());
+    },
+    [
+      activeAudioAttachmentId,
+      previewPlayer,
+      previewPlayerStatus.currentTime,
+      previewPlayerStatus.didJustFinish,
+      previewPlayerStatus.duration,
+      previewPlayerStatus.playing,
+      probingAudioAttachmentId,
+      runPreviewPlayerActionSafely,
+    ],
+  );
 
   // ─── Event filter handling ───────────────────────────────────────────────
   const filteredEvents = timelineEvents;
@@ -998,16 +1105,19 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     if (timelineQuery.hasNextPage && !timelineQuery.isFetchingNextPage) {
       void timelineQuery.fetchNextPage();
     }
-  }, [timelineQuery.hasNextPage, timelineQuery.isFetchingNextPage, timelineQuery.fetchNextPage]);
+  }, [timelineQuery]);
 
   const handleRefresh = useCallback(() => {
     void timelineQuery.refetch();
     void eventTypeCountsQuery.refetch();
-  }, [timelineQuery.refetch, eventTypeCountsQuery.refetch]);
+  }, [eventTypeCountsQuery, timelineQuery]);
 
-  const handleAttachmentPress = useCallback((attachment: AttachmentPreview) => {
-    openAttachment(attachment.url, 'image');
-  }, []);
+  const handleAttachmentPress = useCallback(
+    (attachment: AttachmentPreview) => {
+      void openAttachment(attachment.url, 'image');
+    },
+    [openAttachment],
+  );
 
   const handleActorPress = useCallback((_userId: string) => {
     // Future: navigate to user profile
@@ -1067,9 +1177,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
           <Row label="Due Date" value={formatDate(source.dueDate, source.dueTime)} />
           <Row label="Created" value={formatDate(source.createdAt)} />
-          {(source as any).completedAt && (
-            <Row label="Completed" value={formatDate((source as any).completedAt)} />
-          )}
+          {completedAtIso && <Row label="Completed" value={formatDate(completedAtIso)} />}
 
           {assigneeNames.length > 0 && (
             <>
@@ -1092,9 +1200,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     data={sourceAttachments.images}
-                    keyExtractor={(url: string, index: number) => `image-${url}-${index}`}
+                    keyExtractor={(url: string) => `image-${url}`}
                     contentContainerStyle={styles.imageRow}
-                    renderItem={({ item: url, index }) => (
+                    renderItem={({ item: url }) => (
                       <TouchableOpacity
                         onPress={() => {
                           void openAttachment(url, 'image');
@@ -1119,7 +1227,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.attachmentGroupTitle}>Videos</Text>
                   {sourceAttachments.videos.map((url: string, index: number) => (
                     <TouchableOpacity
-                      key={`video-${url}-${index}`}
+                      key={`video-${url}`}
                       style={styles.attachmentRow}
                       onPress={() => {
                         void openAttachment(url, 'video');
@@ -1156,7 +1264,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.attachmentGroupTitle}>Files</Text>
                   {sourceAttachments.files.map((url: string, index: number) => (
                     <TouchableOpacity
-                      key={`file-${url}-${index}`}
+                      key={`file-${url}`}
                       style={styles.attachmentRow}
                       onPress={() => {
                         void openAttachment(url, 'file');
@@ -1227,14 +1335,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     sourceAttachments,
     managerText,
     managerAttachments,
-    isRecordingAudio,
-    recordingMillis,
-    recordingBusy,
-    uploadingType,
-    updateTask.isPending,
+    completedAtIso,
     previewPlayerStatus,
     activeAudioAttachmentId,
     audioDurationById,
+    handleAudioAttachmentPress,
+    isAdmin,
+    openAttachment,
   ]);
 
   // ─── Render: Timeline Event ──────────────────────────────────────────────
@@ -1343,7 +1450,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           ) : !timelineQuery.hasNextPage && filteredEvents.length > 0 ? (
             <View style={styles.endOfTimeline}>
               <View style={styles.endDot} />
-              <Text style={styles.endText}>You've seen everything</Text>
+              <Text style={styles.endText}>You’ve seen everything</Text>
             </View>
           ) : null
         }
@@ -1496,7 +1603,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             </View>
             <CreateTaskContent
               onSuccess={() => setShowEditModal(false)}
-              editTask={source as any}
+              editTask={legacyTask ?? undefined}
               submitLabel="Save Changes"
               bottomPadding={24}
               fill
@@ -1689,7 +1796,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               <View style={styles.managerTagGroup}>
                 {managerAttachments.images.map((url: string, index: number) => (
                   <TouchableOpacity
-                    key={`manager-image-${url}-${index}`}
+                    key={`manager-image-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('images', index)}
                   >
@@ -1700,7 +1807,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 ))}
                 {managerAttachments.videos.map((url: string, index: number) => (
                   <TouchableOpacity
-                    key={`manager-video-${url}-${index}`}
+                    key={`manager-video-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('videos', index)}
                   >
@@ -1711,7 +1818,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
                 ))}
                 {managerAttachments.files.map((url: string, index: number) => (
                   <TouchableOpacity
-                    key={`manager-file-${url}-${index}`}
+                    key={`manager-file-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('files', index)}
                   >
@@ -1753,7 +1860,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           ...(user?.id ? [user.id] : []),
           ...(user?._id ? [user._id] : []),
         ]}
-        outletId={source?.outletId || (source as any).outlet?._id}
+        outletId={resolvedOutletId}
       />
     </SafeAreaView>
   );
@@ -1799,26 +1906,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  subheading: {
-    marginTop: 2,
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  iconActionBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.buttonPrimaryBg,
-    ...shadow.sm,
-  },
-  deleteActionBtn: { backgroundColor: colors.error },
-  editActionBtn: { backgroundColor: colors.primary },
   iconActionBtnDisabled: { opacity: 0.6 },
 
   // ── Timeline List ────────────────────────────────────────────────────────
@@ -1834,7 +1921,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: colors.warmBorderAlpha25,
     ...shadow.sm,
   },
   ownerTopRow: {
@@ -1878,34 +1965,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: typography.medium,
     maxWidth: '60%',
-    textAlign: 'right',
-  },
-
-  // ── Thread Stats ─────────────────────────────────────────────────────────
-  threadStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
-  },
-  statText: { fontSize: typography.xs, color: colors.textSecondary, fontWeight: typography.medium },
-  statTimestamp: {
-    fontSize: typography.xs,
-    color: colors.textDisabled,
-    flex: 1,
     textAlign: 'right',
   },
 
@@ -1999,35 +2058,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
 
-  // ── Filter Chips ─────────────────────────────────────────────────────────
-  filterChipRow: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    gap: spacing.xs,
-    flexWrap: 'wrap',
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  filterChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  filterChipText: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.medium,
-  },
-  filterChipTextActive: { color: colors.textInverse, fontWeight: typography.semibold },
-
   // ── Section Header ───────────────────────────────────────────────────────
   sectionHeader: {
     marginHorizontal: spacing.md,
@@ -2037,20 +2067,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionHeadingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionDot: { width: 6, height: 6, borderRadius: radius.full, backgroundColor: '#EAB308' },
+  sectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.accentYellow,
+  },
   sectionDotActivity: { backgroundColor: colors.info },
   sectionTitle: {
     fontSize: typography.xs,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: '#4F4633',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
   },
   sectionCount: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.sm,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     color: colors.text,
     textTransform: 'uppercase',
     fontSize: 10,
@@ -2093,15 +2128,6 @@ const styles = StyleSheet.create({
   },
 
   // ── Manager Submission ───────────────────────────────────────────────────
-  managerCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    ...shadow.sm,
-    gap: spacing.sm,
-  },
   managerTextInput: {
     minHeight: 92,
     borderWidth: 1,
@@ -2225,18 +2251,9 @@ const styles = StyleSheet.create({
   bottomBarBtnDisabled: {
     opacity: 0.6,
   },
-  bottomBarBtnText: {
-    fontSize: typography.sm,
-    color: colors.textInverse,
-    fontWeight: typography.semibold,
-  },
-  bottomBarBtnTextSecondary: {
-    color: colors.primary,
-  },
-
   // ── Edit Modal ───────────────────────────────────────────────────────────
   editModalRoot: { flex: 1, justifyContent: 'flex-end' },
-  editModalScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  editModalScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrimBlack40 },
   editSheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
@@ -2255,7 +2272,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: colors.uiGray4,
     marginBottom: 12,
   },
   editSheetHeader: {
@@ -2271,7 +2288,7 @@ const styles = StyleSheet.create({
   // ── Image Viewer Modal ───────────────────────────────────────────────────
   viewerRoot: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.9)',
+    backgroundColor: colors.scrimBlack90,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2321,112 +2338,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
   },
 
-  // ── Dedicated Attachments Section ────────────────────────────────────────
-  attachmentsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: '#D3C5AC40',
-    ...shadow.sm,
-  },
-  attachmentsHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  attachmentsTitle: {
-    fontSize: typography.xs,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: '#4F4633',
-    fontWeight: typography.bold,
-  },
-  addFilesBtn: {
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-  },
-  addFilesText: {
-    fontSize: typography.sm,
-    color: colors.primaryDark,
-    fontWeight: typography.bold,
-  },
-  attachmentsScroll: {
-    marginTop: spacing.xs,
-  },
-  attachmentItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.sm,
-    backgroundColor: '#F9FAFB',
-    borderRadius: radius.md,
-    marginBottom: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  attachmentLeftWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  attachmentIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  attachmentIconThumb: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-  },
-  attachmentTextWrap: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  attachmentItemName: {
-    fontSize: typography.sm,
-    color: colors.text,
-    fontWeight: typography.medium,
-  },
-  attachmentItemMeta: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  attachmentActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  attachmentActionBtn: {
-    padding: 4,
-  },
-  emptyAttachmentsWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.lg,
-  },
-  emptyAttachmentsText: {
-    fontSize: typography.sm,
-    color: colors.textDisabled,
-    marginTop: spacing.xs,
-  },
   submissionModalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   submissionModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: colors.scrimBlack45,
   },
   submissionSheet: {
     backgroundColor: colors.surface,
