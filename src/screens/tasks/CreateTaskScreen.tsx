@@ -38,8 +38,8 @@ import {
   CreateTaskPayload,
   Task,
 } from '../../api/endpoints/tasks';
-import { enqueueTaskSubmission } from '../../api/endpoints/taskSubmissionQueue';
 import {
+  enqueueTaskSubmission,
   cancelUploadJob,
   enqueueCloudinaryUpload,
   removeUploadJob,

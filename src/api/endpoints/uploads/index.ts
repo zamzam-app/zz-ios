@@ -11,3 +11,13 @@ export {
 } from './uploadQueueApi';
 export { subscribeToUploadJob, waitForUploadJob } from './uploadQueueSubscriptions';
 export type { UploadQueueStatus, UploadQueueJob, QueueListener } from './uploadQueueStore';
+
+// Task submission queue
+export {
+  enqueueTaskSubmission,
+  getTaskQueueStatus,
+  retryFailedJobs,
+  clearFailedJobs,
+  clearAllPendingJobs,
+} from './taskSubmissionQueueApi';
+export type { TaskSubmissionJob } from './taskSubmissionQueueStore';
