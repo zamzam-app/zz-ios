@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { productsApi, categoriesApi } from '../api/endpoints/studio';
-import { cakeApi } from '../api/endpoints/uploads';
+import { productsApi, categoriesApi } from '../../api/endpoints/studio';
+import { cakeApi } from '../../api/endpoints/uploads';
 
 export const useCustomCakes = () =>
   useQuery({

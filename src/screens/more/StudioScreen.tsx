@@ -34,7 +34,7 @@ import {
   useDeleteCategory,
   useCustomCakes,
   useUploadedCakes,
-} from '../../hooks/useProducts';
+} from '../../hooks/studio';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
