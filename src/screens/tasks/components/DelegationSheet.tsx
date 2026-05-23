@@ -13,10 +13,10 @@ import {
   Platform,
 } from 'react-native';
 
-import type { User } from '../api/endpoints/users';
-import { useDelegateTask } from '../hooks/tasks';
-import { useUsers } from '../hooks/useUsers';
-import { colors, spacing, radius, typography, shadow } from '../theme/theme';
+import type { User } from '../../../api/endpoints/users';
+import { useDelegateTask } from '../../../hooks/tasks';
+import { useUsers } from '../../../hooks/useUsers';
+import { colors, spacing, radius, typography, shadow } from '../../../theme/theme';
 
 interface DelegationSheetProps {
   visible: boolean;

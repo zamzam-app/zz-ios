@@ -38,7 +38,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TaskStatus } from '../../api/endpoints/tasks';
 import { uploadToCloudinary } from '../../api/endpoints/uploads';
-import DelegationSheet from '../../components/DelegationSheet';
+import DelegationSheet from './components/DelegationSheet';
 import StatusBadge from '../../components/shared/StatusBadge';
 import TimelineEventCard from '../../components/TimelineEventCard';
 import TimelineSkeleton from '../../components/TimelineSkeleton';
