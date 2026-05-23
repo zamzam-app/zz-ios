@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { useReviewBadgeStatus } from '../hooks/useReviews';
+import { useReviewBadgeStatus } from '../hooks/reviews';
 import { useUnreadAggregated } from '../hooks/tasks';
 import OverviewScreen from '../screens/overview/OverviewScreen';
 import { useAuthStore } from '../store/authStore';

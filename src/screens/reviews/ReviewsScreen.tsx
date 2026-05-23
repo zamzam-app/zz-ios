@@ -20,7 +20,7 @@ import { Review } from '../../api/endpoints/reviews';
 import StarRating from '../../components/StarRating';
 import { ReviewMetricFilter } from '../../constants/reviewFilters';
 import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
-import { useCriticalReviews, useReviews } from '../../hooks/useReviews';
+import { useCriticalReviews, useReviews } from '../../hooks/reviews';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';

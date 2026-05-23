@@ -23,7 +23,7 @@ import { Review, UserResponse } from '../../api/endpoints/reviews';
 import { uploadToCloudinary } from '../../api/endpoints/uploads';
 import StarRating from '../../components/StarRating';
 import { useForm } from '../../hooks/tasks';
-import { useMarkReviewAsRead, useReview, useResolveComplaint } from '../../hooks/useReviews';
+import { useMarkReviewAsRead, useReview, useResolveComplaint } from '../../hooks/reviews';
 import { useUsers } from '../../hooks/useUsers';
 import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import { useAuthStore } from '../../store/authStore';
