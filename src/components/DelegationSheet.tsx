@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
@@ -10,13 +11,12 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useUsers } from '../hooks/useUsers';
-import { useDelegateTask } from '../hooks/useTaskDelegation';
-import { colors, spacing, radius, typography, shadow } from '../theme/theme';
+
 import type { User } from '../api/endpoints/users';
+import { useDelegateTask } from '../hooks/useTaskDelegation';
+import { useUsers } from '../hooks/useUsers';
+import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 interface DelegationSheetProps {
   visible: boolean;
@@ -27,7 +27,7 @@ interface DelegationSheetProps {
   /** User IDs to exclude from the list (already attached / current user) */
   excludeUserIds?: string[];
   /** Outlet ID associated with the task, if any */
-  outletId?: string | any;
+  outletId?: string | null;
 }
 
 function UserRow({
@@ -61,9 +61,7 @@ function UserRow({
         <Text style={styles.userName}>{user.name}</Text>
         <Text style={styles.userRole}>{user.role}</Text>
       </View>
-      {isSelected && (
-        <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-      )}
+      {isSelected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
     </TouchableOpacity>
   );
 }
@@ -96,28 +94,19 @@ export default function DelegationSheet({
 
   const filteredUsers = useMemo(() => {
     if (!users) return [];
-    
+
     // Filter to only include manager / admin
     let result = users.filter(
-      (u) =>
-        u.role?.toLowerCase() === 'manager' ||
-        u.role?.toLowerCase() === 'admin'
+      (u) => u.role?.toLowerCase() === 'manager' || u.role?.toLowerCase() === 'admin',
     );
-    
+
     // If task has an outlet, only include users associated with that outlet
-    let targetOutletId: string | undefined;
-    if (outletId) {
-      if (typeof outletId === 'string') {
-        targetOutletId = outletId;
-      } else if (typeof outletId === 'object') {
-        targetOutletId = outletId._id ?? outletId.id;
-      }
-    }
+    const targetOutletId = outletId || undefined;
 
     if (targetOutletId) {
-      result = result.filter((u) => u.outlets?.includes(targetOutletId!));
+      result = result.filter((u) => u.outlets?.includes(targetOutletId));
     }
-    
+
     // Filter out already attached people & current user
     if (excludeUserIds && excludeUserIds.length > 0) {
       result = result.filter((u) => !excludeUserIds.includes(u.id));
@@ -162,21 +151,12 @@ export default function DelegationSheet({
     : null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.root}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.scrim}
-          onPress={handleClose}
-        />
+        <TouchableOpacity activeOpacity={1} style={styles.scrim} onPress={handleClose} />
 
         <View style={styles.sheet}>
           {/* ── Handle ──────────────────────────────────────────────────── */}
@@ -186,9 +166,7 @@ export default function DelegationSheet({
 
           {/* ── Header ──────────────────────────────────────────────────── */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>
-              Delegate Task
-            </Text>
+            <Text style={styles.headerTitle}>Delegate Task</Text>
             <TouchableOpacity
               style={styles.closeBtn}
               onPress={handleClose}
@@ -259,9 +237,7 @@ export default function DelegationSheet({
 
             {/* ── Note / Reason Input ────────────────────────────────────── */}
             <View style={styles.noteSection}>
-              <Text style={styles.noteLabel}>
-                Note (optional)
-              </Text>
+              <Text style={styles.noteLabel}>Note (optional)</Text>
               <TextInput
                 style={styles.noteInput}
                 placeholder="Add a note about this delegation..."
@@ -296,9 +272,7 @@ export default function DelegationSheet({
               {isPending ? (
                 <ActivityIndicator size="small" color={colors.textInverse} />
               ) : (
-                <Text style={styles.confirmBtnText}>
-                  Delegate
-                </Text>
+                <Text style={styles.confirmBtnText}>Delegate</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -315,7 +289,7 @@ const styles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: colors.scrimBlack45,
   },
   sheet: {
     backgroundColor: colors.screenBackground,
@@ -363,18 +337,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-
   scrollContent: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? spacing.xl + 16 : spacing.xl,
     gap: spacing.md,
-  },
-  modeDescription: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    lineHeight: 16,
-    paddingHorizontal: 2,
   },
   searchWrap: {
     flexDirection: 'row',

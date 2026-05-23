@@ -1,18 +1,20 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigatorScreenParams } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, shadow } from '../theme/theme';
-import OverviewScreen from '../screens/overview/OverviewScreen';
-import TasksNavigator, { TasksStackParamList } from './TasksNavigator';
-import ReviewsNavigator, { ReviewsStackParamList } from './ReviewsNavigator';
-import MoreNavigator from './MoreNavigator';
-import { useReviewBadgeStatus } from '../hooks/useReviews';
-import { useAuthStore } from '../store/authStore';
-import { getReviewTabBadgeModel } from './reviewBadgeState';
-import { useUnreadAggregated } from '../hooks/useTaskView';
 import * as Notifications from 'expo-notifications';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+import { useReviewBadgeStatus } from '../hooks/useReviews';
+import { useUnreadAggregated } from '../hooks/useTaskView';
+import OverviewScreen from '../screens/overview/OverviewScreen';
+import { useAuthStore } from '../store/authStore';
+import { colors, typography, shadow } from '../theme/theme';
+
+import MoreNavigator from './MoreNavigator';
+import { getReviewTabBadgeModel } from './reviewBadgeState';
+import ReviewsNavigator, { ReviewsStackParamList } from './ReviewsNavigator';
+import TasksNavigator, { TasksStackParamList } from './TasksNavigator';
 
 export type AppTabParamList = {
   Overview: undefined;
@@ -22,15 +24,15 @@ export type AppTabParamList = {
 };
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
-
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
 type TabRouteName = keyof AppTabParamList;
 
 const TAB_ICONS: Record<TabRouteName, { outline: IoniconName; filled: IoniconName }> = {
-  Overview: { outline: 'speedometer-outline',       filled: 'speedometer' },
-  Tasks: { outline: 'document-text-outline',      filled: 'document-text' },
+  Overview: { outline: 'speedometer-outline', filled: 'speedometer' },
+  Tasks: { outline: 'document-text-outline', filled: 'document-text' },
   Reviews: { outline: 'chatbubble-ellipses-outline', filled: 'chatbubble-ellipses' },
-  More: { outline: 'menu-outline',             filled: 'menu' },
+  More: { outline: 'menu-outline', filled: 'menu' },
 };
 
 const TAB_LABELS: Record<TabRouteName, string> = {
@@ -79,7 +81,15 @@ function TasksTabIcon({ color, focused }: { color: string; focused: boolean }) {
   );
 }
 
-function TabIcon({ name, color, focused }: { name: TabRouteName; color: string; focused: boolean }) {
+function TabIcon({
+  name,
+  color,
+  focused,
+}: {
+  name: TabRouteName;
+  color: string;
+  focused: boolean;
+}) {
   if (name === 'Reviews') return <ReviewsTabIcon color={color} focused={focused} />;
   if (name === 'Tasks') return <TasksTabIcon color={color} focused={focused} />;
   const icons = TAB_ICONS[name];
@@ -88,7 +98,6 @@ function TabIcon({ name, color, focused }: { name: TabRouteName; color: string; 
 }
 
 export default function AppNavigator() {
-
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

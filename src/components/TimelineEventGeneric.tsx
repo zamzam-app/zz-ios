@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+
 import { colors, spacing, typography } from '../theme/theme';
 import { TaskEventType } from '../types/task';
 import type { SerializedTimelineEvent } from '../types/task';
@@ -39,25 +40,26 @@ function TimelineEventGeneric({ event }: TimelineEventGenericProps) {
 // ─── Sub-renderers ──────────────────────────────────────────────────────────
 
 function UpdatedEvent({ data }: { data: Record<string, unknown> }) {
-  const changes = data.changes as
-    | Record<string, { from: unknown; to: unknown }>
-    | undefined;
+  const changes = data.changes as Record<string, { from: unknown; to: unknown }> | undefined;
 
   if (!changes) return null;
 
   const fieldNames = Object.keys(changes);
   const preview = fieldNames
     .slice(0, 2)
-    .map((f) => f.replace(/([A-Z])/g, ' $1').toLowerCase().trim())
+    .map((f) =>
+      f
+        .replace(/([A-Z])/g, ' $1')
+        .toLowerCase()
+        .trim(),
+    )
     .join(', ');
 
   return (
     <View style={styles.container}>
       <Text style={styles.body}>
         Updated {preview}
-        {fieldNames.length > 2
-          ? ` and ${fieldNames.length - 2} more`
-          : ''}
+        {fieldNames.length > 2 ? ` and ${fieldNames.length - 2} more` : ''}
       </Text>
     </View>
   );
@@ -78,9 +80,7 @@ function AssignedEvent({ data }: { data: Record<string, unknown> }) {
   return (
     <View style={styles.container}>
       <Text style={styles.body}>
-        {parts.length > 0
-          ? `Assignees updated: ${parts.join(', ')}`
-          : 'Assignees updated'}
+        {parts.length > 0 ? `Assignees updated: ${parts.join(', ')}` : 'Assignees updated'}
       </Text>
     </View>
   );
@@ -128,9 +128,7 @@ function SubmittedEvent({ data }: { data: Record<string, unknown> }) {
   const text = data.text as string | undefined;
   return (
     <View style={styles.container}>
-      <Text style={styles.body}>
-        Submitted for review{role ? ` as ${role}` : ''}
-      </Text>
+      <Text style={styles.body}>Submitted for review{role ? ` as ${role}` : ''}</Text>
       {text ? (
         <Text style={styles.submissionText} numberOfLines={3}>
           {text}

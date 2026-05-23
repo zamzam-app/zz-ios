@@ -1,5 +1,5 @@
-import { TaskEventType } from '../types/task';
 import { colors } from '../theme/theme';
+import { TaskEventType } from '../types/task';
 
 // ─── Event Type Icon Mapping ────────────────────────────────────────────────
 
@@ -189,8 +189,20 @@ export function formatRelativeTime(isoTimestamp: string): string {
 
   // Older: show date
   const date = new Date(then);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return `${months[date.getMonth()]} ${date.getDate()}`;
 }
 
@@ -202,8 +214,20 @@ export function formatFullDate(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
   if (Number.isNaN(date.getTime())) return isoTimestamp;
 
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   const month = months[date.getMonth()];
   const day = date.getDate();
   const year = date.getFullYear();

@@ -15,7 +15,7 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://zz-backend-production.up.railway.app",
-        "EXPO_PUBLIC_REVIEW_BASE_URL": "https://zz-user.vercel.app/review",
+        "EXPO_PUBLIC_QR_REVIEW_BASE_URL": "https://zz-user.vercel.app",
         "EXPO_PUBLIC_ADMIN_EMAIL": "admin@zamzam.com"
       }
     }

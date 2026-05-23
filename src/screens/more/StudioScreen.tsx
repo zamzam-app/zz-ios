@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import {
   View,
@@ -16,9 +19,10 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+import { Product, Category } from '../../api/endpoints/products';
+import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
+import ImagePickerButton from '../../components/ImagePickerButton';
 import {
   useProducts,
   useCategories,
@@ -31,17 +35,22 @@ import {
   useCustomCakes,
   useUploadedCakes,
 } from '../../hooks/useProducts';
-import { Product, Category } from '../../api/endpoints/products';
-import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
-import ImagePickerButton from '../../components/ImagePickerButton';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+
+const newPricingId = () => `pricing_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
 type StudioNav = NativeStackNavigationProp<MoreStackParamList, 'Studio'>;
 type StudioTab = 'catalogue' | 'ai' | 'uploads';
 
-function CategoryModal({ visible, initial, onClose, onSubmit, submitting }: {
+function CategoryModal({
+  visible,
+  initial,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
   visible: boolean;
   initial?: Category;
   onClose: () => void;
@@ -53,8 +62,12 @@ function CategoryModal({ visible, initial, onClose, onSubmit, submitting }: {
 
   React.useEffect(() => {
     if (visible) {
-      setName(initial?.name ?? '');
-      setDesc(initial?.description ?? '');
+      const nextName = initial?.name ?? '';
+      const nextDesc = initial?.description ?? '';
+      queueMicrotask(() => {
+        setName(nextName);
+        setDesc(nextDesc);
+      });
     }
   }, [visible, initial]);
 
@@ -67,9 +80,11 @@ function CategoryModal({ visible, initial, onClose, onSubmit, submitting }: {
           </TouchableOpacity>
           <Text style={styles.modalTitle}>{initial ? 'Edit Category' : 'New Category'}</Text>
           <TouchableOpacity onPress={() => onSubmit(name, desc)} disabled={submitting}>
-            {submitting
-              ? <ActivityIndicator color={colors.primary} />
-              : <Text style={styles.modalHeaderSave}>Save</Text>}
+            {submitting ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Text style={styles.modalHeaderSave}>Save</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -96,23 +111,30 @@ function CategoryModal({ visible, initial, onClose, onSubmit, submitting }: {
   );
 }
 
-function ProductModal({ visible, initial, categories, onClose, onSubmit, submitting }: {
+function ProductModal({
+  visible,
+  initial,
+  categories,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
   visible: boolean;
   initial?: Product;
   categories: Category[];
   onClose: () => void;
   onSubmit: (
     name: string,
-    pricing: Array<{ quantityValue: string; amount: string }>,
+    pricing: { quantityValue: string; amount: string }[],
     description: string,
     categoryList: string[],
-    images: string[]
+    images: string[],
   ) => void;
   submitting: boolean;
 }) {
   const [name, setName] = useState('');
-  const [pricing, setPricing] = useState<Array<{ quantityValue: string; amount: string }>>([
-    { quantityValue: '', amount: '' }
+  const [pricing, setPricing] = useState<{ id: string; quantityValue: string; amount: string }[]>([
+    { id: newPricingId(), quantityValue: '', amount: '' },
   ]);
   const [description, setDescription] = useState('');
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
@@ -121,21 +143,27 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
 
   React.useEffect(() => {
     if (visible) {
-      setName(initial?.name ?? '');
-      if (initial?.pricing && initial.pricing.length > 0) {
-        setPricing(
-          initial.pricing.map((p) => ({
-            quantityValue: p.quantityValue.toString(),
-            amount: p.amount.toString(),
-          }))
-        );
-      } else {
-        setPricing([{ quantityValue: '', amount: '' }]);
-      }
-      setDescription(initial?.description ?? '');
-      setSelectedCats(initial?.categoryList ?? []);
-      setImageUrl(initial?.images?.[0] ?? '');
-      setImageUploading(false);
+      const nextName = initial?.name ?? '';
+      const nextPricing =
+        initial?.pricing && initial.pricing.length > 0
+          ? initial.pricing.map((p) => ({
+              id: newPricingId(),
+              quantityValue: p.quantityValue.toString(),
+              amount: p.amount.toString(),
+            }))
+          : [{ id: newPricingId(), quantityValue: '', amount: '' }];
+      const nextDescription = initial?.description ?? '';
+      const nextSelectedCats = initial?.categoryList ?? [];
+      const nextImageUrl = initial?.images?.[0] ?? '';
+
+      queueMicrotask(() => {
+        setName(nextName);
+        setPricing(nextPricing);
+        setDescription(nextDescription);
+        setSelectedCats(nextSelectedCats);
+        setImageUrl(nextImageUrl);
+        setImageUploading(false);
+      });
     }
   }, [visible, initial]);
 
@@ -144,7 +172,10 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <SafeAreaView style={styles.modalRoot}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={onClose}>
@@ -152,12 +183,22 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
             </TouchableOpacity>
             <Text style={styles.modalTitle}>{initial ? 'Edit Cake' : 'New Cake'}</Text>
             <TouchableOpacity
-              onPress={() => onSubmit(name, pricing, description, selectedCats, imageUrl ? [imageUrl] : [])}
+              onPress={() =>
+                onSubmit(
+                  name,
+                  pricing.map(({ id: _id, ...rest }) => rest),
+                  description,
+                  selectedCats,
+                  imageUrl ? [imageUrl] : [],
+                )
+              }
               disabled={submitting || imageUploading}
             >
-              {(submitting || imageUploading)
-                ? <ActivityIndicator color={colors.primary} />
-                : <Text style={styles.modalHeaderSave}>Save</Text>}
+              {submitting || imageUploading ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.modalHeaderSave}>Save</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -186,7 +227,12 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
                 <Text style={styles.label}>Pricing Options *</Text>
                 <TouchableOpacity
                   style={styles.addPricingBtn}
-                  onPress={() => setPricing((prev) => [...prev, { quantityValue: '', amount: '' }])}
+                  onPress={() =>
+                    setPricing((prev) => [
+                      ...prev,
+                      { id: newPricingId(), quantityValue: '', amount: '' },
+                    ])
+                  }
                   activeOpacity={0.7}
                 >
                   <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
@@ -204,7 +250,7 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
 
                 {/* Unified Table Rows */}
                 {pricing.map((row, index) => (
-                  <View key={index} style={styles.pricingTableRow}>
+                  <View key={row.id} style={styles.pricingTableRow}>
                     {/* Quantity Column */}
                     <View style={{ flex: 1.2 }}>
                       <View style={styles.inputContainer}>
@@ -279,7 +325,12 @@ function ProductModal({ visible, initial, categories, onClose, onSubmit, submitt
                       style={[styles.chip, selectedCats.includes(cat.id) && styles.chipActive]}
                       onPress={() => toggleCat(cat.id)}
                     >
-                      <Text style={[styles.chipText, selectedCats.includes(cat.id) && styles.chipTextActive]}>
+                      <Text
+                        style={[
+                          styles.chipText,
+                          selectedCats.includes(cat.id) && styles.chipTextActive,
+                        ]}
+                      >
                         {cat.name}
                       </Text>
                     </TouchableOpacity>
@@ -308,9 +359,10 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
   const filteredCakes = useMemo(() => {
     const base = savedCakes ?? [];
     return base.filter((cake) => {
-      const matchesSearch = !normalizedSearch
-        || cake.prompt.toLowerCase().includes(normalizedSearch)
-        || (cake.customerName ?? '').toLowerCase().includes(normalizedSearch);
+      const matchesSearch =
+        !normalizedSearch ||
+        cake.prompt.toLowerCase().includes(normalizedSearch) ||
+        (cake.customerName ?? '').toLowerCase().includes(normalizedSearch);
       if (!matchesSearch) return false;
 
       if (minAge === undefined && maxAge === undefined) return true;
@@ -344,7 +396,8 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
           <TouchableOpacity
             style={[
               aiStyles.filterIconBtn,
-              (minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) && aiStyles.filterIconBtnActive,
+              (minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) &&
+                aiStyles.filterIconBtnActive,
             ]}
             onPress={() => setShowAgeFilterModal(true)}
             activeOpacity={0.8}
@@ -352,7 +405,11 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
             <Ionicons
               name="options-outline"
               size={18}
-              color={minAgeText.trim().length > 0 || maxAgeText.trim().length > 0 ? colors.primaryDark : colors.textSecondary}
+              color={
+                minAgeText.trim().length > 0 || maxAgeText.trim().length > 0
+                  ? colors.primaryDark
+                  : colors.textSecondary
+              }
             />
           </TouchableOpacity>
           <TouchableOpacity
@@ -370,8 +427,16 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
         {(minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) && (
           <View style={aiStyles.ageChipRow}>
             <View style={aiStyles.ageChip}>
-              <Text style={aiStyles.ageChipText}>{`Age: ${minAgeText || 'Any'} - ${maxAgeText || 'Any'}`}</Text>
-              <TouchableOpacity onPress={() => { setMinAgeText(''); setMaxAgeText(''); }} style={aiStyles.ageChipClear}>
+              <Text
+                style={aiStyles.ageChipText}
+              >{`Age: ${minAgeText || 'Any'} - ${maxAgeText || 'Any'}`}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setMinAgeText('');
+                  setMaxAgeText('');
+                }}
+                style={aiStyles.ageChipClear}
+              >
                 <Text style={aiStyles.ageChipClearText}>x</Text>
               </TouchableOpacity>
             </View>
@@ -384,21 +449,38 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
         <Text style={aiStyles.empty}>No custom cake orders yet</Text>
       ) : (
         filteredCakes.map((cake) => (
-          <TouchableOpacity key={cake.id} style={aiStyles.cakeCard} activeOpacity={0.86} onPress={() => onOpenCustomCake(cake)}>
+          <TouchableOpacity
+            key={cake.id}
+            style={aiStyles.cakeCard}
+            activeOpacity={0.86}
+            onPress={() => onOpenCustomCake(cake)}
+          >
             {cake.imageUrl ? (
-              <Image source={{ uri: cake.imageUrl }} style={aiStyles.cakeThumbnail} resizeMode="cover" />
+              <Image
+                source={{ uri: cake.imageUrl }}
+                style={aiStyles.cakeThumbnail}
+                resizeMode="cover"
+              />
             ) : (
               <View style={[aiStyles.cakeThumbnail, aiStyles.cakeThumbnailFallback]}>
                 <Text style={{ fontSize: 24 }}>🎂</Text>
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Text style={aiStyles.cakePrompt} numberOfLines={2}>{cake.prompt}</Text>
+              <Text style={aiStyles.cakePrompt} numberOfLines={2}>
+                {cake.prompt}
+              </Text>
               {cake.customerName ? (
-                <Text style={aiStyles.cakeCustomer} numberOfLines={1}>{cake.customerName}</Text>
+                <Text style={aiStyles.cakeCustomer} numberOfLines={1}>
+                  {cake.customerName}
+                </Text>
               ) : null}
               <Text style={aiStyles.cakeDate}>
-                {new Date(cake.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {new Date(cake.createdAt).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
               </Text>
             </View>
           </TouchableOpacity>
@@ -424,7 +506,14 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
                 <Text style={aiStyles.filterSheetTitle}>Age Filter</Text>
                 <TouchableOpacity
                   onPress={() => setShowAgeFilterModal(false)}
-                  style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F4F6' }}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.uiGray1,
+                  }}
                 >
                   <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -460,7 +549,11 @@ function AIStudioTab({ onOpenCustomCake }: { onOpenCustomCake: (item: CustomCake
   );
 }
 
-function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: UploadedCakeImage) => void }) {
+function UploadedImagesTab({
+  onOpenUploadedCake,
+}: {
+  onOpenUploadedCake: (item: UploadedCakeImage) => void;
+}) {
   const { data: uploadedImages, isLoading } = useUploadedCakes();
   const [searchQuery, setSearchQuery] = useState('');
   const [minAgeText, setMinAgeText] = useState('');
@@ -474,9 +567,10 @@ function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: 
   const filteredUploads = useMemo(() => {
     const base = uploadedImages ?? [];
     return base.filter((item) => {
-      const matchesSearch = !normalizedSearch
-        || (item.name ?? '').toLowerCase().includes(normalizedSearch)
-        || (item.description ?? '').toLowerCase().includes(normalizedSearch);
+      const matchesSearch =
+        !normalizedSearch ||
+        (item.name ?? '').toLowerCase().includes(normalizedSearch) ||
+        (item.description ?? '').toLowerCase().includes(normalizedSearch);
       if (!matchesSearch) return false;
 
       if (minAge === undefined && maxAge === undefined) return true;
@@ -512,7 +606,8 @@ function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: 
             <TouchableOpacity
               style={[
                 aiStyles.filterIconBtn,
-                (minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) && aiStyles.filterIconBtnActive,
+                (minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) &&
+                  aiStyles.filterIconBtnActive,
               ]}
               onPress={() => setShowAgeFilterModal(true)}
               activeOpacity={0.8}
@@ -520,7 +615,11 @@ function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: 
               <Ionicons
                 name="options-outline"
                 size={18}
-                color={minAgeText.trim().length > 0 || maxAgeText.trim().length > 0 ? colors.primaryDark : colors.textSecondary}
+                color={
+                  minAgeText.trim().length > 0 || maxAgeText.trim().length > 0
+                    ? colors.primaryDark
+                    : colors.textSecondary
+                }
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -538,8 +637,16 @@ function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: 
           {(minAgeText.trim().length > 0 || maxAgeText.trim().length > 0) && (
             <View style={aiStyles.ageChipRow}>
               <View style={aiStyles.ageChip}>
-                <Text style={aiStyles.ageChipText}>{`Age: ${minAgeText || 'Any'} - ${maxAgeText || 'Any'}`}</Text>
-                <TouchableOpacity onPress={() => { setMinAgeText(''); setMaxAgeText(''); }} style={aiStyles.ageChipClear}>
+                <Text
+                  style={aiStyles.ageChipText}
+                >{`Age: ${minAgeText || 'Any'} - ${maxAgeText || 'Any'}`}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setMinAgeText('');
+                    setMaxAgeText('');
+                  }}
+                  style={aiStyles.ageChipClear}
+                >
                   <Text style={aiStyles.ageChipClearText}>x</Text>
                 </TouchableOpacity>
               </View>
@@ -560,24 +667,33 @@ function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: 
                 activeOpacity={0.85}
                 onPress={() => onOpenUploadedCake(item)}
               >
-                <Image source={{ uri: item.referenceImageUrl }} style={styles.uploadImage} resizeMode="cover" />
+                <Image
+                  source={{ uri: item.referenceImageUrl }}
+                  style={styles.uploadImage}
+                  resizeMode="cover"
+                />
                 <View style={styles.uploadMeta}>
-                  <Text style={styles.uploadName} numberOfLines={1}>{item.name || 'Unknown User'}</Text>
+                  <Text style={styles.uploadName} numberOfLines={1}>
+                    {item.name || 'Unknown User'}
+                  </Text>
                   <Text style={styles.uploadDate} numberOfLines={1}>
                     {item.createdAt
                       ? new Date(item.createdAt).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })
                       : 'Unknown date'}
                   </Text>
                   {item.description ? (
-                    <Text style={styles.uploadDescription} numberOfLines={2}>{item.description}</Text>
+                    <Text style={styles.uploadDescription} numberOfLines={2}>
+                      {item.description}
+                    </Text>
                   ) : null}
                   {item.dob ? (
                     <Text style={styles.uploadDob} numberOfLines={1}>
-                      DOB: {new Date(item.dob).toLocaleDateString('en-GB', {
+                      DOB:{' '}
+                      {new Date(item.dob).toLocaleDateString('en-GB', {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
@@ -610,7 +726,14 @@ function UploadedImagesTab({ onOpenUploadedCake }: { onOpenUploadedCake: (item: 
                 <Text style={aiStyles.filterSheetTitle}>Age Filter</Text>
                 <TouchableOpacity
                   onPress={() => setShowAgeFilterModal(false)}
-                  style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F4F6' }}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.uiGray1,
+                  }}
                 >
                   <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -680,7 +803,11 @@ function CakeRow({
       <View style={styles.cardMainRow}>
         <View style={styles.productThumbWrap}>
           {item.images?.[0] ? (
-            <Image source={{ uri: item.images[0] }} style={styles.productThumb} resizeMode="cover" />
+            <Image
+              source={{ uri: item.images[0] }}
+              style={styles.productThumb}
+              resizeMode="cover"
+            />
           ) : (
             <View style={[styles.productThumb, styles.productThumbFallback]}>
               <Text style={{ fontSize: 20 }}>🍰</Text>
@@ -690,11 +817,17 @@ function CakeRow({
 
         <View style={styles.cardContent}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.itemName} numberOfLines={1}>
+              {item.name}
+            </Text>
             <Text style={styles.price}>{displayPrice}</Text>
           </View>
 
-          {item.description ? <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text> : null}
+          {item.description ? (
+            <Text style={styles.itemDesc} numberOfLines={2}>
+              {item.description}
+            </Text>
+          ) : null}
 
           {categoryNames.length > 0 ? (
             <View style={styles.metaChipRow}>
@@ -736,8 +869,18 @@ export default function StudioScreen() {
   const [activeTab, setActiveTab] = useState<StudioTab>('catalogue');
   const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
 
-  const { data: products, isLoading: productsLoading, isFetching: productsFetching, refetch: refetchProducts } = useProducts();
-  const { data: categories, isLoading: categoriesLoading, isFetching: categoriesFetching, refetch: refetchCategories } = useCategories();
+  const {
+    data: products,
+    isLoading: productsLoading,
+    isFetching: productsFetching,
+    refetch: refetchProducts,
+  } = useProducts();
+  const {
+    data: categories,
+    isLoading: categoriesLoading,
+    isFetching: categoriesFetching,
+    refetch: refetchCategories,
+  } = useCategories();
 
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -753,7 +896,10 @@ export default function StudioScreen() {
   const [editingCategory, setEditingCategory] = useState<Category | undefined>();
   const [catalogueSearchQuery, setCatalogueSearchQuery] = useState('');
 
-  const normalizedCatalogueSearch = useMemo(() => catalogueSearchQuery.trim().toLowerCase(), [catalogueSearchQuery]);
+  const normalizedCatalogueSearch = useMemo(
+    () => catalogueSearchQuery.trim().toLowerCase(),
+    [catalogueSearchQuery],
+  );
 
   const categoryNameById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category.name])),
@@ -763,9 +909,10 @@ export default function StudioScreen() {
   const filteredProducts = useMemo(() => {
     const base = products ?? [];
     if (!normalizedCatalogueSearch) return base;
-    return base.filter((p) =>
-      p.name.toLowerCase().includes(normalizedCatalogueSearch) ||
-      (p.description ?? '').toLowerCase().includes(normalizedCatalogueSearch),
+    return base.filter(
+      (p) =>
+        p.name.toLowerCase().includes(normalizedCatalogueSearch) ||
+        (p.description ?? '').toLowerCase().includes(normalizedCatalogueSearch),
     );
   }, [products, normalizedCatalogueSearch]);
 
@@ -779,7 +926,7 @@ export default function StudioScreen() {
 
   const handleProductSubmit = (
     name: string,
-    pricingState: Array<{ quantityValue: string; amount: string }>,
+    pricingState: { quantityValue: string; amount: string }[],
     description: string,
     categoryList: string[],
     images: string[],
@@ -849,7 +996,10 @@ export default function StudioScreen() {
 
     if (editingCategory) {
       updateCategory.mutate(
-        { id: editingCategory.id, payload: { name: name.trim(), description: description.trim() || undefined } },
+        {
+          id: editingCategory.id,
+          payload: { name: name.trim(), description: description.trim() || undefined },
+        },
         {
           onSuccess: () => setShowCategoryModal(false),
           onError: () => Alert.alert('Error', 'Failed to update category.'),
@@ -889,8 +1039,10 @@ export default function StudioScreen() {
     ]);
   };
 
-  const isProductMutating = createProduct.isPending || updateProduct.isPending || deleteProduct.isPending;
-  const isCategoryMutating = createCategory.isPending || updateCategory.isPending || deleteCategory.isPending;
+  const isProductMutating =
+    createProduct.isPending || updateProduct.isPending || deleteProduct.isPending;
+  const isCategoryMutating =
+    createCategory.isPending || updateCategory.isPending || deleteCategory.isPending;
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -912,7 +1064,10 @@ export default function StudioScreen() {
           </View>
 
           <View style={styles.headerBtns}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowCategoryManagerModal(true)}>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => setShowCategoryManagerModal(true)}
+            >
               <Text style={styles.secondaryBtnText}>Category</Text>
             </TouchableOpacity>
             {isAdmin && (
@@ -934,96 +1089,118 @@ export default function StudioScreen() {
             style={[styles.tab, activeTab === 'catalogue' && styles.tabActive]}
             onPress={() => setActiveTab('catalogue')}
           >
-            <Ionicons name="book-outline" size={16} color={activeTab === 'catalogue' ? colors.primary : colors.textSecondary} />
-            <Text style={[styles.tabText, activeTab === 'catalogue' && styles.tabTextActive]}>Catalogue</Text>
+            <Ionicons
+              name="book-outline"
+              size={16}
+              color={activeTab === 'catalogue' ? colors.primary : colors.textSecondary}
+            />
+            <Text style={[styles.tabText, activeTab === 'catalogue' && styles.tabTextActive]}>
+              Catalogue
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'ai' && styles.tabActive]}
             onPress={() => setActiveTab('ai')}
           >
-            <Ionicons name="sparkles-outline" size={16} color={activeTab === 'ai' ? colors.primary : colors.textSecondary} />
-            <Text style={[styles.tabText, activeTab === 'ai' && styles.tabTextActive]}>AI Studio</Text>
+            <Ionicons
+              name="sparkles-outline"
+              size={16}
+              color={activeTab === 'ai' ? colors.primary : colors.textSecondary}
+            />
+            <Text style={[styles.tabText, activeTab === 'ai' && styles.tabTextActive]}>
+              AI Studio
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'uploads' && styles.tabActive]}
             onPress={() => setActiveTab('uploads')}
           >
-            <Ionicons name="images-outline" size={16} color={activeTab === 'uploads' ? colors.primary : colors.textSecondary} />
-            <Text style={[styles.tabText, activeTab === 'uploads' && styles.tabTextActive]}>Uploads</Text>
+            <Ionicons
+              name="images-outline"
+              size={16}
+              color={activeTab === 'uploads' ? colors.primary : colors.textSecondary}
+            />
+            <Text style={[styles.tabText, activeTab === 'uploads' && styles.tabTextActive]}>
+              Uploads
+            </Text>
           </TouchableOpacity>
         </View>
 
         {activeTab === 'ai' ? (
           <AIStudioTab
-            onOpenCustomCake={(item) => navigation.navigate('StudioDocumentDetail', {
-              type: 'custom-cake',
-              item,
-            })}
+            onOpenCustomCake={(item) =>
+              navigation.navigate('StudioDocumentDetail', {
+                type: 'custom-cake',
+                item,
+              })
+            }
           />
         ) : activeTab === 'uploads' ? (
           <UploadedImagesTab
-            onOpenUploadedCake={(item) => navigation.navigate('StudioDocumentDetail', {
-              type: 'uploaded-cake',
-              item,
-            })}
+            onOpenUploadedCake={(item) =>
+              navigation.navigate('StudioDocumentDetail', {
+                type: 'uploaded-cake',
+                item,
+              })
+            }
           />
+        ) : productsLoading ? (
+          <ActivityIndicator color={colors.primary} style={styles.loader} />
         ) : (
-          productsLoading ? (
-            <ActivityIndicator color={colors.primary} style={styles.loader} />
-          ) : (
-            <>
-              <View style={[aiStyles.filtersWrap, { marginTop: spacing.md, marginBottom: 0 }]}>
-                <View style={aiStyles.searchRow}>
-                  <TextInput
-                    style={aiStyles.searchInput}
-                    value={catalogueSearchQuery}
-                    onChangeText={setCatalogueSearchQuery}
-                    placeholder="Search title or description"
-                    placeholderTextColor={colors.textSecondary}
-                  />
-                  {catalogueSearchQuery.length > 0 && (
-                    <TouchableOpacity
-                      style={aiStyles.clearBtn}
-                      onPress={() => setCatalogueSearchQuery('')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={aiStyles.clearBtnText}>Clear</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+          <>
+            <View style={[aiStyles.filtersWrap, { marginTop: spacing.md, marginBottom: 0 }]}>
+              <View style={aiStyles.searchRow}>
+                <TextInput
+                  style={aiStyles.searchInput}
+                  value={catalogueSearchQuery}
+                  onChangeText={setCatalogueSearchQuery}
+                  placeholder="Search title or description"
+                  placeholderTextColor={colors.textSecondary}
+                />
+                {catalogueSearchQuery.length > 0 && (
+                  <TouchableOpacity
+                    style={aiStyles.clearBtn}
+                    onPress={() => setCatalogueSearchQuery('')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={aiStyles.clearBtnText}>Clear</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              <FlatList
-                style={styles.catalogueList}
-                data={filteredProducts}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.list}
-                onRefresh={refetchProducts}
-                refreshing={productsFetching && !productsLoading}
-                renderItem={({ item }) => {
-                  const categoryNames = (item.categoryList ?? [])
-                    .map((id) => categoryNameById.get(id))
-                    .filter((name): name is string => Boolean(name))
-                    .slice(0, 2);
+            </View>
+            <FlatList
+              style={styles.catalogueList}
+              data={filteredProducts}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.list}
+              onRefresh={refetchProducts}
+              refreshing={productsFetching && !productsLoading}
+              renderItem={({ item }) => {
+                const categoryNames = (item.categoryList ?? [])
+                  .map((id) => categoryNameById.get(id))
+                  .filter((name): name is string => Boolean(name))
+                  .slice(0, 2);
 
-                  return (
-                    <CakeRow
-                      item={item}
-                      categoryNames={categoryNames}
-                      isMutating={isProductMutating}
-                      isAdmin={isAdmin}
-                      onToggleActive={(next) => updateProduct.mutate({ id: item.id, payload: { isActive: next } })}
-                      onEdit={() => {
-                        setEditingProduct(item);
-                        setShowProductModal(true);
-                      }}
-                      onDelete={() => handleDeleteProduct(item)}
-                    />
-                  );
-                }}
-                ListEmptyComponent={<Text style={styles.empty}>No cakes available yet.</Text>}
-              />
-            </>
-          )
+                return (
+                  <CakeRow
+                    item={item}
+                    categoryNames={categoryNames}
+                    isMutating={isProductMutating}
+                    isAdmin={isAdmin}
+                    onToggleActive={(next) =>
+                      updateProduct.mutate({ id: item.id, payload: { isActive: next } })
+                    }
+                    onEdit={() => {
+                      setEditingProduct(item);
+                      setShowProductModal(true);
+                    }}
+                    onDelete={() => handleDeleteProduct(item)}
+                  />
+                );
+              }}
+              ListEmptyComponent={<Text style={styles.empty}>No cakes available yet.</Text>}
+            />
+          </>
         )}
       </View>
 
@@ -1081,7 +1258,9 @@ export default function StudioScreen() {
                 <View style={styles.categoryRow}>
                   <View style={styles.categoryRowContent}>
                     <Text style={styles.categoryName}>{item.name}</Text>
-                    {item.description ? <Text style={styles.categoryDesc}>{item.description}</Text> : null}
+                    {item.description ? (
+                      <Text style={styles.categoryDesc}>{item.description}</Text>
+                    ) : null}
                   </View>
                   {isAdmin && (
                     <View style={styles.cardActions}>
@@ -1111,7 +1290,6 @@ export default function StudioScreen() {
           )}
         </SafeAreaView>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -1532,7 +1710,7 @@ const styles = StyleSheet.create({
     padding: 0,
     margin: 0,
     borderWidth: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: colors.transparent,
   },
   inputPrefix: {
     fontSize: typography.sm,
@@ -1550,7 +1728,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: radius.md,
-    backgroundColor: '#FFEBEE',
+    backgroundColor: colors.accentRoseBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1665,7 +1843,7 @@ const aiStyles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   ageChipClearText: {
     fontSize: 11,
@@ -1678,7 +1856,7 @@ const aiStyles = StyleSheet.create({
   },
   filterModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+    backgroundColor: colors.scrimDark40,
   },
   filterSheet: {
     maxHeight: '55%',
@@ -1693,7 +1871,7 @@ const aiStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC40',
+    borderBottomColor: colors.warmBorderAlpha25,
     backgroundColor: colors.surfaceElevated,
   },
   filterSheetHandle: {
@@ -1701,7 +1879,7 @@ const aiStyles = StyleSheet.create({
     width: 48,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     marginBottom: spacing.sm,
   },
   filterSheetHeader: {
@@ -1713,11 +1891,6 @@ const aiStyles = StyleSheet.create({
     fontSize: typography.lg,
     fontWeight: typography.bold,
     color: colors.text,
-  },
-  filterSheetClose: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.bold,
   },
   filterSheetBody: {
     padding: spacing.md,

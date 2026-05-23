@@ -1,7 +1,13 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { getTaskQueueStatus, retryFailedJobs, clearFailedJobs, clearAllPendingJobs } from '../api/endpoints/taskSubmissionQueue';
+
+import {
+  getTaskQueueStatus,
+  retryFailedJobs,
+  clearFailedJobs,
+  clearAllPendingJobs,
+} from '../api/endpoints/taskSubmissionQueue';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export default function TaskQueueStatusBanner() {
@@ -20,15 +26,15 @@ export default function TaskQueueStatusBanner() {
       'Are you sure you want to cancel all pending task submissions? Unsubmitted tasks will be stopped.',
       [
         { text: 'Keep Submitting', style: 'cancel' },
-        { 
-          text: 'Yes, Cancel', 
+        {
+          text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
             await clearAllPendingJobs();
             setStatus(getTaskQueueStatus());
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   };
 
@@ -38,15 +44,15 @@ export default function TaskQueueStatusBanner() {
       'Are you sure you want to permanently clear all failed task submissions? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Clear All', 
+        {
+          text: 'Clear All',
           style: 'destructive',
           onPress: async () => {
             await clearFailedJobs();
             setStatus(getTaskQueueStatus());
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   };
 
@@ -64,7 +70,8 @@ export default function TaskQueueStatusBanner() {
           <ActivityIndicator size="small" color={colors.primary} style={styles.icon} />
           <View style={styles.pendingTextWrap}>
             <Text style={styles.text}>
-              {status.syncing ? 'Processing' : 'Waiting for connection'}: {status.pendingCount} task{status.pendingCount > 1 ? 's' : ''} remaining...
+              {status.syncing ? 'Processing' : 'Waiting for connection'}: {status.pendingCount} task
+              {status.pendingCount > 1 ? 's' : ''} remaining...
             </Text>
             <TouchableOpacity onPress={handleCancelAll} style={styles.actionBtn}>
               <Text style={styles.actionText}>Cancel</Text>
@@ -111,12 +118,12 @@ const styles = StyleSheet.create({
     ...shadow.sm,
   },
   pendingBanner: {
-    backgroundColor: '#F0F7FF',
-    borderColor: '#C2E0FF',
+    backgroundColor: colors.infoLight,
+    borderColor: colors.accentBlueBorder,
   },
   failedBanner: {
-    backgroundColor: '#FFF1F0',
-    borderColor: '#FFCCC7',
+    backgroundColor: colors.accentRoseBgSoft,
+    borderColor: colors.accentRedBorder,
   },
   icon: {
     marginRight: spacing.sm,
@@ -154,7 +161,7 @@ const styles = StyleSheet.create({
   divider: {
     width: 1,
     height: 12,
-    backgroundColor: '#FFCCC7',
+    backgroundColor: colors.accentRedBorder,
     marginHorizontal: spacing.sm,
   },
 });

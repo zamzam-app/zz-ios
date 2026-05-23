@@ -1,4 +1,5 @@
 import client from '../client';
+
 import { mapListSafely } from './mapListSafely';
 
 export interface User {
@@ -40,7 +41,7 @@ interface RawUser {
   userName?: string;
   phoneNumber?: string;
   role?: string;
-  outlets?: Array<string | { _id?: string; id?: string }>;
+  outlets?: (string | { _id?: string; id?: string })[];
   isActive?: boolean;
 }
 
@@ -54,8 +55,10 @@ function mapUser(raw: RawUser): User {
     role: raw.role ?? '',
     outlets: Array.isArray(raw.outlets)
       ? raw.outlets
-        .map((outlet) => (typeof outlet === 'string' ? outlet : String(outlet._id ?? outlet.id ?? '')))
-        .filter(Boolean)
+          .map((outlet) =>
+            typeof outlet === 'string' ? outlet : String(outlet._id ?? outlet.id ?? ''),
+          )
+          .filter(Boolean)
       : undefined,
     isActive: raw.isActive,
   };
@@ -66,7 +69,7 @@ export const usersApi = {
     client
       .get<{ data: RawUser[] } | RawUser[]>('/users', { params: { limit: 100, role } })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawUser[] }).data ?? [];
+        const raw = Array.isArray(r.data) ? r.data : ((r.data as { data: RawUser[] }).data ?? []);
         return mapListSafely(raw, 'users', mapUser);
       }),
 

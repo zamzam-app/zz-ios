@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -11,19 +14,16 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import { useCriticalReviews, useReviews } from '../../hooks/useReviews';
-import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
-import { Review } from '../../api/endpoints/reviews';
+
 import { FranchiseRankingItem, MetricsHeatmapItem } from '../../api/endpoints/analytics';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { useAuthStore } from '../../store/authStore';
-import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
-import { ReviewMetricFilter } from '../../constants/reviewFilters';
+import { Review } from '../../api/endpoints/reviews';
 import StarRating from '../../components/StarRating';
+import { ReviewMetricFilter } from '../../constants/reviewFilters';
+import { useFranchiseAnalytics } from '../../hooks/useAnalytics';
+import { useCriticalReviews, useReviews } from '../../hooks/useReviews';
+import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import {
   filterOpenCriticalReviews,
   getCriticalReviewsEmptyStateMessage,
@@ -34,13 +34,16 @@ import {
 type Nav = NativeStackNavigationProp<ReviewsStackParamList, 'ReviewsList'>;
 type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewsList'>;
 type MetricKey = keyof MetricsHeatmapItem['metrics'];
-type OutletOption = { id: string; label: string };
+interface OutletOption {
+  id: string;
+  label: string;
+}
 
-type MetricTone = {
+interface MetricTone {
   bg: string;
   border: string;
   text: string;
-};
+}
 
 const METRIC_ORDER: MetricKey[] = ['staff', 'speed', 'clean', 'quality', 'overall'];
 const METRIC_LABELS: Record<MetricKey, string> = {
@@ -167,7 +170,9 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
   return (
     <View style={styles.heatmapRow}>
       <View style={styles.heatmapOutletMeta}>
-        <Text style={styles.heatmapOutletName} numberOfLines={1}>{row.outletName}</Text>
+        <Text style={styles.heatmapOutletName} numberOfLines={1}>
+          {row.outletName}
+        </Text>
       </View>
       <View style={styles.heatmapMetrics}>
         {METRIC_ORDER.map((metric) => {
@@ -178,7 +183,9 @@ function HeatmapRow({ row }: { row: MetricsHeatmapItem }) {
               key={`${row.outletId}-${metric}`}
               style={[styles.metricCell, { backgroundColor: tone.bg, borderColor: tone.border }]}
             >
-              <Text style={[styles.metricCellLabel, { color: tone.text }]}>{METRIC_LABELS[metric]}</Text>
+              <Text style={[styles.metricCellLabel, { color: tone.text }]}>
+                {METRIC_LABELS[metric]}
+              </Text>
               <Text style={[styles.metricCellValue, { color: tone.text }]}>{percent}%</Text>
             </View>
           );
@@ -211,15 +218,15 @@ export default function ReviewsScreen({ route }: Props) {
   useEffect(() => {
     const incomingMetric = route.params?.initialReviewFilter?.metric;
     if (incomingMetric) {
-      setStatusFilter(incomingMetric);
+      queueMicrotask(() => setStatusFilter(incomingMetric));
     }
     const incomingTypeFilter = route.params?.initialReviewFilter?.typeFilter;
     if (incomingTypeFilter) {
-      setAllReviewsFilter(incomingTypeFilter);
+      queueMicrotask(() => setAllReviewsFilter(incomingTypeFilter));
     }
     const incomingOutletId = route.params?.initialReviewFilter?.outletId;
     if (incomingOutletId) {
-      setSelectedOutletId(incomingOutletId);
+      queueMicrotask(() => setSelectedOutletId(incomingOutletId));
     }
   }, [
     route.params?.initialReviewFilter?.metric,
@@ -248,8 +255,8 @@ export default function ReviewsScreen({ route }: Props) {
     refetch: refetchAnalytics,
   } = useFranchiseAnalytics();
 
-  const ranking = analytics?.franchiseRanking ?? [];
-  const heatmap = analytics?.metricsHeatmap ?? [];
+  const ranking = useMemo(() => analytics?.franchiseRanking ?? [], [analytics]);
+  const heatmap = useMemo(() => analytics?.metricsHeatmap ?? [], [analytics]);
   const topRanking = ranking.slice(0, 3);
 
   const outletOptions = useMemo<OutletOption[]>(() => {
@@ -282,25 +289,30 @@ export default function ReviewsScreen({ route }: Props) {
   useEffect(() => {
     if (selectedOutletId === 'all') return;
     if (!outletOptions.some((option) => option.id === selectedOutletId)) {
-      setSelectedOutletId('all');
+      queueMicrotask(() => setSelectedOutletId('all'));
     }
   }, [outletOptions, selectedOutletId]);
 
   const filteredReviews = useMemo(() => {
     if (!reviews) return [];
-    const outletFiltered = selectedOutletId === 'all'
-      ? reviews
-      : reviews.filter((review) => {
-      const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
-      return outletKey === selectedOutletId;
-    });
+    const outletFiltered =
+      selectedOutletId === 'all'
+        ? reviews
+        : reviews.filter((review) => {
+            const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+            return outletKey === selectedOutletId;
+          });
 
     if (statusFilter === 'open') {
-      return outletFiltered.filter((review) => review.isComplaint && isOpenComplaintStatus(review.complaintStatus));
+      return outletFiltered.filter(
+        (review) => review.isComplaint && isOpenComplaintStatus(review.complaintStatus),
+      );
     }
 
     if (statusFilter === 'resolved') {
-      return outletFiltered.filter((review) => review.isComplaint && review.complaintStatus === 'resolved');
+      return outletFiltered.filter(
+        (review) => review.isComplaint && review.complaintStatus === 'resolved',
+      );
     }
 
     return outletFiltered;
@@ -316,12 +328,13 @@ export default function ReviewsScreen({ route }: Props) {
   );
 
   const criticalFeed = useMemo(() => {
-    const outletScopedCriticalReviews = selectedOutletId === 'all'
-      ? criticalReviews ?? []
-      : (criticalReviews ?? []).filter((review) => {
-        const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
-        return outletKey === selectedOutletId;
-      });
+    const outletScopedCriticalReviews =
+      selectedOutletId === 'all'
+        ? (criticalReviews ?? [])
+        : (criticalReviews ?? []).filter((review) => {
+            const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+            return outletKey === selectedOutletId;
+          });
 
     const sorted = [...outletScopedCriticalReviews].sort((a, b) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -331,42 +344,50 @@ export default function ReviewsScreen({ route }: Props) {
   }, [criticalReviews, selectedOutletId]);
 
   const allReviews = useMemo(
-    () => [...filteredReviews].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    () =>
+      [...filteredReviews].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
     [filteredReviews],
   );
 
   const displayedAllReviews = useMemo(() => {
-    return allReviews.filter(review => {
+    return allReviews.filter((review) => {
       // Search filter
       if (debouncedSearchQuery) {
         const comment = review.userResponses
-          ?.map(r => (typeof r.answer === 'string' ? r.answer : ''))
+          ?.map((r) => (typeof r.answer === 'string' ? r.answer : ''))
           .join(' ')
           .toLowerCase();
         const customer = review.customerName?.toLowerCase() || '';
         const outlet = review.outletName?.toLowerCase() || '';
-        
-        const matches = comment.includes(debouncedSearchQuery) || 
-                       customer.includes(debouncedSearchQuery) || 
-                       outlet.includes(debouncedSearchQuery);
-        
+
+        const matches =
+          comment.includes(debouncedSearchQuery) ||
+          customer.includes(debouncedSearchQuery) ||
+          outlet.includes(debouncedSearchQuery);
+
         if (!matches) return false;
       }
 
       // Status filter
       if (allReviewsFilter === 'all') return true;
-      if (allReviewsFilter === 'open') return review.isComplaint && isOpenComplaintStatus(review.complaintStatus);
-      if (allReviewsFilter === 'resolved') return review.isComplaint && review.complaintStatus === 'resolved';
+      if (allReviewsFilter === 'open')
+        return review.isComplaint && isOpenComplaintStatus(review.complaintStatus);
+      if (allReviewsFilter === 'resolved')
+        return review.isComplaint && review.complaintStatus === 'resolved';
       if (allReviewsFilter === 'critical') return isOpenCriticalReview(review);
-      if (allReviewsFilter === 'concern') return review.overallRating >= 2.0 && review.overallRating < 3.5;
+      if (allReviewsFilter === 'concern')
+        return review.overallRating >= 2.0 && review.overallRating < 3.5;
       return true;
     });
   }, [allReviews, allReviewsFilter, debouncedSearchQuery]);
 
   const heatmapRows = useMemo(() => {
-    const scopedHeatmap = selectedOutletId === 'all'
-      ? heatmap
-      : heatmap.filter((item) => item.outletId === selectedOutletId);
+    const scopedHeatmap =
+      selectedOutletId === 'all'
+        ? heatmap
+        : heatmap.filter((item) => item.outletId === selectedOutletId);
 
     const heatmapByOutlet = new Map(scopedHeatmap.map((item) => [item.outletId, item]));
 
@@ -401,19 +422,18 @@ export default function ReviewsScreen({ route }: Props) {
   }, [heatmapRows, outletOptions, selectedOutletId]);
 
   const refreshing = isReviewsFetching || isCriticalReviewsFetching || isAnalyticsFetching;
-  const activeStatusFilterLabel = statusFilter === 'open'
-    ? 'Open'
-    : statusFilter === 'resolved'
-      ? 'Resolved'
-      : null;
-  const allReviewsEmptyMessage = getCriticalReviewsEmptyStateMessage(allReviewsFilter === 'critical');
+  const activeStatusFilterLabel =
+    statusFilter === 'open' ? 'Open' : statusFilter === 'resolved' ? 'Resolved' : null;
+  const allReviewsEmptyMessage = getCriticalReviewsEmptyStateMessage(
+    allReviewsFilter === 'critical',
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={(
+        refreshControl={
           <RefreshControl
             refreshing={refreshing && !isReviewsLoading}
             onRefresh={() => {
@@ -422,12 +442,14 @@ export default function ReviewsScreen({ route }: Props) {
               void refetchAnalytics();
             }}
           />
-        )}
+        }
       >
         <View style={styles.pageHeader}>
           <View>
             <Text style={styles.heading}>Reviews & Performance</Text>
-            <Text style={styles.subheading}>Real-time franchise health and sentiment analysis.</Text>
+            <Text style={styles.subheading}>
+              Real-time franchise health and sentiment analysis.
+            </Text>
           </View>
 
           <TouchableOpacity style={styles.exportButton} activeOpacity={0.8}>
@@ -462,7 +484,7 @@ export default function ReviewsScreen({ route }: Props) {
                 activeOpacity={0.8}
               >
                 <Text style={styles.outletSelectBtnText} numberOfLines={1}>
-                  {outletOptions.find(opt => opt.id === selectedOutletId)?.label || 'All Outlets'}
+                  {outletOptions.find((opt) => opt.id === selectedOutletId)?.label || 'All Outlets'}
                 </Text>
                 <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -474,15 +496,15 @@ export default function ReviewsScreen({ route }: Props) {
               <Text style={styles.sectionEyebrow}>Outlet Performance Heatmap</Text>
               <View style={styles.legendRow}>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
+                  <View style={[styles.legendDot, { backgroundColor: colors.accentGreenBright }]} />
                   <Text style={styles.legendText}>Good</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
+                  <View style={[styles.legendDot, { backgroundColor: colors.accentGold }]} />
                   <Text style={styles.legendText}>Mid</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+                  <View style={[styles.legendDot, { backgroundColor: colors.accentRed }]} />
                   <Text style={styles.legendText}>Alert</Text>
                 </View>
               </View>
@@ -493,7 +515,7 @@ export default function ReviewsScreen({ route }: Props) {
             ) : heatmapRowsWithFallback.length === 0 ? (
               <Text style={styles.emptyText}>No heatmap metrics available.</Text>
             ) : selectedOutletId === 'all' ? (
-              <ScrollView 
+              <ScrollView
                 style={{ maxHeight: 304 }}
                 nestedScrollEnabled={true}
                 showsVerticalScrollIndicator={true}
@@ -553,7 +575,10 @@ export default function ReviewsScreen({ route }: Props) {
                   return (
                     <TouchableOpacity
                       key={review.id}
-                      style={[styles.feedbackItem, index < criticalFeed.length - 1 && styles.feedbackItemBorder]}
+                      style={[
+                        styles.feedbackItem,
+                        index < criticalFeed.length - 1 && styles.feedbackItemBorder,
+                      ]}
                       activeOpacity={0.85}
                       onPress={() => navigation.navigate('ReviewDetail', { reviewId: review.id })}
                     >
@@ -561,14 +586,18 @@ export default function ReviewsScreen({ route }: Props) {
                         <View style={styles.feedbackCriticalMeta}>
                           <View style={styles.feedbackStatusRow}>
                             <View style={[styles.severityBadge, { backgroundColor: severity.bg }]}>
-                              <Text style={[styles.severityBadgeText, { color: severity.text }]}>{severity.label}</Text>
+                              <Text style={[styles.severityBadgeText, { color: severity.text }]}>
+                                {severity.label}
+                              </Text>
                             </View>
                           </View>
                           <View style={styles.feedbackIdentityRow}>
                             <Text style={styles.feedbackName}>
                               {isAdmin ? review.customerName : 'Customer'}
                             </Text>
-                            <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
+                            <Text style={styles.feedbackAge}>
+                              • {formatRelativeTime(review.createdAt)}
+                            </Text>
                           </View>
                         </View>
                         <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
@@ -580,7 +609,9 @@ export default function ReviewsScreen({ route }: Props) {
                         <StarRating rating={review.overallRating} size={12} />
                         <View style={styles.feedbackTagRow}>
                           {tags.map((tag) => (
-                            <Text key={`${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
+                            <Text key={`${review.id}-${tag}`} style={styles.feedbackTag}>
+                              {tag}
+                            </Text>
                           ))}
                         </View>
                       </View>
@@ -601,7 +632,12 @@ export default function ReviewsScreen({ route }: Props) {
 
         <View style={styles.controlsRow}>
           <View style={styles.searchWrap}>
-            <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+            <Ionicons
+              name="search"
+              size={16}
+              color={colors.textSecondary}
+              style={styles.searchIcon}
+            />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -648,7 +684,10 @@ export default function ReviewsScreen({ route }: Props) {
               <Text style={styles.metricFilterChipText}>
                 {`Status: ${allReviewsFilter.charAt(0).toUpperCase() + allReviewsFilter.slice(1)}`}
               </Text>
-              <TouchableOpacity onPress={() => setAllReviewsFilter('all')} style={styles.metricFilterChipClear}>
+              <TouchableOpacity
+                onPress={() => setAllReviewsFilter('all')}
+                style={styles.metricFilterChipClear}
+              >
                 <Text style={styles.metricFilterChipClearText}>x</Text>
               </TouchableOpacity>
             </View>
@@ -679,7 +718,9 @@ export default function ReviewsScreen({ route }: Props) {
                       <Text style={styles.feedbackName}>
                         {isAdmin ? review.customerName : 'Customer'}
                       </Text>
-                      <Text style={styles.feedbackAge}>• {formatRelativeTime(review.createdAt)}</Text>
+                      <Text style={styles.feedbackAge}>
+                        • {formatRelativeTime(review.createdAt)}
+                      </Text>
                     </View>
                     <Text style={styles.feedbackOutlet}>{review.outletName}</Text>
                   </View>
@@ -690,7 +731,9 @@ export default function ReviewsScreen({ route }: Props) {
                     <StarRating rating={review.overallRating} size={12} />
                     <View style={styles.feedbackTagRow}>
                       {tags.map((tag) => (
-                        <Text key={`all-${review.id}-${tag}`} style={styles.feedbackTag}>{tag}</Text>
+                        <Text key={`all-${review.id}-${tag}`} style={styles.feedbackTag}>
+                          {tag}
+                        </Text>
                       ))}
                     </View>
                   </View>
@@ -742,10 +785,14 @@ export default function ReviewsScreen({ route }: Props) {
                           setShowFilterModal(false);
                         }}
                       >
-                        <Text style={[styles.filterOptionText, active && styles.filterOptionTextActive]}>
+                        <Text
+                          style={[styles.filterOptionText, active && styles.filterOptionTextActive]}
+                        >
                           {opt.charAt(0).toUpperCase() + opt.slice(1)}
                         </Text>
-                        {active && <Ionicons name="checkmark-circle" size={16} color={colors.primary} />}
+                        {active && (
+                          <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -795,14 +842,21 @@ export default function ReviewsScreen({ route }: Props) {
             </View>
 
             <View style={[styles.filterBody, { maxHeight: 400, paddingBottom: 0 }]}>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: spacing.xl }}
+              >
                 <View style={styles.filterOptionsGrid}>
                   {outletOptions.map((opt) => {
                     const active = opt.id === selectedOutletId;
                     return (
                       <TouchableOpacity
                         key={opt.id}
-                        style={[styles.filterOption, active && styles.filterOptionActive, { minWidth: '100%' }]}
+                        style={[
+                          styles.filterOption,
+                          active && styles.filterOptionActive,
+                          { minWidth: '100%' },
+                        ]}
                         onPress={() => {
                           setSelectedOutletId(opt.id);
                           if (opt.id === 'all') {
@@ -812,10 +866,14 @@ export default function ReviewsScreen({ route }: Props) {
                           setShowOutletModal(false);
                         }}
                       >
-                        <Text style={[styles.filterOptionText, active && styles.filterOptionTextActive]}>
+                        <Text
+                          style={[styles.filterOptionText, active && styles.filterOptionTextActive]}
+                        >
                           {opt.label}
                         </Text>
-                        {active && <Ionicons name="checkmark-circle" size={16} color={colors.primary} />}
+                        {active && (
+                          <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -825,7 +883,6 @@ export default function ReviewsScreen({ route }: Props) {
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -888,17 +945,17 @@ const styles = StyleSheet.create({
     fontWeight: typography.bold,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    color: '#4F4633',
+    color: colors.accentBrownText,
   },
 
   rankList: {
     gap: spacing.sm,
   },
   rankRow: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC26',
+    borderColor: colors.warmBorderAlpha16,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     flexDirection: 'row',
@@ -916,7 +973,7 @@ const styles = StyleSheet.create({
     width: 28,
     fontSize: typography.lg,
     fontWeight: typography.bold,
-    color: '#D3C5AC',
+    color: colors.warmBorder,
     fontStyle: 'italic',
   },
   rankOutletName: {
@@ -935,7 +992,7 @@ const styles = StyleSheet.create({
   },
   rankScoreText: {
     fontSize: 10,
-    color: '#4F4633',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
   },
 
@@ -965,7 +1022,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   heatmapRow: {
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.sm,
@@ -1038,59 +1095,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF80',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xs,
-  },
-  filterPillsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xs,
-  },
-  filterPillsRowScrollable: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingLeft: 118, // Width of sticky chip (110) + gap (8)
-    paddingRight: spacing.md,
-    paddingVertical: 2,
-  },
-  outletFilterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  stickyChipWrapper: {
-    position: 'absolute',
-    left: 0,
-    zIndex: 10,
-    backgroundColor: colors.screenBackground,
-    paddingRight: 4,
-  },
-  filterPill: {
-    height: 34,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-  },
-  filterPillActive: {
-    backgroundColor: colors.primaryTint,
-    borderColor: colors.primaryTintStrong,
-  },
-  filterPillText: {
-    fontSize: typography.sm,
-    color: colors.text,
-    fontWeight: typography.medium,
-  },
-  filterPillTextActive: {
-    color: colors.primaryDark,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.whiteAlpha50,
   },
   urgentBadge: {
     backgroundColor: colors.errorLight,
@@ -1120,10 +1125,10 @@ const styles = StyleSheet.create({
   },
 
   feedbackContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#D3C5AC26',
+    borderColor: colors.warmBorderAlpha16,
     overflow: 'hidden',
     ...shadow.sm,
   },
@@ -1134,7 +1139,7 @@ const styles = StyleSheet.create({
   },
   feedbackItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F4F6',
+    borderBottomColor: colors.uiGray1,
   },
   feedbackTopRow: {
     flexDirection: 'row',
@@ -1192,7 +1197,7 @@ const styles = StyleSheet.create({
   },
   feedbackBody: {
     fontSize: typography.sm,
-    color: '#4F4633',
+    color: colors.accentBrownText,
     lineHeight: 20,
   },
   feedbackFooterRow: {
@@ -1212,7 +1217,7 @@ const styles = StyleSheet.create({
   feedbackTag: {
     fontSize: 10,
     color: colors.textSecondary,
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -1325,7 +1330,7 @@ const styles = StyleSheet.create({
   },
   filterModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.scrimBlack50,
   },
   filterSheet: {
     backgroundColor: colors.screenBackground,
@@ -1414,7 +1419,7 @@ const styles = StyleSheet.create({
   filterClearBtn: {
     height: 48,
     borderRadius: radius.md,
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     alignItems: 'center',
     justifyContent: 'center',
   },

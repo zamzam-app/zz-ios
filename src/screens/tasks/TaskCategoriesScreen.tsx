@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   View,
@@ -11,20 +14,18 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+
+import { TaskCategoryOption } from '../../api/endpoints/tasks';
 import {
   useTaskCategories,
   useCreateTaskCategory,
   useUpdateTaskCategory,
   useDeleteTaskCategory,
 } from '../../hooks/useTasks';
-import { TaskCategoryOption } from '../../api/endpoints/tasks';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { useAuthStore } from '../../store/authStore';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 function CategoryFormModal({
   visible,
@@ -46,10 +47,14 @@ function CategoryFormModal({
 
   React.useEffect(() => {
     if (visible) {
-      setName(initial?.name ?? '');
-      setDescription(initial?.description ?? '');
-      setNameError(null);
-      setDescriptionError(null);
+      const nextName = initial?.name ?? '';
+      const nextDescription = initial?.description ?? '';
+      queueMicrotask(() => {
+        setName(nextName);
+        setDescription(nextDescription);
+        setNameError(null);
+        setDescriptionError(null);
+      });
     }
   }, [visible, initial]);
 
@@ -77,23 +82,16 @@ function CategoryFormModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.createModalRoot}>
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.createModalScrim}
-          onPress={onClose}
-        />
+        <TouchableOpacity activeOpacity={1} style={styles.createModalScrim} onPress={onClose} />
         <View style={styles.createSheet}>
           <View style={styles.createSheetTop}>
             <View style={styles.createSheetHandle} />
             <View style={styles.createSheetHeader}>
-              <Text style={styles.createSheetTitle}>{initial ? 'Edit Category' : 'Create Category'}</Text>
+              <Text style={styles.createSheetTitle}>
+                {initial ? 'Edit Category' : 'Create Category'}
+              </Text>
               <TouchableOpacity
                 style={styles.createSheetClose}
                 onPress={onClose}
@@ -133,11 +131,7 @@ function CategoryFormModal({
             {descriptionError ? <Text style={styles.fieldError}>{descriptionError}</Text> : null}
 
             <View style={styles.formActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={onClose}
-                disabled={submitting}
-              >
+              <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={submitting}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -148,7 +142,9 @@ function CategoryFormModal({
                 {submitting ? (
                   <ActivityIndicator color={colors.textInverse} />
                 ) : (
-                  <Text style={styles.submitBtnText}>{initial ? 'Save Changes' : 'Create Category'}</Text>
+                  <Text style={styles.submitBtnText}>
+                    {initial ? 'Save Changes' : 'Create Category'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -229,8 +225,12 @@ export default function TaskCategoriesScreen() {
     <View style={styles.card}>
       <View style={styles.cardRow}>
         <View style={styles.cardBody}>
-          <Text style={styles.typeName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.typeDesc} numberOfLines={1} ellipsizeMode="tail">{item.description}</Text>
+          <Text style={styles.typeName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={styles.typeDesc} numberOfLines={1} ellipsizeMode="tail">
+            {item.description}
+          </Text>
         </View>
         {isAdmin && (
           <View style={styles.cardActions}>
@@ -243,7 +243,10 @@ export default function TaskCategoriesScreen() {
             >
               <Ionicons name="create-outline" size={16} color={colors.primary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.actionBtn, styles.deleteBtn]}>
+            <TouchableOpacity
+              onPress={() => handleDelete(item)}
+              style={[styles.actionBtn, styles.deleteBtn]}
+            >
               <Ionicons name="trash-outline" size={16} color={colors.error} />
             </TouchableOpacity>
           </View>
@@ -287,9 +290,13 @@ export default function TaskCategoriesScreen() {
         extraData={categories}
         keyExtractor={(t) => t.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+        refreshControl={
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />
+        }
         ListHeaderComponent={
-          isLoading ? <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} /> : null
+          isLoading ? (
+            <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
+          ) : null
         }
         renderItem={renderItem}
         ListEmptyComponent={
@@ -364,12 +371,12 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: 120 },
 
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#D3C5AC26',
+    borderColor: colors.warmBorderAlpha16,
     ...shadow.sm,
   },
   cardRow: {
@@ -404,12 +411,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   editBtn: {
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     backgroundColor: colors.buttonLightBg,
   },
   deleteBtn: {
-    borderColor: '#FBCACA',
-    backgroundColor: '#FFF1F1',
+    borderColor: colors.accentRedBorderSoft,
+    backgroundColor: colors.accentRoseBgSoft,
   },
   empty: {
     textAlign: 'center',
@@ -424,7 +431,7 @@ const styles = StyleSheet.create({
   },
   createModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+    backgroundColor: colors.scrimDark40,
   },
   createSheet: {
     maxHeight: '92%',
@@ -432,7 +439,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
-    shadowColor: '#191c1e',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.14,
     shadowRadius: 20,
@@ -443,7 +450,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC40',
+    borderBottomColor: colors.warmBorderAlpha25,
     backgroundColor: colors.surfaceOverlay,
   },
   createSheetHandle: {
@@ -451,7 +458,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     marginBottom: spacing.sm,
   },
   createSheetHeader: {
@@ -473,12 +480,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
-  },
-  createSheetCloseText: {
-    color: colors.textSecondary,
-    fontSize: typography.base,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.uiGray1,
   },
 
   formInner: {
@@ -523,7 +525,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     backgroundColor: colors.buttonLightBg,
     alignItems: 'center',
     justifyContent: 'center',

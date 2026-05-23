@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 import { productsApi, categoriesApi } from '../api/endpoints/products';
 import { cakeApi } from '../api/endpoints/upload';
 
@@ -40,8 +41,13 @@ export const useCreateProduct = () => {
 export const useUpdateProduct = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof productsApi.update>[1] }) =>
-      productsApi.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Parameters<typeof productsApi.update>[1];
+    }) => productsApi.update(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   });
 };
@@ -65,8 +71,13 @@ export const useCreateCategory = () => {
 export const useUpdateCategory = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof categoriesApi.update>[1] }) =>
-      categoriesApi.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Parameters<typeof categoriesApi.update>[1];
+    }) => categoriesApi.update(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
   });
 };

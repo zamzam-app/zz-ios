@@ -1,8 +1,9 @@
-import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React from 'react';
+
+import CreateOutletScreen from '../screens/infrastructure/CreateOutletScreen';
 import InfrastructureScreen from '../screens/infrastructure/InfrastructureScreen';
 import OutletDetailScreen from '../screens/infrastructure/OutletDetailScreen';
-import CreateOutletScreen from '../screens/infrastructure/CreateOutletScreen';
 import OutletTypesScreen from '../screens/infrastructure/OutletTypesScreen';
 import { colors, typography } from '../theme/theme';
 
@@ -24,10 +25,26 @@ export default function InfrastructureNavigator() {
         headerBackTitle: 'Back',
       }}
     >
-      <Stack.Screen name="OutletsList" component={InfrastructureScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="OutletDetail" component={OutletDetailScreen} options={{ title: 'Outlet Detail' }} />
-      <Stack.Screen name="CreateOutlet" component={CreateOutletScreen} options={{ title: 'New Outlet', presentation: 'modal' }} />
-      <Stack.Screen name="OutletTypes" component={OutletTypesScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="OutletsList"
+        component={InfrastructureScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="OutletDetail"
+        component={OutletDetailScreen}
+        options={{ title: 'Outlet Detail' }}
+      />
+      <Stack.Screen
+        name="CreateOutlet"
+        component={CreateOutletScreen}
+        options={{ title: 'New Outlet', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="OutletTypes"
+        component={OutletTypesScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }

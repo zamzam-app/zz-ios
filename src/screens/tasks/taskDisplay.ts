@@ -23,26 +23,28 @@ export function getTaskOutletName(task: TaskLike, legacyTask?: Task): string | u
   return undefined;
 }
 
-export function getTaskAssigneeNames(task: TaskLike, legacyTask?: Task, events?: SerializedTimelineEvent[]): string[] {
+export function getTaskAssigneeNames(
+  task: TaskLike,
+  legacyTask?: Task,
+  events?: SerializedTimelineEvent[],
+): string[] {
   const namesSet = new Set<string>();
 
   // 1. If it has a populated activeOwner object (TaskSummary), add its name
-  const activeOwnerObj = (task as any).activeOwner;
-  if (activeOwnerObj && typeof activeOwnerObj === 'object' && typeof activeOwnerObj.name === 'string') {
-    namesSet.add(activeOwnerObj.name);
+  if ('activeOwner' in task && task.activeOwner?.name) {
+    namesSet.add(task.activeOwner.name);
   }
 
   // 2. Add assignees from legacyTask or from task directly
-  const t = legacyTask || task;
-  if (t) {
-    const tAny = t as any;
-    if (tAny.assigneeNames && tAny.assigneeNames.length > 0) {
-      tAny.assigneeNames.forEach((n: string) => namesSet.add(n));
-    } else if (Array.isArray(tAny.assignees)) {
-      tAny.assignees
-        .map((a: any) => a?.name)
-        .filter((n: any): n is string => typeof n === 'string' && Boolean(n))
-        .forEach((n: string) => namesSet.add(n));
+  const legacy = legacyTask || (isLegacyTask(task) ? task : undefined);
+  if (legacy) {
+    if (Array.isArray(legacy.assigneeNames) && legacy.assigneeNames.length > 0) {
+      legacy.assigneeNames.forEach((n) => namesSet.add(n));
+    } else if (Array.isArray(legacy.assignees)) {
+      legacy.assignees
+        .map((assignee) => assignee?.name)
+        .filter((n): n is string => typeof n === 'string' && Boolean(n))
+        .forEach((n) => namesSet.add(n));
     }
   }
 

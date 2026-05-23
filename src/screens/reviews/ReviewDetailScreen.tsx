@@ -1,3 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -11,34 +17,28 @@ import {
   Image,
   Linking,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import { useMarkReviewAsRead, useReview, useResolveComplaint } from '../../hooks/useReviews';
-import { useForm } from '../../hooks/useForms';
-import { useUsers } from '../../hooks/useUsers';
-import { useAuthStore } from '../../store/authStore';
-import { Review, UserResponse, ResolutionAttachments } from '../../api/endpoints/reviews';
+
+import { Review, UserResponse } from '../../api/endpoints/reviews';
 import { uploadToCloudinary } from '../../api/endpoints/upload';
-import { getApiErrorMessage } from '../../utils/errors';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
 import StarRating from '../../components/StarRating';
+import { useForm } from '../../hooks/useForms';
+import { useMarkReviewAsRead, useReview, useResolveComplaint } from '../../hooks/useReviews';
+import { useUsers } from '../../hooks/useUsers';
+import { ReviewsStackParamList } from '../../navigation/ReviewsNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { getApiErrorMessage } from '../../utils/errors';
 
 type Props = NativeStackScreenProps<ReviewsStackParamList, 'ReviewDetail'>;
-type ResolvableComplaintStatus = 'resolved' | 'dismissed';
 const COMPLAINT_LABEL_WIDTH = 86;
 
-type ComplaintTone = {
+interface ComplaintTone {
   label: string;
   text: string;
   bg: string;
   border: string;
-};
+}
 
 function formatDate(iso?: string | null, month: 'short' | 'long' = 'long') {
   if (!iso) return 'Not available';
@@ -107,7 +107,6 @@ function ResponseItem({
   questionTitle: string;
   questionType?: string;
 }) {
-
   const renderAnswer = () => {
     const answer = response.answer;
     if (questionType === 'rating' && typeof answer === 'number') {
@@ -116,8 +115,10 @@ function ResponseItem({
     if (Array.isArray(answer)) {
       return (
         <View style={styles.answerList}>
-          {answer.map((a, i) => (
-            <Text key={`${questionTitle}-${i}`} style={styles.answerText}>· {a}</Text>
+          {answer.map((a) => (
+            <Text key={`${questionTitle}-${String(a)}`} style={styles.answerText}>
+              · {a}
+            </Text>
           ))}
         </View>
       );
@@ -169,28 +170,31 @@ function SubmissionBlock({
   const videoItems = attachments?.videos ?? [];
   const audioItems = attachments?.audios ?? [];
   const fileItems = attachments?.files ?? [];
-  const hasAny = Boolean(text?.trim())
-    || imageItems.length > 0
-    || videoItems.length > 0
-    || audioItems.length > 0
-    || fileItems.length > 0;
+  const hasAny =
+    Boolean(text?.trim()) ||
+    imageItems.length > 0 ||
+    videoItems.length > 0 ||
+    audioItems.length > 0 ||
+    fileItems.length > 0;
 
   if (!hasAny) return null;
 
   return (
     <View style={styles.submissionCard}>
       <Text style={styles.submissionTitle}>{title}</Text>
-      {text?.trim() ? (
-        <Text style={styles.submissionText}>{text.trim()}</Text>
-      ) : null}
+      {text?.trim() ? <Text style={styles.submissionText}>{text.trim()}</Text> : null}
 
       {imageItems.length > 0 && (
         <View style={styles.attachmentGroup}>
           <Text style={styles.attachmentGroupTitle}>Images</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRow}>
-            {imageItems.map((url, index) => (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.imageRow}
+          >
+            {imageItems.map((url) => (
               <TouchableOpacity
-                key={`${title}-image-${url}-${index}`}
+                key={`${title}-image-${url}`}
                 onPress={() => onOpenAttachment(url, 'image')}
                 style={styles.imageItem}
                 activeOpacity={0.85}
@@ -204,14 +208,16 @@ function SubmissionBlock({
 
       {videoItems.map((url, index) => (
         <TouchableOpacity
-          key={`${title}-video-${url}-${index}`}
+          key={`${title}-video-${url}`}
           style={styles.attachmentRow}
           onPress={() => onOpenAttachment(url, 'video')}
           activeOpacity={0.8}
         >
           <View style={styles.attachmentRowLeft}>
             <Ionicons name="videocam-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              {buildAttachmentName(url, 'video', index)}
+            </Text>
           </View>
           <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -219,14 +225,16 @@ function SubmissionBlock({
 
       {audioItems.map((url, index) => (
         <TouchableOpacity
-          key={`${title}-audio-${url}-${index}`}
+          key={`${title}-audio-${url}`}
           style={styles.attachmentRow}
           onPress={() => onOpenAttachment(url, 'audio')}
           activeOpacity={0.8}
         >
           <View style={styles.attachmentRowLeft}>
             <Ionicons name="mic-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              {buildAttachmentName(url, 'audio', index)}
+            </Text>
           </View>
           <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -234,14 +242,16 @@ function SubmissionBlock({
 
       {fileItems.map((url, index) => (
         <TouchableOpacity
-          key={`${title}-file-${url}-${index}`}
+          key={`${title}-file-${url}`}
           style={styles.attachmentRow}
           onPress={() => onOpenAttachment(url, 'file')}
           activeOpacity={0.8}
         >
           <View style={styles.attachmentRowLeft}>
             <Ionicons name="document-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.attachmentName} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              {buildAttachmentName(url, 'file', index)}
+            </Text>
           </View>
           <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -257,7 +267,9 @@ function SectionHeader({ title, count }: { title: string; count?: number | strin
         <View style={styles.sectionDot} />
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
-      {count !== undefined && count !== null ? <Text style={styles.sectionCount}>{count}</Text> : null}
+      {count !== undefined && count !== null ? (
+        <Text style={styles.sectionCount}>{count}</Text>
+      ) : null}
     </View>
   );
 }
@@ -278,7 +290,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
     audios: string[];
     files: string[];
   }>({ images: [], videos: [], audios: [], files: [] });
-  const [uploadingType, setUploadingType] = useState<null | 'images' | 'videos' | 'audios' | 'files'>(null);
+  const [uploadingType, setUploadingType] = useState<
+    null | 'images' | 'videos' | 'audios' | 'files'
+  >(null);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -289,8 +303,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
   };
 
   const canResolve =
-    review?.isComplaint
-    && (review.complaintStatus === 'pending' || !review.complaintStatus);
+    review?.isComplaint && (review.complaintStatus === 'pending' || !review.complaintStatus);
 
   const showResolveSection = canResolve && !isAdmin;
 
@@ -354,41 +367,43 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
     if (!review || !user) return;
     const resolvedBy = user.id || (user as unknown as { _id?: string })._id;
     if (!resolvedBy) {
-      Alert.alert('Unable to resolve complaint', 'Could not determine resolver identity. Please sign in again.');
+      Alert.alert(
+        'Unable to resolve complaint',
+        'Could not determine resolver identity. Please sign in again.',
+      );
       return;
     }
 
-    Alert.alert(
-      'Mark as Resolved',
-      'Are you sure you want to mark this complaint as resolved?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: () => {
-            resolveComplaint.mutate(
-              {
-                reviewId,
-                payload: {
-                  complaintStatus: 'resolved',
-                  resolvedBy,
-                  resolutionNotes: resolutionNotes.trim() || undefined,
-                  images: resolutionAttachments.images,
-                  videos: resolutionAttachments.videos,
-                  audios: resolutionAttachments.audios,
-                  files: resolutionAttachments.files,
-                },
+    Alert.alert('Mark as Resolved', 'Are you sure you want to mark this complaint as resolved?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Confirm',
+        onPress: () => {
+          resolveComplaint.mutate(
+            {
+              reviewId,
+              payload: {
+                complaintStatus: 'resolved',
+                resolvedBy,
+                resolutionNotes: resolutionNotes.trim() || undefined,
+                images: resolutionAttachments.images,
+                videos: resolutionAttachments.videos,
+                audios: resolutionAttachments.audios,
+                files: resolutionAttachments.files,
               },
-              {
-                onError: () => {
-                  Alert.alert('Update failed', 'Could not update complaint status. Please try again.');
-                },
+            },
+            {
+              onError: () => {
+                Alert.alert(
+                  'Update failed',
+                  'Could not update complaint status. Please try again.',
+                );
               },
-            );
-          },
+            },
+          );
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const openAttachment = async (url: string, type?: 'image' | 'video' | 'audio' | 'file') => {
@@ -399,9 +414,9 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
       try {
         const fileName = trimmedUrl.split('/').pop()?.split('?')[0] || `document-${Date.now()}`;
         const localUri = `${FileSystem.cacheDirectory}${fileName}`;
-        
+
         const downloadRes = await FileSystem.downloadAsync(trimmedUrl, localUri);
-        
+
         if (downloadRes.status === 200) {
           const sharingAvailable = await Sharing.isAvailableAsync();
           if (sharingAvailable) {
@@ -475,7 +490,7 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
   const hasResolution = Boolean(review.complaintStatus && review.complaintStatus !== 'pending');
   const isMutationPending = resolveComplaint.isPending;
 
-  const resolutionRows: Array<{ label: string; value: string }> = [
+  const resolutionRows: { label: string; value: string }[] = [
     { label: 'Status', value: toSentenceCase(review.complaintStatus ?? 'pending') },
   ];
 
@@ -485,10 +500,10 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
 
   if (review.resolvedBy) {
     const resolvedByName =
-      review.resolvedByName
-      || (user && review.resolvedBy === user.id ? user.name : undefined)
-      || userNameById.get(review.resolvedBy)
-      || 'Unknown User';
+      review.resolvedByName ||
+      (user && review.resolvedBy === user.id ? user.name : undefined) ||
+      userNameById.get(review.resolvedBy) ||
+      'Unknown User';
     resolutionRows.push({ label: 'Resolved By', value: resolvedByName });
   }
 
@@ -522,16 +537,27 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
 
           <Text style={styles.summaryOutlet}>{review.outletName}</Text>
           {isAdmin && review.customerPhone && (
-            <Text style={styles.summaryPhone} onPress={() => Linking.openURL(`tel:${review.customerPhone}`)}>
-              <Ionicons name="call-outline" size={12} color={colors.textSecondary} /> {review.customerPhone}
+            <Text
+              style={styles.summaryPhone}
+              onPress={() => Linking.openURL(`tel:${review.customerPhone}`)}
+            >
+              <Ionicons name="call-outline" size={12} color={colors.textSecondary} />{' '}
+              {review.customerPhone}
             </Text>
           )}
           <Text style={styles.summaryMeta}>Submitted on {formatDate(review.createdAt)}</Text>
           <View style={styles.summaryStatusRow}>
             <Text style={styles.summaryStatusLabel}>Status:</Text>
             {complaintTone ? (
-              <View style={[styles.statusBadge, { backgroundColor: complaintTone.bg, borderColor: complaintTone.border }]}>
-                <Text style={[styles.statusBadgeText, { color: complaintTone.text }]}>{complaintTone.label}</Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: complaintTone.bg, borderColor: complaintTone.border },
+                ]}
+              >
+                <Text style={[styles.statusBadgeText, { color: complaintTone.text }]}>
+                  {complaintTone.label}
+                </Text>
               </View>
             ) : (
               <View style={styles.feedbackBadge}>
@@ -539,7 +565,6 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
               </View>
             )}
           </View>
-
         </View>
 
         {review.userResponses.length > 0 && (
@@ -547,24 +572,25 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
             <SectionHeader title="Responses" />
             <View style={styles.responsesCard}>
               {review.userResponses.map((response, index) => {
-                const questionRef = typeof response.questionId === 'object' && response.questionId
-                  ? response.questionId
-                  : null;
-                const questionId = typeof response.questionId === 'string'
-                  ? response.questionId
-                  : questionRef?._id;
+                const questionRef =
+                  typeof response.questionId === 'object' && response.questionId
+                    ? response.questionId
+                    : null;
+                const questionId =
+                  typeof response.questionId === 'string' ? response.questionId : questionRef?._id;
                 const fallbackQuestion = questionId ? questionById.get(questionId) : undefined;
                 const mappedTitle = questionRef?.title?.trim() || fallbackQuestion?.title?.trim();
-                const inlineStringQuestion = typeof response.questionId === 'string'
-                  && !isLikelyObjectId(response.questionId)
-                  ? response.questionId.trim()
-                  : '';
-                const questionTitle = mappedTitle || inlineStringQuestion || `Question ${index + 1}`;
+                const inlineStringQuestion =
+                  typeof response.questionId === 'string' && !isLikelyObjectId(response.questionId)
+                    ? response.questionId.trim()
+                    : '';
+                const questionTitle =
+                  mappedTitle || inlineStringQuestion || `Question ${index + 1}`;
                 const questionType = questionRef?.type ?? fallbackQuestion?.type;
 
                 return (
                   <ResponseItem
-                    key={`${index}-${String(response.questionId)}`}
+                    key={String(response.questionId)}
                     response={response}
                     isLast={index === review.userResponses.length - 1}
                     questionTitle={questionTitle}
@@ -608,19 +634,35 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
               />
 
               <View style={styles.managerActionsRow}>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={pickImage} disabled={uploadingType !== null}>
+                <TouchableOpacity
+                  style={styles.managerActionBtn}
+                  onPress={pickImage}
+                  disabled={uploadingType !== null}
+                >
                   <Ionicons name="image-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>Image</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={pickVideo} disabled={uploadingType !== null}>
+                <TouchableOpacity
+                  style={styles.managerActionBtn}
+                  onPress={pickVideo}
+                  disabled={uploadingType !== null}
+                >
                   <Ionicons name="videocam-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>Video</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={pickFile} disabled={uploadingType !== null}>
+                <TouchableOpacity
+                  style={styles.managerActionBtn}
+                  onPress={pickFile}
+                  disabled={uploadingType !== null}
+                >
                   <Ionicons name="document-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>File</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.managerActionBtn} onPress={pickVoice} disabled={uploadingType !== null}>
+                <TouchableOpacity
+                  style={styles.managerActionBtn}
+                  onPress={pickVoice}
+                  disabled={uploadingType !== null}
+                >
                   <Ionicons name="mic-outline" size={15} color={colors.primaryDark} />
                   <Text style={styles.managerActionBtnText}>Voice</Text>
                 </TouchableOpacity>
@@ -629,45 +671,55 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
               {uploadingType && (
                 <View style={styles.uploadingRow}>
                   <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.uploadingText}>Uploading {uploadingType.slice(0, -1)}...</Text>
+                  <Text style={styles.uploadingText}>
+                    Uploading {uploadingType.slice(0, -1)}...
+                  </Text>
                 </View>
               )}
 
               <View style={styles.managerTagGroup}>
                 {resolutionAttachments.images.map((url, index) => (
                   <TouchableOpacity
-                    key={`res-image-${index}`}
+                    key={`res-image-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('images', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'image', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'image', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {resolutionAttachments.videos.map((url, index) => (
                   <TouchableOpacity
-                    key={`res-video-${index}`}
+                    key={`res-video-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('videos', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'video', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'video', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {resolutionAttachments.audios.map((url, index) => (
                   <TouchableOpacity
-                    key={`res-audio-${index}`}
+                    key={`res-audio-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('audios', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'audio', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'audio', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {resolutionAttachments.files.map((url, index) => (
                   <TouchableOpacity
-                    key={`res-file-${index}`}
+                    key={`res-file-${url}`}
                     style={styles.attachmentTag}
                     onLongPress={() => removeAttachmentUrl('files', index)}
                   >
-                    <Text style={styles.attachmentTagText} numberOfLines={1}>{buildAttachmentName(url, 'file', index)}</Text>
+                    <Text style={styles.attachmentTagText} numberOfLines={1}>
+                      {buildAttachmentName(url, 'file', index)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -697,7 +749,11 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
                   key={item.label}
                   label={item.label}
                   value={item.value}
-                  isLast={index === resolutionRows.length - 1 && !review.resolutionNotes && !review.resolutionAttachments}
+                  isLast={
+                    index === resolutionRows.length - 1 &&
+                    !review.resolutionNotes &&
+                    !review.resolutionAttachments
+                  }
                 />
               ))}
 
@@ -718,8 +774,6 @@ export default function ReviewDetailScreen({ route, navigation }: Props) {
             </View>
           </>
         )}
-
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -758,7 +812,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: colors.warmBorderAlpha25,
     ...shadow.sm,
   },
   topRow: {
@@ -782,9 +836,9 @@ const styles = StyleSheet.create({
   },
   feedbackBadge: {
     borderRadius: radius.full,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.uiGray0,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.uiSlate200,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -855,13 +909,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#EAB308',
+    backgroundColor: colors.accentYellow,
   },
   sectionTitle: {
     fontSize: typography.xs,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: '#4F4633',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
   },
   sectionCount: {
@@ -869,7 +923,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.sm,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     color: colors.text,
     textAlign: 'center',
     fontSize: 10,
@@ -889,7 +943,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC70',
+    borderColor: colors.warmBorderAlpha44,
     ...shadow.sm,
   },
   row: {
@@ -942,7 +996,7 @@ const styles = StyleSheet.create({
 
   complaintCard: {
     borderWidth: 1,
-    borderColor: '#D3C5AC70',
+    borderColor: colors.warmBorderAlpha44,
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     padding: spacing.md,
@@ -974,14 +1028,14 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC70',
+    borderColor: colors.warmBorderAlpha44,
     ...shadow.sm,
   },
   managerTextInput: {
     height: 100,
     fontSize: typography.sm,
     color: colors.text,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.uiGray0,
     borderRadius: radius.md,
     padding: spacing.sm,
     borderWidth: 1,
@@ -1001,7 +1055,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     gap: 4,
   },
   managerActionBtnText: {
@@ -1100,7 +1154,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.uiGray0,
     padding: spacing.sm,
     borderRadius: radius.md,
     marginBottom: spacing.xs,

@@ -7,6 +7,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+
 import { colors } from '../theme/theme';
 
 type StarRatingMode = 'display' | 'interactive';
@@ -56,8 +57,12 @@ export default function StarRating({
       accessible
       accessibilityLabel={accessibilityLabel ?? defaultLabel}
       accessibilityRole={mode === 'interactive' ? 'adjustable' : undefined}
-      accessibilityValue={mode === 'interactive' ? { min: 1, max: maxStars, now: roundedRating } : undefined}
-      accessibilityActions={mode === 'interactive' ? [{ name: 'increment' }, { name: 'decrement' }] : undefined}
+      accessibilityValue={
+        mode === 'interactive' ? { min: 1, max: maxStars, now: roundedRating } : undefined
+      }
+      accessibilityActions={
+        mode === 'interactive' ? [{ name: 'increment' }, { name: 'decrement' }] : undefined
+      }
       onAccessibilityAction={mode === 'interactive' ? handleAccessibilityAction : undefined}
     >
       {Array.from({ length: maxStars }, (_, index) => {
@@ -65,7 +70,7 @@ export default function StarRating({
         return (
           <Text
             key={index + 1}
-            style={{ fontSize: size, color: isFilled ? '#f59e0b' : colors.border }}
+            style={{ fontSize: size, color: isFilled ? colors.accentGold : colors.border }}
             accessible={false}
           >
             ★

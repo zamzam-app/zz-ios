@@ -1,18 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius, typography } from '../theme/theme';
+
+import { colors, spacing, typography } from '../theme/theme';
 import { TaskEventType } from '../types/task';
 import type { SerializedTimelineEvent, AttachmentPreview } from '../types/task';
-import { eventTypeIcon, eventColors, formatRelativeTime } from './TimelineEventShared';
-import TimelineEventCreated from './TimelineEventCreated';
-import TimelineEventComment from './TimelineEventComment';
-import TimelineEventStatus from './TimelineEventStatus';
+
 import TimelineEventAttachment from './TimelineEventAttachment';
+import TimelineEventComment from './TimelineEventComment';
+import TimelineEventCreated from './TimelineEventCreated';
 import TimelineEventDelegation from './TimelineEventDelegation';
 import TimelineEventGeneric from './TimelineEventGeneric';
+import { eventTypeIcon, eventColors, formatRelativeTime } from './TimelineEventShared';
+import TimelineEventStatus from './TimelineEventStatus';
 
 // ─── Props ──────────────────────────────────────────────────────────────────
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 export interface TimelineEventCardProps {
   event: SerializedTimelineEvent;
@@ -26,7 +30,12 @@ export interface TimelineEventCardProps {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-function TimelineEventCard({ event, isLast, onAttachmentPress, onActorPress }: TimelineEventCardProps) {
+function TimelineEventCard({
+  event,
+  isLast,
+  onAttachmentPress,
+  onActorPress,
+}: TimelineEventCardProps) {
   const icon = eventTypeIcon(event.type);
   const { nodeBg, nodeFg, actionLabel } = eventColors(event.type);
 
@@ -36,24 +45,14 @@ function TimelineEventCard({ event, isLast, onAttachmentPress, onActorPress }: T
       case TaskEventType.CREATED:
         return <TimelineEventCreated event={event} />;
       case TaskEventType.COMMENTED:
-        return (
-          <TimelineEventComment
-            event={event}
-            onAttachmentPress={onAttachmentPress}
-          />
-        );
+        return <TimelineEventComment event={event} onAttachmentPress={onAttachmentPress} />;
       case TaskEventType.STATUS_CHANGED:
       case TaskEventType.COMPLETED:
       case TaskEventType.REOPENED:
         return <TimelineEventStatus event={event} />;
       case TaskEventType.ATTACHMENT_ADDED:
       case TaskEventType.ATTACHMENT_REMOVED:
-        return (
-          <TimelineEventAttachment
-            event={event}
-            onAttachmentPress={onAttachmentPress}
-          />
-        );
+        return <TimelineEventAttachment event={event} onAttachmentPress={onAttachmentPress} />;
       case TaskEventType.REASSIGNED:
         return <TimelineEventDelegation event={event} />;
       default:
@@ -69,7 +68,7 @@ function TimelineEventCard({ event, isLast, onAttachmentPress, onActorPress }: T
         {!isLast && <View style={styles.railLine} />}
         {/* Icon node circle */}
         <View style={[styles.iconNode, { backgroundColor: nodeBg }]}>
-          <Ionicons name={icon as any} size={14} color={nodeFg} />
+          <Ionicons name={icon as IoniconName} size={14} color={nodeFg} />
         </View>
       </View>
 

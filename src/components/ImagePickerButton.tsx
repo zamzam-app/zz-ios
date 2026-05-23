@@ -1,3 +1,4 @@
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -8,14 +9,14 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+
 import {
   cancelUploadJob,
   enqueueCloudinaryUpload,
   removeUploadJob,
   waitForUploadJob,
 } from '../api/endpoints/uploadQueue';
-import { colors, radius, typography } from '../theme/theme';
+import { colors, typography } from '../theme/theme';
 
 interface Props {
   imageUrl?: string;
@@ -134,10 +135,14 @@ export default function ImagePickerButton({
     >
       {displayUri ? (
         <>
-          <Image source={{ uri: displayUri }} style={[StyleSheet.absoluteFill, { borderRadius: size / 8 }]} resizeMode="cover" />
+          <Image
+            source={{ uri: displayUri }}
+            style={[StyleSheet.absoluteFill, { borderRadius: size / 8 }]}
+            resizeMode="cover"
+          />
           {uploading && (
             <View style={styles.uploadOverlay}>
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.textInverse} />
             </View>
           )}
         </>
@@ -174,14 +179,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: colors.scrimBlack45,
     paddingVertical: 3,
     alignItems: 'center',
   },
-  editBadgeText: { color: '#fff', fontSize: typography.xs, fontWeight: typography.medium },
+  editBadgeText: {
+    color: colors.textInverse,
+    fontSize: typography.xs,
+    fontWeight: typography.medium,
+  },
   uploadOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: colors.scrimBlack35,
     alignItems: 'center',
     justifyContent: 'center',
   },

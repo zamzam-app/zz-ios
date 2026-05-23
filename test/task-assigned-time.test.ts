@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import {
   buildTaskCardFooterModel,
   formatTaskAssignedTime,
@@ -47,9 +48,15 @@ function testRecentAndOlderAssignmentFormatting() {
 }
 
 function testMissingTimestampFallback() {
-  assert.equal(getTaskAssignedTimestamp(createTask({ assignedAt: undefined, createdAt: undefined })), undefined);
   assert.equal(
-    formatTaskAssignedTime(createTask({ assignedAt: undefined, createdAt: undefined }), Date.parse('2026-05-19T12:15:00.000Z')),
+    getTaskAssignedTimestamp(createTask({ assignedAt: undefined, createdAt: undefined })),
+    undefined,
+  );
+  assert.equal(
+    formatTaskAssignedTime(
+      createTask({ assignedAt: undefined, createdAt: undefined }),
+      Date.parse('2026-05-19T12:15:00.000Z'),
+    ),
     null,
   );
 }
@@ -69,7 +76,6 @@ function run() {
   testRecentAndOlderAssignmentFormatting();
   testMissingTimestampFallback();
   testRegressionCoverageForCreatedAtFallback();
-  console.log('task-assigned-time.test.ts: ok');
 }
 
 run();

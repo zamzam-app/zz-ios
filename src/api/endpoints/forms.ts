@@ -1,10 +1,11 @@
 import client from '../client';
+
 import { mapListSafely } from './mapListSafely';
 
 export type QuestionType = 'short_answer' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'rating';
 export type UnsupportedQuestionType = 'unsupported';
 
-export const QUESTION_TYPE_OPTIONS: ReadonlyArray<{ label: string; value: QuestionType }> = [
+export const QUESTION_TYPE_OPTIONS: readonly { label: string; value: QuestionType }[] = [
   { label: 'Short Answer', value: 'short_answer' },
   { label: 'Paragraph', value: 'paragraph' },
   { label: 'Multiple Choice', value: 'multiple_choice' },
@@ -15,6 +16,7 @@ export const QUESTION_TYPE_OPTIONS: ReadonlyArray<{ label: string; value: Questi
 export const QUESTION_TYPES: QuestionType[] = QUESTION_TYPE_OPTIONS.map((option) => option.value);
 
 export interface Option {
+  _id?: string;
   text: string;
 }
 
@@ -165,15 +167,12 @@ function mapForm(raw: RawForm): Form {
 
 export const formsApi = {
   list: () =>
-    client
-      .get<{ data: RawForm[] } | RawForm[]>('/forms', { params: { limit: 100 } })
-      .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawForm[] }).data ?? [];
-        return mapListSafely(raw, 'forms', mapForm);
-      }),
+    client.get<{ data: RawForm[] } | RawForm[]>('/forms', { params: { limit: 100 } }).then((r) => {
+      const raw = Array.isArray(r.data) ? r.data : ((r.data as { data: RawForm[] }).data ?? []);
+      return mapListSafely(raw, 'forms', mapForm);
+    }),
 
-  getById: (id: string) =>
-    client.get<RawForm>(`/forms/${id}`).then((r) => mapForm(r.data)),
+  getById: (id: string) => client.get<RawForm>(`/forms/${id}`).then((r) => mapForm(r.data)),
 
   create: () =>
     client

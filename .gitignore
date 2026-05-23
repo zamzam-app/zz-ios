@@ -44,5 +44,5 @@ yarn-error.*
 /.codex
 .codex.explanation.md
 .agents
-.cursor
+/.cursor
 .tmp-tests

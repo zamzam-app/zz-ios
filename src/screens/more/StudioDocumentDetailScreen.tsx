@@ -1,18 +1,12 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { MoreStackParamList } from '../../navigation/MoreNavigator';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
+import { MoreStackParamList } from '../../navigation/MoreNavigator';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'StudioDocumentDetail'>;
 
@@ -63,9 +57,10 @@ function renderUploadedCakeBody(item: UploadedCakeImage) {
 
 export default function StudioDocumentDetailScreen({ route, navigation }: Props) {
   const { type, item } = route.params;
-  const imageUrl = type === 'custom-cake'
-    ? (item as CustomCake).imageUrl
-    : (item as UploadedCakeImage).referenceImageUrl;
+  const imageUrl =
+    type === 'custom-cake'
+      ? (item as CustomCake).imageUrl
+      : (item as UploadedCakeImage).referenceImageUrl;
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>

@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,9 +13,11 @@ import {
   Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useNavigation } from '@react-navigation/native';
 import Svg, { Polyline, Line, Text as SvgText, Circle } from 'react-native-svg';
+
+import { Period } from '../../api/endpoints/analytics';
+import { ReviewMetricFilter, ReviewTypeFilter } from '../../constants/reviewFilters';
+import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
 import {
   useQuickInsights,
   useGlobalCsat,
@@ -22,15 +26,10 @@ import {
   useOutletFeedbackSummary,
   useTasksOverview,
 } from '../../hooks/useAnalytics';
-import { Period } from '../../api/endpoints/analytics';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import { AppTabParamList } from '../../navigation/AppNavigator';
-import { TaskFilterSource, TaskMetricFilter } from '../../constants/taskFilters';
-import { ReviewMetricFilter, ReviewTypeFilter } from '../../constants/reviewFilters';
-import {
-  buildOpenReviewOverviewModel,
-  getOpenReviewsEmptyStateMessage,
-} from './reviewOverview';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+
+import { buildOpenReviewOverviewModel, getOpenReviewsEmptyStateMessage } from './reviewOverview';
 
 const PERIODS: { label: string; value: Period }[] = [
   { label: 'Daily', value: 'daily' },
@@ -45,27 +44,26 @@ const FEEDBACK_HEADER_HEIGHT = 54;
 type OverviewTopTab = 'reviews' | 'tasks';
 type OverviewNav = BottomTabNavigationProp<AppTabParamList, 'Overview'>;
 
-type SummaryMetricItem = {
+interface SummaryMetricItem {
   key: TaskMetricFilter;
   label: string;
   value: number | string;
   color: string;
   onPress?: () => void;
-};
+}
 
-type CsatBreakdownItem = {
+interface CsatBreakdownItem {
   questionId: string;
   title: string;
   score: number;
   totalRatings: number;
-};
+}
 
-type CsatBreakdown = {
+interface CsatBreakdown {
   score: string;
   ratings: string;
   items: CsatBreakdownItem[];
-};
-
+}
 
 function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Period) => void }) {
   return (
@@ -79,7 +77,9 @@ function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Pe
             onPress={() => onChange(periodItem.value)}
             activeOpacity={0.85}
           >
-            <Text style={[styles.periodPillText, active && styles.periodPillTextActive]}>{periodItem.label}</Text>
+            <Text style={[styles.periodPillText, active && styles.periodPillTextActive]}>
+              {periodItem.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -87,10 +87,9 @@ function PeriodPills({ value, onChange }: { value: Period; onChange: (period: Pe
   );
 }
 
-
 function CsatFlipCard({ breakdown }: { breakdown: CsatBreakdown }) {
   const [flipped, setFlipped] = useState(false);
-  const flipAnim = useRef(new Animated.Value(0)).current;
+  const flipAnim = useMemo(() => new Animated.Value(0), []);
   const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearInactivityTimeout = () => {
@@ -176,7 +175,9 @@ function CsatFlipCard({ breakdown }: { breakdown: CsatBreakdown }) {
             >
               {breakdown.items.map((item) => (
                 <View key={item.questionId} style={styles.flipRow}>
-                  <Text style={styles.flipKey} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.flipKey} numberOfLines={1}>
+                    {item.title}
+                  </Text>
                   <Text style={styles.flipValue}>{item.score.toFixed(1)}</Text>
                 </View>
               ))}
@@ -220,14 +221,18 @@ function TopSummaryPanel({
           onPress={() => onTabChange('reviews')}
           activeOpacity={0.82}
         >
-          <Text style={[styles.topTabText, topTab === 'reviews' && styles.topTabTextActive]}>Review</Text>
+          <Text style={[styles.topTabText, topTab === 'reviews' && styles.topTabTextActive]}>
+            Review
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.topTabBtn, topTab === 'tasks' && styles.topTabBtnActive]}
           onPress={() => onTabChange('tasks')}
           activeOpacity={0.82}
         >
-          <Text style={[styles.topTabText, topTab === 'tasks' && styles.topTabTextActive]}>Task</Text>
+          <Text style={[styles.topTabText, topTab === 'tasks' && styles.topTabTextActive]}>
+            Task
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -246,8 +251,12 @@ function TopSummaryPanel({
           {metrics.map((metric) => {
             const content = (
               <>
-                <Text style={[styles.metricStackLabel, { color: `${metric.color}B0` }]}>{metric.label}</Text>
-                <Text style={[styles.metricStackValue, { color: metric.color }]}>{metric.value}</Text>
+                <Text style={[styles.metricStackLabel, { color: `${metric.color}B0` }]}>
+                  {metric.label}
+                </Text>
+                <Text style={[styles.metricStackValue, { color: metric.color }]}>
+                  {metric.value}
+                </Text>
               </>
             );
 
@@ -279,11 +288,19 @@ function TopSummaryPanel({
   );
 }
 
-function InsightRow({ insights }: { insights: { title: string; value: string; accent: string; onPress?: () => void }[] }) {
+function InsightRow({
+  insights,
+}: {
+  insights: { title: string; value: string; accent: string; onPress?: () => void }[];
+}) {
   if (!insights.length) return null;
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.insightScroll}>
-      {insights.map((item, i) => {
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.insightScroll}
+    >
+      {insights.map((item) => {
         const Content = (
           <>
             <Text style={styles.insightTitle}>{item.title}</Text>
@@ -291,11 +308,19 @@ function InsightRow({ insights }: { insights: { title: string; value: string; ac
           </>
         );
         return item.onPress ? (
-          <TouchableOpacity key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]} onPress={item.onPress} activeOpacity={0.8}>
+          <TouchableOpacity
+            key={item.title}
+            style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}
+            onPress={item.onPress}
+            activeOpacity={0.8}
+          >
             {Content}
           </TouchableOpacity>
         ) : (
-          <View key={i} style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}> 
+          <View
+            key={item.title}
+            style={[styles.insightCard, { backgroundColor: item.accent + '18' }]}
+          >
             {Content}
           </View>
         );
@@ -324,7 +349,7 @@ function TrendlineChart({
     return values
       .map((v, i) => {
         const x = PAD.left + (i / (values.length - 1)) * chartW;
-        const y = PAD.top + chartH - ((v / 5) * chartH);
+        const y = PAD.top + chartH - (v / 5) * chartH;
         return `${x},${y}`;
       })
       .join(' ');
@@ -332,10 +357,11 @@ function TrendlineChart({
 
   const lastCurrent = current.length > 0 ? current[current.length - 1] : null;
   const lastX = lastCurrent !== null ? PAD.left + chartW : 0;
-  const lastY = lastCurrent !== null ? PAD.top + chartH - ((lastCurrent / 5) * chartH) : 0;
-  const xLabelIndices = labels.length > 1
-    ? Array.from(new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1]))
-    : [0];
+  const lastY = lastCurrent !== null ? PAD.top + chartH - (lastCurrent / 5) * chartH : 0;
+  const xLabelIndices =
+    labels.length > 1
+      ? Array.from(new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1]))
+      : [0];
 
   return (
     <View>
@@ -345,25 +371,53 @@ function TrendlineChart({
           <Text style={styles.legendText}>Current</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendLine, styles.legendLineDashed, { borderColor: colors.border }]} />
+          <View
+            style={[styles.legendLine, styles.legendLineDashed, { borderColor: colors.border }]}
+          />
           <Text style={styles.legendText}>Previous</Text>
         </View>
       </View>
       <Svg width={W} height={H}>
         {[0, 1, 2, 3, 4, 5].map((y) => {
-          const cy = PAD.top + chartH - ((y / 5) * chartH);
+          const cy = PAD.top + chartH - (y / 5) * chartH;
           return (
             <React.Fragment key={y}>
-              <Line x1={PAD.left} y1={cy} x2={W - PAD.right} y2={cy} stroke={colors.border} strokeWidth={0.5} />
-              <SvgText x={PAD.left - 4} y={cy + 4} fontSize={9} fill={colors.textSecondary} textAnchor="end">{y}</SvgText>
+              <Line
+                x1={PAD.left}
+                y1={cy}
+                x2={W - PAD.right}
+                y2={cy}
+                stroke={colors.border}
+                strokeWidth={0.5}
+              />
+              <SvgText
+                x={PAD.left - 4}
+                y={cy + 4}
+                fontSize={9}
+                fill={colors.textSecondary}
+                textAnchor="end"
+              >
+                {y}
+              </SvgText>
             </React.Fragment>
           );
         })}
         {previous.length > 1 && (
-          <Polyline points={toPoints(previous)} fill="none" stroke={colors.border} strokeWidth={1.5} strokeDasharray="4,3" />
+          <Polyline
+            points={toPoints(previous)}
+            fill="none"
+            stroke={colors.border}
+            strokeWidth={1.5}
+            strokeDasharray="4,3"
+          />
         )}
         {current.length > 1 && (
-          <Polyline points={toPoints(current)} fill="none" stroke={colors.primary} strokeWidth={2.5} />
+          <Polyline
+            points={toPoints(current)}
+            fill="none"
+            stroke={colors.primary}
+            strokeWidth={2.5}
+          />
         )}
         {lastCurrent !== null && current.length > 1 && (
           <Circle cx={lastX} cy={lastY} r={4} fill={colors.primary} />
@@ -389,17 +443,27 @@ function TrendlineChart({
   );
 }
 
-function FeedbackCard({ title, subtext, accent, items }: { title: string; subtext: string; accent: string; items: { name: string; value: number }[] }) {
-  const headerBg = accent === colors.warning
-    ? '#E6D7BC'
-    : accent === colors.success
-      ? '#C9DCCB'
-      : '#F3DFDC';
+function FeedbackCard({
+  title,
+  subtext,
+  accent,
+  items,
+}: {
+  title: string;
+  subtext: string;
+  accent: string;
+  items: { name: string; value: number }[];
+}) {
+  const headerBg =
+    accent === colors.warning ? '#E6D7BC' : accent === colors.success ? '#C9DCCB' : '#F3DFDC';
 
   return (
     <View style={[styles.feedbackCard, { backgroundColor: accent + '18' }]}>
       <ScrollView
-        style={[styles.feedbackList, { maxHeight: FEEDBACK_HEADER_HEIGHT + (FEEDBACK_ROW_HEIGHT * FEEDBACK_VISIBLE_ROWS) }]}
+        style={[
+          styles.feedbackList,
+          { maxHeight: FEEDBACK_HEADER_HEIGHT + FEEDBACK_ROW_HEIGHT * FEEDBACK_VISIBLE_ROWS },
+        ]}
         nestedScrollEnabled
         stickyHeaderIndices={[0]}
         showsVerticalScrollIndicator={false}
@@ -408,9 +472,11 @@ function FeedbackCard({ title, subtext, accent, items }: { title: string; subtex
           <Text style={[styles.feedbackTitle, { color: accent }]}>{title}</Text>
           <Text style={styles.feedbackSubtext}>{subtext}</Text>
         </View>
-        {items.map((item, i) => (
-          <View key={i} style={styles.feedbackRow}>
-            <Text style={styles.feedbackName} numberOfLines={1}>{item.name}</Text>
+        {items.map((item) => (
+          <View key={`${item.name}-${item.value}`} style={styles.feedbackRow}>
+            <Text style={styles.feedbackName} numberOfLines={1}>
+              {item.name}
+            </Text>
             <View style={[styles.feedbackBadge, { backgroundColor: accent + '18' }]}>
               <Text style={[styles.feedbackBadgeText, { color: accent }]}>{item.value}</Text>
             </View>
@@ -434,12 +500,13 @@ export default function OverviewScreen() {
   const tasksOverview = useTasksOverview(period);
 
   const isLoading = insights.isLoading || csat.isLoading;
-  const isRefreshing = insights.isFetching
-    || csat.isFetching
-    || trendline.isFetching
-    || incidents.isFetching
-    || feedback.isFetching
-    || tasksOverview.isFetching;
+  const isRefreshing =
+    insights.isFetching ||
+    csat.isFetching ||
+    trendline.isFetching ||
+    incidents.isFetching ||
+    feedback.isFetching ||
+    tasksOverview.isFetching;
 
   const refetchAll = () => {
     void insights.refetch();
@@ -475,17 +542,20 @@ export default function OverviewScreen() {
   const quickInsightsCriticalFocus = insights.data?.criticalFocusArea;
 
   const insightItems = [
-    quickInsightsCriticalFocus && quickInsightsCriticalFocus.outletId && quickInsightsCriticalFocus.criticalIssues > 0 && {
-      title: 'Critical Focus',
-      value: `${quickInsightsCriticalFocus.outletName} · ${quickInsightsCriticalFocus.criticalIssues} issue${quickInsightsCriticalFocus.criticalIssues !== 1 ? 's' : ''}`,
-      accent: colors.error,
-      onPress: () => navigateToReviewsWithFilter(
-        undefined,
-        'critical',
-        'overview_reviews_metric',
-        quickInsightsCriticalFocus.outletId ?? undefined,
-      ),
-    },
+    quickInsightsCriticalFocus &&
+      quickInsightsCriticalFocus.outletId &&
+      quickInsightsCriticalFocus.criticalIssues > 0 && {
+        title: 'Critical Focus',
+        value: `${quickInsightsCriticalFocus.outletName} · ${quickInsightsCriticalFocus.criticalIssues} issue${quickInsightsCriticalFocus.criticalIssues !== 1 ? 's' : ''}`,
+        accent: colors.error,
+        onPress: () =>
+          navigateToReviewsWithFilter(
+            undefined,
+            'critical',
+            'overview_reviews_metric',
+            quickInsightsCriticalFocus.outletId ?? undefined,
+          ),
+      },
     insights.data?.mostImprovedOutlet && {
       title: 'Most Improved',
       value: `${insights.data.mostImprovedOutlet.outletName} (${insights.data.mostImprovedOutlet.improvement >= 0 ? '+' : ''}${insights.data.mostImprovedOutlet.improvement.toFixed(1)})`,
@@ -573,28 +643,41 @@ export default function OverviewScreen() {
     },
   ];
 
-  const taskDueTitle = period === 'daily'
-    ? 'Due today'
-    : period === 'weekly'
-      ? 'Due this week'
-      : period === 'monthly'
-        ? 'Due this month'
-        : 'Due all time';
+  const taskDueTitle =
+    period === 'daily'
+      ? 'Due today'
+      : period === 'weekly'
+        ? 'Due this week'
+        : period === 'monthly'
+          ? 'Due this month'
+          : 'Due all time';
   const mainTitle = topTab === 'reviews' ? 'Overall CSAT Score' : taskDueTitle;
-  const mainValue = topTab === 'reviews'
-    ? (typeof csatScore === 'number' ? `${csatScore.toFixed(1)}/5` : '--')
-    : (typeof dueInPeriodCount === 'number'
-      ? String(dueInPeriodCount)
-      : (typeof dueTodayCount === 'number' ? String(dueTodayCount) : '--'));
-  const mainSub = topTab === 'reviews'
-    ? `${totalRatings} ratings this period`
-    : `${taskCriticalCount ?? '--'} critical tasks`; // critical hidden in metric stack for Tasks tab
+  const mainValue =
+    topTab === 'reviews'
+      ? typeof csatScore === 'number'
+        ? `${csatScore.toFixed(1)}/5`
+        : '--'
+      : typeof dueInPeriodCount === 'number'
+        ? String(dueInPeriodCount)
+        : typeof dueTodayCount === 'number'
+          ? String(dueTodayCount)
+          : '--';
+  const mainSub =
+    topTab === 'reviews'
+      ? `${totalRatings} ratings this period`
+      : `${taskCriticalCount ?? '--'} critical tasks`; // critical hidden in metric stack for Tasks tab
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={isRefreshing && !isLoading} onRefresh={refetchAll} tintColor={colors.primary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing && !isLoading}
+            onRefresh={refetchAll}
+            tintColor={colors.primary}
+          />
+        }
       >
         <View style={styles.header}>
           <Text style={styles.heading}>Overview</Text>
@@ -683,7 +766,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: colors.warmBorderAlpha25,
     padding: spacing.md,
     gap: spacing.sm,
     ...shadow.sm,
@@ -732,7 +815,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
   },
   topTabBtnActive: {
     backgroundColor: colors.primaryTint,
@@ -758,7 +841,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#D3C5AC5C',
+    borderColor: colors.warmBorderAlpha36,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
@@ -827,11 +910,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
     color: colors.text,
   },
-  flipHint: {
-    marginTop: spacing.xs,
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-  },
   flipEmpty: {
     fontSize: typography.xs,
     color: colors.textSecondary,
@@ -847,7 +925,7 @@ const styles = StyleSheet.create({
     minHeight: 46,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC5C',
+    borderColor: colors.warmBorderAlpha36,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
     justifyContent: 'center',
@@ -895,10 +973,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...shadow.sm,
   },
-  chartLegend: { flexDirection: 'row', gap: spacing.md, alignSelf: 'flex-end', marginBottom: spacing.sm },
+  chartLegend: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignSelf: 'flex-end',
+    marginBottom: spacing.sm,
+  },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendLine: { width: 18, height: 2, borderRadius: radius.full },
-  legendLineDashed: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed' },
+  legendLineDashed: {
+    backgroundColor: colors.transparent,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
   legendText: { fontSize: typography.xs, color: colors.textSecondary },
 
   feedbackCard: {

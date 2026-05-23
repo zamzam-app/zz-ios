@@ -106,9 +106,7 @@ export interface TaskDetailTimelineResponse {
   timeline: PaginatedResponse<SerializedTimelineEvent>;
 }
 
-export interface EventTypeCounts {
-  [key: string]: number;
-}
+export type EventTypeCounts = Record<string, number>;
 
 // ─── View / Unread Types ────────────────────────────────────────────────────
 

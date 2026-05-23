@@ -1,3 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import React from 'react';
 import {
   View,
@@ -15,32 +20,29 @@ import {
   Platform,
   TextInput,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useOutlets, useDeleteOutlet } from '../../hooks/useOutlets';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Outlet } from '../../api/endpoints/outlets';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { QR_REVIEW_BASE_URL } from '../../config/env';
+import { useOutlets, useDeleteOutlet } from '../../hooks/useOutlets';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+
 import { CreateOutletContent } from './CreateOutletScreen';
-import { QR_REVIEW_BASE_URL } from '../../config/env';
 import { buildOutletsScreenModel, OUTLET_SEARCH_DEBOUNCE_MS } from './outletSearch';
 
 type Nav = NativeStackNavigationProp<InfrastructureStackParamList, 'OutletsList'>;
 
-type OutletCardProps = {
+interface OutletCardProps {
   outlet: Outlet;
   isAdmin: boolean;
   onPress: () => void;
   onQrPress: () => void;
   onEditPress: () => void;
   onDelete: () => void;
-};
+}
 
 function FallbackOutletImage({ name }: { name: string }) {
   const letter = name.trim().charAt(0).toUpperCase() || 'O';
@@ -51,11 +53,19 @@ function FallbackOutletImage({ name }: { name: string }) {
   );
 }
 
-function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete }: OutletCardProps) {
+function OutletCard({
+  outlet,
+  isAdmin,
+  onPress,
+  onQrPress,
+  onEditPress,
+  onDelete,
+}: OutletCardProps) {
   const imageUri = outlet.images?.[0];
-  const managerLabel = outlet.managerNames && outlet.managerNames.length > 0
-    ? `${outlet.managerNames.length > 1 ? 'Managers' : 'Manager'}: ${outlet.managerNames.join(', ')}`
-    : 'Manager unavailable';
+  const managerLabel =
+    outlet.managerNames && outlet.managerNames.length > 0
+      ? `${outlet.managerNames.length > 1 ? 'Managers' : 'Manager'}: ${outlet.managerNames.join(', ')}`
+      : 'Manager unavailable';
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.88}>
@@ -99,11 +109,15 @@ function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete
           <View style={styles.metaRows}>
             <View style={styles.metaRow}>
               <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.metaText} numberOfLines={1}>{outlet.address ?? 'No address'}</Text>
+              <Text style={styles.metaText} numberOfLines={1}>
+                {outlet.address ?? 'No address'}
+              </Text>
             </View>
             <View style={styles.metaRow}>
               <Ionicons name="person-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.metaText} numberOfLines={1}>{managerLabel}</Text>
+              <Text style={styles.metaText} numberOfLines={1}>
+                {managerLabel}
+              </Text>
             </View>
           </View>
         </View>
@@ -135,7 +149,10 @@ export default function InfrastructureScreen() {
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [editingOutlet, setEditingOutlet] = React.useState<Outlet | null>(null);
   const [selectedQrOutlet, setSelectedQrOutlet] = React.useState<Outlet | null>(null);
-  const qrRef = React.useRef<any>(null);
+  interface QrCodeRef {
+    toDataURL: (callback: (base64Data: string) => void) => void;
+  }
+  const qrRef = React.useRef<QrCodeRef | null>(null);
   const outletList = React.useMemo(() => outlets ?? [], [outlets]);
 
   React.useEffect(() => {
@@ -225,7 +242,10 @@ export default function InfrastructureScreen() {
 
         <View style={styles.headerBtns}>
           {isAdmin && (
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate('OutletTypes')}>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => navigation.navigate('OutletTypes')}
+            >
               <Text style={styles.secondaryBtnText}>Type</Text>
             </TouchableOpacity>
           )}
@@ -239,7 +259,12 @@ export default function InfrastructureScreen() {
 
       <View style={styles.controlsRow}>
         <View style={styles.searchWrap}>
-          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+          <Ionicons
+            name="search"
+            size={16}
+            color={colors.textSecondary}
+            style={styles.searchIcon}
+          />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -272,7 +297,9 @@ export default function InfrastructureScreen() {
             screenModel.visibleOutlets.length === 0 && styles.listEmpty,
           ]}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+          refreshControl={
+            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />
+          }
           renderItem={({ item }) => (
             <OutletCard
               outlet={item}
@@ -283,15 +310,17 @@ export default function InfrastructureScreen() {
               onDelete={() => handleDelete(item)}
             />
           )}
-          ListEmptyComponent={(
+          ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="search-outline" size={28} color={colors.textSecondary} />
               <Text style={styles.empty}>{screenModel.emptyMessage}</Text>
               {screenModel.showClearSearch ? (
-                <Text style={styles.emptyHint}>Try a different outlet name, location, or identifier.</Text>
+                <Text style={styles.emptyHint}>
+                  Try a different outlet name, location, or identifier.
+                </Text>
               ) : null}
             </View>
-          )}
+          }
         />
       )}
 
@@ -307,33 +336,33 @@ export default function InfrastructureScreen() {
             style={styles.createModalScrim}
             onPress={() => setShowCreateModal(false)}
           />
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.createSheet}
-            >
-              <View style={styles.createSheetTop}>
-                <View style={styles.createSheetHandle} />
-                <View style={styles.createSheetHeader}>
-                  <Text style={styles.createSheetTitle}>Create Outlet</Text>
-                  <TouchableOpacity
-                    style={styles.createSheetClose}
-                    onPress={() => setShowCreateModal(false)}
-                  >
-                    <Ionicons name="close" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.createSheet}
+          >
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Create Outlet</Text>
+                <TouchableOpacity
+                  style={styles.createSheetClose}
+                  onPress={() => setShowCreateModal(false)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
+            </View>
 
-              <CreateOutletContent
-                onSuccess={() => {
-                  setShowCreateModal(false);
-                  void refetch();
-                }}
-                bottomPadding={20}
-                fill={false}
-                backgroundColor={colors.surface}
-              />
-            </KeyboardAvoidingView>
+            <CreateOutletContent
+              onSuccess={() => {
+                setShowCreateModal(false);
+                void refetch();
+              }}
+              bottomPadding={20}
+              fill={false}
+              backgroundColor={colors.surface}
+            />
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -349,36 +378,36 @@ export default function InfrastructureScreen() {
             style={styles.createModalScrim}
             onPress={() => setEditingOutlet(null)}
           />
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.createSheet}
-            >
-              <View style={styles.createSheetTop}>
-                <View style={styles.createSheetHandle} />
-                <View style={styles.createSheetHeader}>
-                  <Text style={styles.createSheetTitle}>Edit Outlet</Text>
-                  <TouchableOpacity
-                    style={styles.createSheetClose}
-                    onPress={() => setEditingOutlet(null)}
-                  >
-                    <Ionicons name="close" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.createSheet}
+          >
+            <View style={styles.createSheetTop}>
+              <View style={styles.createSheetHandle} />
+              <View style={styles.createSheetHeader}>
+                <Text style={styles.createSheetTitle}>Edit Outlet</Text>
+                <TouchableOpacity
+                  style={styles.createSheetClose}
+                  onPress={() => setEditingOutlet(null)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
+            </View>
 
-              <CreateOutletContent
-                mode="edit"
-                outletToEdit={editingOutlet}
-                onSuccess={() => {
-                  setEditingOutlet(null);
-                  void refetch();
-                }}
-                submitLabel="Save Changes"
-                bottomPadding={20}
-                fill={false}
-                backgroundColor={colors.surface}
-              />
-            </KeyboardAvoidingView>
+            <CreateOutletContent
+              mode="edit"
+              outletToEdit={editingOutlet}
+              onSuccess={() => {
+                setEditingOutlet(null);
+                void refetch();
+              }}
+              submitLabel="Save Changes"
+              bottomPadding={20}
+              fill={false}
+              backgroundColor={colors.surface}
+            />
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -397,10 +426,7 @@ export default function InfrastructureScreen() {
           <View style={styles.qrModalCard}>
             <View style={styles.qrHeader}>
               <Text style={styles.qrTitle}>{selectedQrOutlet?.name ?? 'Outlet'}</Text>
-              <TouchableOpacity
-                style={styles.qrCloseBtn}
-                onPress={() => setSelectedQrOutlet(null)}
-              >
+              <TouchableOpacity style={styles.qrCloseBtn} onPress={() => setSelectedQrOutlet(null)}>
                 <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -413,7 +439,9 @@ export default function InfrastructureScreen() {
                     size={170}
                     backgroundColor={colors.surface}
                     color="#000000"
-                    getRef={(ref) => { qrRef.current = ref; }}
+                    getRef={(ref) => {
+                      qrRef.current = ref;
+                    }}
                   />
                 </View>
                 <Text style={styles.qrHint}>Scan to access review page</Text>
@@ -493,7 +521,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   searchClearText: {
     fontSize: typography.sm,
@@ -507,7 +535,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
+    borderColor: colors.warmBorderAlpha50,
     backgroundColor: colors.buttonLightBg,
   },
   secondaryBtnText: {
@@ -531,11 +559,11 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: 120 },
   listEmpty: { flexGrow: 1 },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC26',
+    borderColor: colors.warmBorderAlpha16,
     ...shadow.sm,
     gap: spacing.sm,
   },
@@ -548,7 +576,7 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: radius.md,
     overflow: 'hidden',
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     flexShrink: 0,
   },
   outletImage: {
@@ -559,12 +587,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   outletImageFallbackText: {
     fontSize: typography.lg,
     fontWeight: typography.bold,
-    color: '#5A4300',
+    color: colors.accentCoffee,
   },
 
   cardContent: {
@@ -588,13 +616,13 @@ const styles = StyleSheet.create({
   },
   typeChip: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FDF4E7',
+    backgroundColor: colors.primaryTint,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   typeChipText: {
-    color: '#92400E',
+    color: colors.primary,
     fontSize: 10,
     fontWeight: typography.bold,
     textTransform: 'uppercase',
@@ -609,7 +637,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: colors.successLight,
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -618,12 +646,12 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: radius.full,
-    backgroundColor: '#16A34A',
+    backgroundColor: colors.accentGreen,
   },
   activeText: {
     fontSize: 10,
     fontWeight: typography.bold,
-    color: '#15803D',
+    color: colors.success,
     letterSpacing: 0.3,
   },
   deleteBtn: {
@@ -632,7 +660,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F5EFE6',
+    backgroundColor: colors.surfaceElevated,
   },
 
   metaRows: {
@@ -699,7 +727,7 @@ const styles = StyleSheet.create({
   },
   createModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.4)',
+    backgroundColor: colors.scrimDark40,
   },
   createSheet: {
     maxHeight: '92%',
@@ -707,7 +735,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
-    shadowColor: '#191c1e',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.14,
     shadowRadius: 20,
@@ -718,7 +746,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC40',
+    borderBottomColor: colors.warmBorderAlpha25,
     backgroundColor: colors.surfaceOverlay,
   },
   createSheetHandle: {
@@ -726,7 +754,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 6,
     borderRadius: radius.full,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
     marginBottom: spacing.sm,
   },
   createSheetHeader: {
@@ -746,12 +774,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
-  },
-  createSheetCloseText: {
-    color: colors.textSecondary,
-    fontSize: typography.base,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.uiGray1,
   },
 
   qrModalRoot: {
@@ -762,16 +785,16 @@ const styles = StyleSheet.create({
   },
   qrModalScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 28, 30, 0.48)',
+    backgroundColor: colors.scrimDark48,
   },
   qrModalCard: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#D3C5AC40',
+    borderColor: colors.warmBorderAlpha25,
     ...shadow.md,
   },
   qrHeader: {
@@ -781,7 +804,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#D3C5AC33',
+    borderBottomColor: colors.warmBorderAlpha20,
   },
   qrTitle: {
     flex: 1,
@@ -795,12 +818,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4F6',
-  },
-  qrCloseText: {
-    fontSize: typography.base,
-    color: colors.textSecondary,
-    fontWeight: typography.semibold,
+    backgroundColor: colors.uiGray1,
   },
   qrCanvasWrap: {
     marginTop: spacing.lg,
@@ -809,8 +827,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D3C5AC99',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.warmBorderAlpha60,
+    backgroundColor: colors.surface,
   },
   qrHint: {
     marginTop: spacing.sm,
@@ -831,8 +849,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D3C5AC80',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.warmBorderAlpha50,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },

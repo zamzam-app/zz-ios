@@ -1,4 +1,4 @@
-export type SearchableOutlet = {
+export interface SearchableOutlet {
   id: string;
   name: string;
   description?: string;
@@ -8,7 +8,7 @@ export type SearchableOutlet = {
   managerNames?: string[];
   managerIds?: string[];
   qrToken?: string;
-};
+}
 
 export const OUTLET_SEARCH_DEBOUNCE_MS = 250;
 export const OUTLET_SEARCH_PLACEHOLDER = 'Search outlets...';

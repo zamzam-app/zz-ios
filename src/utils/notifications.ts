@@ -1,5 +1,6 @@
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
+
 import apiClient from '../api/client';
 
 // Controls how notifications appear when app is in foreground

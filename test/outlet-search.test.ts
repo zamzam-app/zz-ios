@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import {
   buildOutletsScreenModel,
   filterOutletsByQuery,
@@ -53,10 +54,22 @@ function testFilteringOutletsByKeyword() {
     }),
   ];
 
-  assert.deepEqual(filterOutletsByQuery(outlets, 'airport').map((outlet) => outlet.id), ['outlet-2']);
-  assert.deepEqual(filterOutletsByQuery(outlets, 'mg road').map((outlet) => outlet.id), ['outlet-1']);
-  assert.deepEqual(filterOutletsByQuery(outlets, 'aisha').map((outlet) => outlet.id), ['outlet-1']);
-  assert.deepEqual(filterOutletsByQuery(outlets, 'form-001').map((outlet) => outlet.id), ['outlet-1']);
+  assert.deepEqual(
+    filterOutletsByQuery(outlets, 'airport').map((outlet) => outlet.id),
+    ['outlet-2'],
+  );
+  assert.deepEqual(
+    filterOutletsByQuery(outlets, 'mg road').map((outlet) => outlet.id),
+    ['outlet-1'],
+  );
+  assert.deepEqual(
+    filterOutletsByQuery(outlets, 'aisha').map((outlet) => outlet.id),
+    ['outlet-1'],
+  );
+  assert.deepEqual(
+    filterOutletsByQuery(outlets, 'form-001').map((outlet) => outlet.id),
+    ['outlet-1'],
+  );
 }
 
 function testEmptySearchResultState() {
@@ -66,18 +79,21 @@ function testEmptySearchResultState() {
 }
 
 function testClearingSearchInput() {
-  const outlets = [
-    createOutlet(),
-    createOutlet({ id: 'outlet-2', name: 'Indiranagar Kitchen' }),
-  ];
+  const outlets = [createOutlet(), createOutlet({ id: 'outlet-2', name: 'Indiranagar Kitchen' })];
 
   const filteredModel = buildOutletsScreenModel(outlets, 'indi', 'indi');
   assert.equal(filteredModel.showClearSearch, true);
-  assert.deepEqual(filteredModel.visibleOutlets.map((outlet) => outlet.id), ['outlet-2']);
+  assert.deepEqual(
+    filteredModel.visibleOutlets.map((outlet) => outlet.id),
+    ['outlet-2'],
+  );
 
   const clearedModel = buildOutletsScreenModel(outlets, '', '');
   assert.equal(clearedModel.showClearSearch, false);
-  assert.deepEqual(clearedModel.visibleOutlets.map((outlet) => outlet.id), ['outlet-1', 'outlet-2']);
+  assert.deepEqual(
+    clearedModel.visibleOutlets.map((outlet) => outlet.id),
+    ['outlet-1', 'outlet-2'],
+  );
 }
 
 function testRegressionCoverageForExistingOutletListBehavior() {
@@ -88,7 +104,10 @@ function testRegressionCoverageForExistingOutletListBehavior() {
 
   const model = buildOutletsScreenModel(outlets, '', '');
   assert.equal(model.emptyMessage, OUTLETS_EMPTY_DEFAULT_MESSAGE);
-  assert.deepEqual(model.visibleOutlets.map((outlet) => outlet.id), ['outlet-1', 'outlet-2']);
+  assert.deepEqual(
+    model.visibleOutlets.map((outlet) => outlet.id),
+    ['outlet-1', 'outlet-2'],
+  );
   assert.notEqual(model.visibleOutlets, outlets);
 }
 
@@ -98,7 +117,6 @@ function run() {
   testEmptySearchResultState();
   testClearingSearchInput();
   testRegressionCoverageForExistingOutletListBehavior();
-  console.log('outlet-search.test.ts: ok');
 }
 
 run();

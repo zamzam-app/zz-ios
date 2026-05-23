@@ -1,12 +1,12 @@
-export type TaskAssignedTimeSource = {
+export interface TaskAssignedTimeSource {
   assignedAt?: string;
   createdAt?: string;
-};
+}
 
-export type TaskCardFooterModel = {
+export interface TaskCardFooterModel {
   assignedTimeLabel: string | null;
   assignedTimePlacement: 'trailing';
-};
+}
 
 function parseIsoTimestamp(value?: string | null): number | null {
   if (!value) return null;
@@ -17,7 +17,7 @@ function parseIsoTimestamp(value?: string | null): number | null {
 function isYesterday(timestamp: number, nowTimestamp: number): boolean {
   const now = new Date(nowTimestamp);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const yesterdayStart = todayStart - (24 * 60 * 60 * 1000);
+  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
   return timestamp >= yesterdayStart && timestamp < todayStart;
 }
 
@@ -26,9 +26,12 @@ function formatOlderAssignment(timestamp: number, nowTimestamp: number): string 
   const now = new Date(nowTimestamp);
   const sameYear = value.getFullYear() === now.getFullYear();
 
-  const dateText = value.toLocaleDateString('en-GB', sameYear
-    ? { day: 'numeric', month: 'short' }
-    : { day: 'numeric', month: 'short', year: 'numeric' });
+  const dateText = value.toLocaleDateString(
+    'en-GB',
+    sameYear
+      ? { day: 'numeric', month: 'short' }
+      : { day: 'numeric', month: 'short', year: 'numeric' },
+  );
   const timeText = value.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
@@ -41,7 +44,10 @@ export function getTaskAssignedTimestamp(task: TaskAssignedTimeSource): string |
   return task.assignedAt ?? task.createdAt;
 }
 
-export function formatTaskAssignedTime(task: TaskAssignedTimeSource, nowTimestamp = Date.now()): string | null {
+export function formatTaskAssignedTime(
+  task: TaskAssignedTimeSource,
+  nowTimestamp = Date.now(),
+): string | null {
   const assignedTimestamp = parseIsoTimestamp(getTaskAssignedTimestamp(task));
   if (assignedTimestamp === null) return null;
 

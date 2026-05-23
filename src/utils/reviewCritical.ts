@@ -1,6 +1,6 @@
 export type ComplaintStatusLike = 'pending' | 'resolved' | 'dismissed';
 
-export type ReviewQueryLike = {
+export interface ReviewQueryLike {
   page?: number;
   limit?: number;
   outletId?: string;
@@ -9,16 +9,16 @@ export type ReviewQueryLike = {
   severity?: 'critical' | 'concern';
   unresolvedOnly?: boolean;
   excludeResolved?: boolean;
-};
+}
 
-export type CriticalReviewLike = {
+export interface CriticalReviewLike {
   id?: string;
   outletId?: string;
   outletName?: string;
   isComplaint?: boolean;
   overallRating?: number;
   complaintStatus?: ComplaintStatusLike;
-};
+}
 
 export type CriticalFocusAreaModel = {
   outletId: string;
@@ -40,9 +40,7 @@ export function isCriticalReview(review: CriticalReviewLike): boolean {
 
 export function isOpenCriticalReview(review: CriticalReviewLike): boolean {
   return Boolean(
-    review.isComplaint
-    && isCriticalReview(review)
-    && isOpenComplaintStatus(review.complaintStatus),
+    review.isComplaint && isCriticalReview(review) && isOpenComplaintStatus(review.complaintStatus),
   );
 }
 
@@ -66,16 +64,19 @@ export function buildCriticalReviewsQuery(query?: ReviewQueryLike): ReviewQueryL
 }
 
 export function getCriticalReviewsEmptyStateMessage(hasActiveCriticalFilter: boolean): string {
-  return hasActiveCriticalFilter
-    ? 'No unresolved critical reviews.'
-    : 'No reviews available.';
+  return hasActiveCriticalFilter ? 'No unresolved critical reviews.' : 'No reviews available.';
 }
 
-export function getCriticalFocusAreaFromReviews<T extends CriticalReviewLike>(reviews: T[]): CriticalFocusAreaModel {
+export function getCriticalFocusAreaFromReviews<T extends CriticalReviewLike>(
+  reviews: T[],
+): CriticalFocusAreaModel {
   const openCriticalReviews = filterOpenCriticalReviews(reviews);
   if (openCriticalReviews.length === 0) return null;
 
-  const byOutlet = new Map<string, CriticalFocusAreaModel extends null ? never : NonNullable<CriticalFocusAreaModel>>();
+  const byOutlet = new Map<
+    string,
+    CriticalFocusAreaModel extends null ? never : NonNullable<CriticalFocusAreaModel>
+  >();
 
   for (const review of openCriticalReviews) {
     const outletId = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
@@ -94,8 +95,10 @@ export function getCriticalFocusAreaFromReviews<T extends CriticalReviewLike>(re
     });
   }
 
-  return Array.from(byOutlet.values()).sort((a, b) => {
-    if (b.criticalIssues !== a.criticalIssues) return b.criticalIssues - a.criticalIssues;
-    return a.outletName.localeCompare(b.outletName);
-  })[0] ?? null;
+  return (
+    Array.from(byOutlet.values()).sort((a, b) => {
+      if (b.criticalIssues !== a.criticalIssues) return b.criticalIssues - a.criticalIssues;
+      return a.outletName.localeCompare(b.outletName);
+    })[0] ?? null
+  );
 }

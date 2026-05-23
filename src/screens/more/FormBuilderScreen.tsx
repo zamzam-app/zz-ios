@@ -1,21 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput,
-  Alert, ActivityIndicator, Modal, ScrollView, KeyboardAvoidingView, Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useForms, useCreateForm, useUpdateForm, useDeleteForm, useForm } from '../../hooks/useForms';
-import { Question, QuestionType, QUESTION_TYPE_OPTIONS, SupportedQuestion } from '../../api/endpoints/forms';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import {
+  Question,
+  QuestionType,
+  QUESTION_TYPE_OPTIONS,
+  SupportedQuestion,
+} from '../../api/endpoints/forms';
+import {
+  useForms,
+  useCreateForm,
+  useUpdateForm,
+  useDeleteForm,
+  useForm,
+} from '../../hooks/useForms';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 // ─── Form Editor Modal ────────────────────────────────────────────────────────
 
-function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = false }: {
-  visible: boolean; formId: string | null; onClose: () => void; hideDefaultQuestions?: boolean;
+function FormEditorModal({
+  visible,
+  formId,
+  onClose,
+  hideDefaultQuestions = false,
+}: {
+  visible: boolean;
+  formId: string | null;
+  onClose: () => void;
+  hideDefaultQuestions?: boolean;
 }) {
   const { data: form, isLoading } = useForm(formId ?? '');
   const updateForm = useUpdateForm();
@@ -23,38 +53,62 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
   const [title, setTitle] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
+  const tempIdCounterRef = useRef(0);
+  const nextTempId = useCallback(() => {
+    tempIdCounterRef.current += 1;
+    return tempIdCounterRef.current;
+  }, []);
+
+  const ensureOptionIds = useCallback(
+    (input: Question[]): Question[] =>
+      input.map((q) => {
+        if (!Array.isArray(q.options) || q.options.length === 0) return q;
+        return {
+          ...q,
+          options: q.options.map((opt) => ({
+            ...opt,
+            _id: opt._id ?? `temp_opt_${q._id}_${nextTempId()}`,
+          })),
+        };
+      }),
+    [nextTempId],
+  );
 
   const isDefaultPlaceholderQuestion = (question: Question) => {
     const title = question.title.trim().toLowerCase();
-    const isPlaceholderTitle = title.length === 0
-      || /^question\s*\d+$/i.test(title)
-      || title === 'untitled question';
+    const isPlaceholderTitle =
+      title.length === 0 || /^question\s*\d+$/i.test(title) || title === 'untitled question';
     const hasHint = typeof question.hint === 'string' && question.hint.trim().length > 0;
-    const hasFilledOptions = Array.isArray(question.options)
-      && question.options.some((option) => option.text.trim().length > 0);
-    const hasNonDefaultRating = question.type === 'rating' && typeof question.maxRatings === 'number'
-      ? question.maxRatings !== 5
-      : false;
+    const hasFilledOptions =
+      Array.isArray(question.options) &&
+      question.options.some((option) => option.text.trim().length > 0);
+    const hasNonDefaultRating =
+      question.type === 'rating' && typeof question.maxRatings === 'number'
+        ? question.maxRatings !== 5
+        : false;
 
-    return isPlaceholderTitle
-      && !question.isRequired
-      && !hasHint
-      && !hasFilledOptions
-      && !hasNonDefaultRating;
+    return (
+      isPlaceholderTitle &&
+      !question.isRequired &&
+      !hasHint &&
+      !hasFilledOptions &&
+      !hasNonDefaultRating
+    );
   };
 
   useEffect(() => {
     if (form) {
-      setTitle(form.title);
-      if (hideDefaultQuestions) {
-        // For brand-new forms, backend may seed default questions.
-        // Start editor with an empty list so user adds their own questions.
-        setQuestions([]);
-      } else {
-        setQuestions(form.questions.filter((question) => !isDefaultPlaceholderQuestion(question)));
-      }
+      const nextTitle = form.title;
+      const nextQuestions = hideDefaultQuestions
+        ? []
+        : form.questions.filter((question) => !isDefaultPlaceholderQuestion(question));
+
+      queueMicrotask(() => {
+        setTitle(nextTitle);
+        setQuestions(ensureOptionIds(nextQuestions));
+      });
     }
-  }, [form, hideDefaultQuestions]);
+  }, [form, hideDefaultQuestions, ensureOptionIds]);
 
   const handleSave = () => {
     if (!formId || !title.trim()) return Alert.alert('Required', 'Form title is required.');
@@ -65,12 +119,15 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
   };
 
   const addQuestion = (type: QuestionType) => {
+    const tempId = nextTempId();
     const newQ: Question = {
-      _id: `temp_${Date.now()}`,
+      _id: `temp_${tempId}`,
       type,
       title: '',
       isRequired: false,
-      ...(type === 'multiple_choice' || type === 'checkbox' ? { options: [{ text: '' }] } : {}),
+      ...(type === 'multiple_choice' || type === 'checkbox'
+        ? { options: [{ _id: `temp_opt_temp_${tempId}_${nextTempId()}`, text: '' }] }
+        : {}),
       ...(type === 'rating' ? { maxRatings: 5 } : {}),
     };
     setQuestions((prev) => [...prev, newQ]);
@@ -78,10 +135,12 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
   };
 
   const updateQuestion = (index: number, patch: Partial<Omit<SupportedQuestion, 'type'>>) => {
-    setQuestions((prev) => prev.map((q, i) => {
-      if (i !== index || q.type === 'unsupported') return q;
-      return { ...q, ...patch };
-    }));
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== index || q.type === 'unsupported') return q;
+        return { ...q, ...patch };
+      }),
+    );
   };
 
   const removeQuestion = (index: number) => {
@@ -90,25 +149,39 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
 
   const getQuestionTypeLabel = (question: Question) => {
     if (question.type === 'unsupported') return `Unsupported (${question.rawType})`;
-    return QUESTION_TYPE_OPTIONS.find((option) => option.value === question.type)?.label ?? question.type;
+    return (
+      QUESTION_TYPE_OPTIONS.find((option) => option.value === question.type)?.label ?? question.type
+    );
   };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textSecondary }}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={{ color: colors.textSecondary }}>Cancel</Text>
+            </TouchableOpacity>
             <Text style={styles.modalTitle}>Edit Form</Text>
             <TouchableOpacity onPress={handleSave} disabled={updateForm.isPending}>
-              {updateForm.isPending ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: colors.primary, fontWeight: typography.semibold }}>Save</Text>}
+              {updateForm.isPending ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={{ color: colors.primary, fontWeight: typography.semibold }}>Save</Text>
+              )}
             </TouchableOpacity>
           </View>
 
           {isLoading ? (
             <ActivityIndicator style={{ marginTop: spacing.xxl }} color={colors.primary} />
           ) : (
-            <ScrollView contentContainerStyle={styles.editorScroll} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              contentContainerStyle={styles.editorScroll}
+              keyboardShouldPersistTaps="handled"
+            >
               <Text style={styles.label}>Form Title</Text>
               <TextInput
                 style={styles.input}
@@ -118,7 +191,9 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                 placeholderTextColor={colors.textDisabled}
               />
 
-              <Text style={[styles.label, { marginTop: spacing.md }]}>Questions ({questions.length})</Text>
+              <Text style={[styles.label, { marginTop: spacing.md }]}>
+                Questions ({questions.length})
+              </Text>
 
               {questions.map((q, index) => (
                 <View key={q._id} style={styles.questionCard}>
@@ -141,7 +216,10 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                   ) : (
                     <>
                       <TextInput
-                        style={[styles.input, q.isDefault && { opacity: 0.7, backgroundColor: colors.background }]}
+                        style={[
+                          styles.input,
+                          q.isDefault && { opacity: 0.7, backgroundColor: colors.background },
+                        ]}
                         value={q.title}
                         editable={!q.isDefault}
                         onChangeText={(v) => updateQuestion(index, { title: v })}
@@ -150,33 +228,59 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                       />
                       {(q.type === 'multiple_choice' || q.type === 'checkbox') && (
                         <View style={{ gap: spacing.xs }}>
-                          {(q.options ?? []).map((opt, oi) => (
-                            <View key={oi} style={styles.optionRow}>
+                          {(q.options ?? []).map((opt) => (
+                            <View key={opt._id ?? `${q._id}-${opt.text}`} style={styles.optionRow}>
                               <TextInput
-                                style={[styles.input, { flex: 1, marginBottom: 0 }, q.isDefault && { opacity: 0.7, backgroundColor: colors.background }]}
+                                style={[
+                                  styles.input,
+                                  { flex: 1, marginBottom: 0 },
+                                  q.isDefault && {
+                                    opacity: 0.7,
+                                    backgroundColor: colors.background,
+                                  },
+                                ]}
                                 value={opt.text}
                                 editable={!q.isDefault}
                                 onChangeText={(v) => {
                                   const newOptions = [...(q.options ?? [])];
-                                  newOptions[oi] = { ...newOptions[oi], text: v };
+                                  const targetIndex = newOptions.findIndex(
+                                    (o) => o._id === opt._id,
+                                  );
+                                  if (targetIndex === -1) return;
+                                  newOptions[targetIndex] = { ...newOptions[targetIndex], text: v };
                                   updateQuestion(index, { options: newOptions });
                                 }}
-                                placeholder={`Option ${oi + 1}`}
+                                placeholder="Option..."
                                 placeholderTextColor={colors.textDisabled}
                               />
                               {!q.isDefault && (
-                                <TouchableOpacity onPress={() => {
-                                  const newOptions = (q.options ?? []).filter((_, i) => i !== oi);
-                                  updateQuestion(index, { options: newOptions });
-                                }}>
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    const newOptions = (q.options ?? []).filter(
+                                      (o) => o._id !== opt._id,
+                                    );
+                                    updateQuestion(index, { options: newOptions });
+                                  }}
+                                >
                                   <Text style={styles.deleteText}>✕</Text>
                                 </TouchableOpacity>
                               )}
                             </View>
                           ))}
                           {!q.isDefault && (
-                            <TouchableOpacity onPress={() => updateQuestion(index, { options: [...(q.options ?? []), { text: '' }] })}>
-                              <Text style={{ color: colors.primary, fontSize: typography.sm }}>+ Add option</Text>
+                            <TouchableOpacity
+                              onPress={() =>
+                                updateQuestion(index, {
+                                  options: [
+                                    ...(q.options ?? []),
+                                    { _id: `temp_opt_${q._id}_${nextTempId()}`, text: '' },
+                                  ],
+                                })
+                              }
+                            >
+                              <Text style={{ color: colors.primary, fontSize: typography.sm }}>
+                                + Add option
+                              </Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -185,13 +289,24 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                         <View style={styles.ratingRow}>
                           <Text style={styles.label}>Max stars:</Text>
                           {[3, 5, 10].map((n) => (
-                            <TouchableOpacity 
-                              key={n} 
-                              style={[styles.chip, q.maxRatings === n && styles.chipActive, q.isDefault && { opacity: 0.7 }]} 
+                            <TouchableOpacity
+                              key={n}
+                              style={[
+                                styles.chip,
+                                q.maxRatings === n && styles.chipActive,
+                                q.isDefault && { opacity: 0.7 },
+                              ]}
                               disabled={q.isDefault}
                               onPress={() => updateQuestion(index, { maxRatings: n })}
                             >
-                              <Text style={[styles.chipText, q.maxRatings === n && styles.chipTextActive]}>{n}</Text>
+                              <Text
+                                style={[
+                                  styles.chipText,
+                                  q.maxRatings === n && styles.chipTextActive,
+                                ]}
+                              >
+                                {n}
+                              </Text>
                             </TouchableOpacity>
                           ))}
                         </View>
@@ -201,17 +316,30 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
                         disabled={q.isDefault}
                         onPress={() => updateQuestion(index, { isRequired: !q.isRequired })}
                       >
-                        <View style={[styles.checkbox, q.isRequired && styles.checkboxChecked, q.isDefault && { opacity: 0.7 }]}>
-                          {q.isRequired && <Text style={{ color: colors.textInverse, fontSize: 10 }}>✓</Text>}
+                        <View
+                          style={[
+                            styles.checkbox,
+                            q.isRequired && styles.checkboxChecked,
+                            q.isDefault && { opacity: 0.7 },
+                          ]}
+                        >
+                          {q.isRequired && (
+                            <Text style={{ color: colors.textInverse, fontSize: 10 }}>✓</Text>
+                          )}
                         </View>
-                        <Text style={[styles.requiredLabel, q.isDefault && { opacity: 0.7 }]}>Required</Text>
+                        <Text style={[styles.requiredLabel, q.isDefault && { opacity: 0.7 }]}>
+                          Required
+                        </Text>
                       </TouchableOpacity>
                     </>
                   )}
                 </View>
               ))}
 
-              <TouchableOpacity style={styles.addQuestionBtn} onPress={() => setShowAddQuestion(true)}>
+              <TouchableOpacity
+                style={styles.addQuestionBtn}
+                onPress={() => setShowAddQuestion(true)}
+              >
                 <Text style={styles.addQuestionText}>+ Add Question</Text>
               </TouchableOpacity>
             </ScrollView>
@@ -230,7 +358,11 @@ function FormEditorModal({ visible, formId, onClose, hideDefaultQuestions = fals
             </TouchableOpacity>
           </View>
           {QUESTION_TYPE_OPTIONS.map((t) => (
-            <TouchableOpacity key={t.value} style={styles.typeRow} onPress={() => addQuestion(t.value)}>
+            <TouchableOpacity
+              key={t.value}
+              style={styles.typeRow}
+              onPress={() => addQuestion(t.value)}
+            >
               <Text style={styles.typeLabel}>{t.label}</Text>
             </TouchableOpacity>
           ))}
@@ -283,7 +415,11 @@ export default function FormBuilderScreen() {
               </TouchableOpacity>
               <Text style={styles.heading}>Form Builder</Text>
             </View>
-            <TouchableOpacity style={styles.createBtn} onPress={handleCreate} disabled={createForm.isPending}>
+            <TouchableOpacity
+              style={styles.createBtn}
+              onPress={handleCreate}
+              disabled={createForm.isPending}
+            >
               {createForm.isPending ? (
                 <ActivityIndicator color={colors.textInverse} />
               ) : (
@@ -295,7 +431,12 @@ export default function FormBuilderScreen() {
         </View>
 
         <View style={styles.searchWrap}>
-          <Ionicons name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
+          <Ionicons
+            name="search"
+            size={16}
+            color={colors.textSecondary}
+            style={styles.searchIcon}
+          />
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -342,10 +483,16 @@ export default function FormBuilderScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.iconBtn}
-                      onPress={() => Alert.alert('Delete', `Delete "${item.title}"?`, [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Delete', style: 'destructive', onPress: () => deleteForm.mutate(item.id) },
-                      ])}
+                      onPress={() =>
+                        Alert.alert('Delete', `Delete "${item.title}"?`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: () => deleteForm.mutate(item.id),
+                          },
+                        ])
+                      }
                     >
                       <Ionicons name="trash-outline" size={16} color={colors.error} />
                     </TouchableOpacity>
@@ -444,7 +591,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#D3C5AC30',
+    borderColor: colors.warmBorderAlpha18,
     padding: spacing.sm,
     ...shadow.sm,
   },
@@ -458,14 +605,14 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: '#4F4633',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
   },
   totalChip: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.sm,
-    backgroundColor: '#E6E8EA',
+    backgroundColor: colors.uiGray4,
   },
   totalChipText: {
     color: colors.text,
@@ -482,7 +629,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#D3C5AC30',
+    borderColor: colors.warmBorderAlpha18,
   },
   itemName: { fontSize: typography.base, fontWeight: typography.semibold, color: colors.text },
   itemDesc: { fontSize: typography.sm, color: colors.textSecondary, marginTop: 2 },
@@ -500,24 +647,64 @@ const styles = StyleSheet.create({
   deleteText: { color: colors.error, fontSize: typography.sm, fontWeight: typography.medium },
   empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.lg },
 
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   modalTitle: { fontSize: typography.md, fontWeight: typography.semibold, color: colors.text },
   editorScroll: { padding: spacing.md, paddingBottom: 120, gap: spacing.sm },
   label: { fontSize: typography.sm, fontWeight: typography.medium, color: colors.text },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 13, fontSize: typography.base, color: colors.text, backgroundColor: colors.surface },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 13,
+    fontSize: typography.base,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
 
-  questionCard: { backgroundColor: colors.surfaceElevated, borderRadius: radius.md, padding: spacing.md, gap: spacing.sm },
+  questionCard: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
   questionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  qTypePill: { backgroundColor: colors.primary + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.full },
+  qTypePill: {
+    backgroundColor: colors.primary + '18',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
   qTypeText: { fontSize: typography.xs, color: colors.primary, fontWeight: typography.medium },
   optionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border },
+  chip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: typography.sm, color: colors.textSecondary },
   chipTextActive: { color: colors.textInverse, fontWeight: typography.medium },
   requiredRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   requiredLabel: { fontSize: typography.sm, color: colors.textSecondary },
   unsupportedCard: {
@@ -528,11 +715,26 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.xs,
   },
-  unsupportedTitle: { fontSize: typography.sm, fontWeight: typography.semibold, color: colors.warning },
+  unsupportedTitle: {
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    color: colors.warning,
+  },
   unsupportedType: { fontSize: typography.sm, color: colors.text, fontWeight: typography.medium },
   unsupportedText: { fontSize: typography.sm, color: colors.textSecondary },
-  addQuestionBtn: { borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md, paddingVertical: 13, alignItems: 'center', borderStyle: 'dashed' },
-  addQuestionText: { color: colors.primary, fontSize: typography.base, fontWeight: typography.medium },
+  addQuestionBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: 13,
+    alignItems: 'center',
+    borderStyle: 'dashed',
+  },
+  addQuestionText: {
+    color: colors.primary,
+    fontSize: typography.base,
+    fontWeight: typography.medium,
+  },
   typeRow: { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   typeLabel: { fontSize: typography.base, color: colors.text },
 });

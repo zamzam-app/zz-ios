@@ -1,5 +1,3 @@
-import client from '../client';
-import { mapListSafely } from './mapListSafely';
 import type {
   SerializedTimelineEvent,
   TaskDetailTimelineResponse,
@@ -20,6 +18,9 @@ import type {
   RecentlyViewedQuery,
   PaginatedResponse,
 } from '../../types/task';
+import client from '../client';
+
+import { mapListSafely } from './mapListSafely';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ export interface Task {
   outlet?: { _id: string; name?: string } | null;
   assigneeIds: string[];
   assigneeNames?: string[];
-  assignees?: Array<{ _id: string; name?: string }>;
+  assignees?: { _id: string; name?: string }[];
   imageUrls?: string[];
   attachments?: TaskAttachments;
   adminSubmission?: TaskSubmission;
@@ -185,9 +186,9 @@ interface RawTask {
   outletId?: string | { _id?: string; name?: string };
   outlet?: { _id?: string; name?: string };
   outletName?: string;
-  assigneeIds?: Array<string | { _id?: string }>;
+  assigneeIds?: (string | { _id?: string })[];
   assigneeNames?: string[];
-  assignees?: Array<{ _id?: string; name?: string }>;
+  assignees?: { _id?: string; name?: string }[];
   imageUrls?: string[];
   videoUrls?: string[];
   audioUrls?: string[];
@@ -225,7 +226,7 @@ interface RawTask {
   created_at?: string;
   updatedAt?: string;
   completedAt?: string | null;
-  badges?: Array<{ key?: string; label?: string; tone?: TaskBadgeTone }>;
+  badges?: { key?: string; label?: string; tone?: TaskBadgeTone }[];
 }
 
 interface RawTaskCategory {
@@ -245,9 +246,7 @@ function mapTaskCategory(raw: RawTaskCategory): TaskCategoryOption {
 
 function listFromRaw(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => (typeof item === 'string' ? item.trim() : ''))
-    .filter(Boolean);
+  return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
 }
 
 function uniqueList(items: string[]): string[] {
@@ -261,10 +260,10 @@ function mapTask(raw: RawTask): Task {
   const taskCategory =
     raw.taskCategory?._id && raw.taskCategory?.name
       ? {
-        _id: String(raw.taskCategory._id),
-        name: String(raw.taskCategory.name),
-        description: raw.taskCategory.description,
-      }
+          _id: String(raw.taskCategory._id),
+          name: String(raw.taskCategory.name),
+          description: raw.taskCategory.description,
+        }
       : undefined;
 
   // outlet
@@ -290,9 +289,9 @@ function mapTask(raw: RawTask): Task {
       if (typeof a.name === 'string') assigneeNames.push(a.name);
     }
   } else {
-    assigneeIds = (raw.assigneeIds ?? []).map((x) =>
-      typeof x === 'string' ? x : String((x as { _id?: string })._id ?? ''),
-    ).filter(Boolean);
+    assigneeIds = (raw.assigneeIds ?? [])
+      .map((x) => (typeof x === 'string' ? x : String((x as { _id?: string })._id ?? '')))
+      .filter(Boolean);
     assigneeNames = raw.assigneeNames ?? [];
   }
 
@@ -316,11 +315,14 @@ function mapTask(raw: RawTask): Task {
     ...listFromRaw(raw.attachments?.files),
     ...listFromRaw(raw.adminSubmission?.attachments?.files),
   ]);
-  const hasAttachments = images.length > 0 || videos.length > 0 || audios.length > 0 || files.length > 0;
+  const hasAttachments =
+    images.length > 0 || videos.length > 0 || audios.length > 0 || files.length > 0;
 
   const badges = Array.isArray(raw.badges)
     ? raw.badges
-        .filter((badge): badge is { key?: string; label?: string; tone?: TaskBadgeTone } => Boolean(badge?.label))
+        .filter((badge): badge is { key?: string; label?: string; tone?: TaskBadgeTone } =>
+          Boolean(badge?.label),
+        )
         .map((badge) => ({
           key: String(badge.key ?? badge.label ?? ''),
           label: String(badge.label ?? ''),
@@ -348,36 +350,36 @@ function mapTask(raw: RawTask): Task {
     assigneeNames,
     assignees: Array.isArray(raw.assignees)
       ? raw.assignees
-        .filter((a): a is { _id?: string; name?: string } => Boolean(a?._id))
-        .map((a) => ({ _id: String(a._id), name: a.name }))
+          .filter((a): a is { _id?: string; name?: string } => Boolean(a?._id))
+          .map((a) => ({ _id: String(a._id), name: a.name }))
       : undefined,
     imageUrls: images.length > 0 ? images : undefined,
     attachments: hasAttachments ? { images, videos, audios, files } : undefined,
     adminSubmission: raw.adminSubmission
       ? {
-        text: raw.adminSubmission.text,
-        attachments: raw.adminSubmission.attachments
-          ? {
-            images: listFromRaw(raw.adminSubmission.attachments.images),
-            videos: listFromRaw(raw.adminSubmission.attachments.videos),
-            audios: listFromRaw(raw.adminSubmission.attachments.audios),
-            files: listFromRaw(raw.adminSubmission.attachments.files),
-          }
-          : undefined,
-      }
+          text: raw.adminSubmission.text,
+          attachments: raw.adminSubmission.attachments
+            ? {
+                images: listFromRaw(raw.adminSubmission.attachments.images),
+                videos: listFromRaw(raw.adminSubmission.attachments.videos),
+                audios: listFromRaw(raw.adminSubmission.attachments.audios),
+                files: listFromRaw(raw.adminSubmission.attachments.files),
+              }
+            : undefined,
+        }
       : undefined,
     managerSubmission: raw.managerSubmission
       ? {
-        text: raw.managerSubmission.text,
-        attachments: raw.managerSubmission.attachments
-          ? {
-            images: listFromRaw(raw.managerSubmission.attachments.images),
-            videos: listFromRaw(raw.managerSubmission.attachments.videos),
-            audios: listFromRaw(raw.managerSubmission.attachments.audios),
-            files: listFromRaw(raw.managerSubmission.attachments.files),
-          }
-          : undefined,
-      }
+          text: raw.managerSubmission.text,
+          attachments: raw.managerSubmission.attachments
+            ? {
+                images: listFromRaw(raw.managerSubmission.attachments.images),
+                videos: listFromRaw(raw.managerSubmission.attachments.videos),
+                audios: listFromRaw(raw.managerSubmission.attachments.audios),
+                files: listFromRaw(raw.managerSubmission.attachments.files),
+              }
+            : undefined,
+        }
       : undefined,
     isRecurring: !!raw.isRecurring,
     recurrenceType: raw.recurrenceType as TaskRecurrenceType | undefined,
@@ -395,7 +397,9 @@ function mapTask(raw: RawTask): Task {
 export const tasksApi = {
   listPaginated: (query?: TasksQuery) =>
     client
-      .get<{ data: RawTask[]; meta?: Partial<TasksListMeta> } | RawTask[]>('/tasks', { params: query })
+      .get<
+        { data: RawTask[]; meta?: Partial<TasksListMeta> } | RawTask[]
+      >('/tasks', { params: query })
       .then((r): TasksListResponse => {
         const dataRoot = Array.isArray(r.data) ? { data: r.data } : r.data;
         const raw = dataRoot.data ?? [];
@@ -415,11 +419,9 @@ export const tasksApi = {
         };
       }),
 
-  list: (query?: TasksQuery) =>
-    tasksApi.listPaginated(query).then((r) => r.data),
+  list: (query?: TasksQuery) => tasksApi.listPaginated(query).then((r) => r.data),
 
-  getById: (id: string) =>
-    client.get<RawTask>(`/tasks/${id}`).then((r) => mapTask(r.data)),
+  getById: (id: string) => client.get<RawTask>(`/tasks/${id}`).then((r) => mapTask(r.data)),
 
   create: (payload: CreateTaskPayload) =>
     client.post<RawTask>('/tasks', payload).then((r) => mapTask(r.data)),
@@ -428,29 +430,34 @@ export const tasksApi = {
     client.patch<RawTask>(`/tasks/${id}`, payload).then((r) => mapTask(r.data)),
 
   listCategories: async () => {
-    const response = await client.get<{ data: RawTaskCategory[] } | RawTaskCategory[]>('/task-category', {
-      params: { limit: 100 },
-    });
+    const response = await client.get<{ data: RawTaskCategory[] } | RawTaskCategory[]>(
+      '/task-category',
+      {
+        params: { limit: 100 },
+      },
+    );
     const raw = Array.isArray(response.data)
       ? response.data
-      : (response.data as { data: RawTaskCategory[] }).data ?? [];
-    return mapListSafely(raw, 'task-categories', mapTaskCategory)
-      .filter((category) => category.id.length > 0 && category.name.length > 0);
+      : ((response.data as { data: RawTaskCategory[] }).data ?? []);
+    return mapListSafely(raw, 'task-categories', mapTaskCategory).filter(
+      (category) => category.id.length > 0 && category.name.length > 0,
+    );
   },
 
   createCategory: (payload: { name: string; description: string }) =>
     client.post<RawTaskCategory>('/task-category', payload).then((r) => mapTaskCategory(r.data)),
 
   updateCategory: (id: string, payload: { name?: string; description?: string }) =>
-    client.patch<RawTaskCategory>(`/task-category/${id}`, payload).then((r) => mapTaskCategory(r.data)),
+    client
+      .patch<RawTaskCategory>(`/task-category/${id}`, payload)
+      .then((r) => mapTaskCategory(r.data)),
 
   deleteCategory: (id: string) => client.delete(`/task-category/${id}`),
 
   updateStatus: (id: string, status: TaskStatus) =>
     client.patch<RawTask>(`/tasks/${id}/status`, { status }).then((r) => mapTask(r.data)),
 
-  delete: (id: string) =>
-    client.delete(`/tasks/${id}`),
+  delete: (id: string) => client.delete(`/tasks/${id}`),
 
   // ─── Thread / Detail ──────────────────────────────────────────────────────
 
@@ -469,14 +476,11 @@ export const tasksApi = {
       .then((r) => r.data),
 
   getEventTypeCounts: (id: string) =>
-    client
-      .get<EventTypeCounts>(`/tasks/${id}/events/type-counts`)
-      .then((r) => r.data),
+    client.get<EventTypeCounts>(`/tasks/${id}/events/type-counts`).then((r) => r.data),
 
   // ─── View Tracking ────────────────────────────────────────────────────────
 
-  markTaskViewed: (id: string) =>
-    client.post<void>(`/tasks/${id}/view`).then(() => undefined),
+  markTaskViewed: (id: string) => client.post<void>(`/tasks/${id}/view`).then(() => undefined),
 
   markMultipleTasksViewed: (taskIds: string[]) =>
     client.post<void>('/tasks/view-all', { taskIds }).then(() => undefined),
@@ -491,14 +495,9 @@ export const tasksApi = {
       .then((r) => r.data),
 
   getUnreadAggregated: () =>
-    client
-      .get<AggregatedUnread>('/tasks/unread-aggregated')
-      .then((r) => r.data),
+    client.get<AggregatedUnread>('/tasks/unread-aggregated').then((r) => r.data),
 
-  getUnreadIds: () =>
-    client
-      .get<string[]>('/tasks/unread-ids')
-      .then((r) => r.data),
+  getUnreadIds: () => client.get<string[]>('/tasks/unread-ids').then((r) => r.data),
 
   getRecentlyViewed: (query?: RecentlyViewedQuery) =>
     client
@@ -510,19 +509,13 @@ export const tasksApi = {
   // ─── Delegation ───────────────────────────────────────────────────────────
 
   delegateTask: (id: string, payload: CreateDelegationPayload) =>
-    client
-      .post<DelegationEventResponse>(`/tasks/${id}/delegate`, payload)
-      .then((r) => r.data),
+    client.post<DelegationEventResponse>(`/tasks/${id}/delegate`, payload).then((r) => r.data),
 
   reassignTask: (id: string, payload: CreateReassignmentPayload) =>
-    client
-      .post<DelegationEventResponse>(`/tasks/${id}/reassign`, payload)
-      .then((r) => r.data),
+    client.post<DelegationEventResponse>(`/tasks/${id}/reassign`, payload).then((r) => r.data),
 
   clearDelegation: (id: string) =>
-    client
-      .delete<DelegationEventResponse>(`/tasks/${id}/delegation`)
-      .then((r) => r.data),
+    client.delete<DelegationEventResponse>(`/tasks/${id}/delegation`).then((r) => r.data),
 
   getDelegationHistory: (id: string, query?: { limit?: number; skip?: number }) =>
     client
@@ -532,21 +525,15 @@ export const tasksApi = {
       .then((r) => r.data),
 
   getDelegatedToMe: () =>
-    client
-      .get<ActiveDelegation[]>('/tasks/delegated-to-me')
-      .then((r) => r.data),
+    client.get<ActiveDelegation[]>('/tasks/delegated-to-me').then((r) => r.data),
 
   getMyDelegations: () =>
-    client
-      .get<ActiveDelegation[]>('/tasks/my-delegations')
-      .then((r) => r.data),
+    client.get<ActiveDelegation[]>('/tasks/my-delegations').then((r) => r.data),
 
   // ─── Attachments ──────────────────────────────────────────────────────────
 
   addAttachments: (taskId: string, payload: AddAttachmentPayload) =>
-    client
-      .post<TaskAttachment[]>(`/tasks/${taskId}/attachments`, payload)
-      .then((r) => r.data),
+    client.post<TaskAttachment[]>(`/tasks/${taskId}/attachments`, payload).then((r) => r.data),
 
   removeAttachment: (taskId: string, attachmentId: string, payload?: RemoveAttachmentPayload) =>
     client
@@ -563,7 +550,5 @@ export const tasksApi = {
       .then((r) => r.data),
 
   addComment: (taskId: string, payload: { text: string; attachmentIds?: string[] }) =>
-    client
-      .post<any>(`/tasks/${taskId}/comment`, payload)
-      .then((r) => r.data),
+    client.post<unknown>(`/tasks/${taskId}/comment`, payload).then((r) => r.data),
 };

@@ -1,4 +1,5 @@
 import client from '../client';
+
 import { mapListSafely } from './mapListSafely';
 
 export interface Category {
@@ -35,13 +36,13 @@ interface RawProduct {
   _id?: string;
   id?: string;
   name?: string;
-  price?: any; // TEMPORARY MIGRATION SUPPORT
-  pricing?: Array<{
-    quantityValue?: any;
-    quantityUnit?: any;
-    amount?: any;
-    currency?: any;
-  }>;
+  price?: unknown; // TEMPORARY MIGRATION SUPPORT
+  pricing?: {
+    quantityValue?: unknown;
+    quantityUnit?: unknown;
+    amount?: unknown;
+    currency?: unknown;
+  }[];
   description?: string;
   isActive?: boolean;
   categoryList?: string[];
@@ -107,7 +108,9 @@ export const categoriesApi = {
     client
       .get<{ data: RawCategory[] } | RawCategory[]>('/category', { params: { limit: 100 } })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawCategory[] }).data ?? [];
+        const raw = Array.isArray(r.data)
+          ? r.data
+          : ((r.data as { data: RawCategory[] }).data ?? []);
         return mapListSafely(raw, 'categories', mapCategory);
       }),
 
@@ -127,13 +130,15 @@ export const productsApi = {
         params: { limit: 100, ...(categoryId && { categoryId }) },
       })
       .then((r) => {
-        const raw = Array.isArray(r.data) ? r.data : (r.data as { data: RawProduct[] }).data ?? [];
+        const raw = Array.isArray(r.data)
+          ? r.data
+          : ((r.data as { data: RawProduct[] }).data ?? []);
         return mapListSafely(raw, 'products', mapProduct);
       }),
 
   create: (payload: {
     name: string;
-    pricing: Array<{ quantityValue: number; amount: number }>;
+    pricing: { quantityValue: number; amount: number }[];
     description: string;
     categoryList?: string[];
     images?: string[];
@@ -154,12 +159,12 @@ export const productsApi = {
     id: string,
     payload: {
       name?: string;
-      pricing?: Array<{ quantityValue: number; amount: number }>;
+      pricing?: { quantityValue: number; amount: number }[];
       description?: string;
       isActive?: boolean;
       categoryList?: string[];
       images?: string[];
-    }
+    },
   ) => {
     const { pricing, ...rest } = payload;
     const body = {

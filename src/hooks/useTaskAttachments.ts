@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+
 import { tasksApi } from '../api/endpoints/tasks';
-import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
 import type {
   AddAttachmentPayload,
   RemoveAttachmentPayload,
@@ -8,6 +8,7 @@ import type {
   AttachmentQuery,
   TaskDetailTimelineResponse,
 } from '../types/task';
+import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
 
 // ─── Attachment Paginated Query ─────────────────────────────────────────────
 
@@ -37,8 +38,7 @@ export const useTaskAttachments = (
       ? ['taskAttachments', taskId, { type: typeParam }]
       : ['taskAttachments', taskId],
     queryFn: cursorQueryFn(
-      (cursor: string | undefined) =>
-        tasksApi.getAttachments(taskId, { cursor, type: typeParam }),
+      (cursor: string | undefined) => tasksApi.getAttachments(taskId, { cursor, type: typeParam }),
       undefined as void,
     ),
     initialPageParam: undefined as string | undefined,
@@ -72,13 +72,8 @@ export const useAddAttachments = () => {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      taskId,
-      payload,
-    }: {
-      taskId: string;
-      payload: AddAttachmentPayload;
-    }) => tasksApi.addAttachments(taskId, payload),
+    mutationFn: ({ taskId, payload }: { taskId: string; payload: AddAttachmentPayload }) =>
+      tasksApi.addAttachments(taskId, payload),
 
     onMutate: async ({ taskId, payload }) => {
       await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });
@@ -145,7 +140,7 @@ export const useRemoveAttachment = () => {
       payload?: RemoveAttachmentPayload;
     }) => tasksApi.removeAttachment(taskId, attachmentId, payload),
 
-    onMutate: async ({ taskId, attachmentId }) => {
+    onMutate: async ({ taskId }) => {
       await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });
       await qc.cancelQueries({ queryKey: ['taskAttachments', taskId] });
 

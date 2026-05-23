@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+
 import { colors, spacing, typography } from '../theme/theme';
 import { TaskEventType } from '../types/task';
 import type { SerializedTimelineEvent } from '../types/task';
@@ -31,12 +32,8 @@ function TimelineEventStatus({ event }: TimelineEventStatusProps) {
     const prevStatus = data.previousStatus as string | undefined;
     return (
       <View style={styles.container}>
-        <Text style={styles.statusText}>
-          Reopened{prevStatus ? ` from ${prevStatus}` : ''}
-        </Text>
-        {reason ? (
-          <Text style={styles.reasonText}>{reason}</Text>
-        ) : null}
+        <Text style={styles.statusText}>Reopened{prevStatus ? ` from ${prevStatus}` : ''}</Text>
+        {reason ? <Text style={styles.reasonText}>{reason}</Text> : null}
       </View>
     );
   }

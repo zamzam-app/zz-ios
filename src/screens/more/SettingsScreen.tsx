@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   View,
@@ -9,14 +12,12 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../store/authStore';
+
 import { useChangePassword } from '../../hooks/useUsers';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, typography, shadow } from '../../theme/theme';
 
 export default function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();
@@ -45,7 +46,8 @@ export default function SettingsScreen() {
           setNewPassword('');
           setConfirmPassword('');
         },
-        onError: () => Alert.alert('Error', 'Failed to update password. Check your current password.'),
+        onError: () =>
+          Alert.alert('Error', 'Failed to update password. Check your current password.'),
       },
     );
   };
@@ -73,7 +75,9 @@ export default function SettingsScreen() {
             </TouchableOpacity>
             <Text style={styles.pageTitle}>Account Settings</Text>
           </View>
-          <Text style={styles.pageSubtitle}>Manage your digital atelier profile and security protocols.</Text>
+          <Text style={styles.pageSubtitle}>
+            Manage your digital atelier profile and security protocols.
+          </Text>
         </View>
 
         <View style={styles.stack}>
@@ -130,9 +134,11 @@ export default function SettingsScreen() {
               onPress={handleChangePassword}
               disabled={changePassword.isPending}
             >
-              {changePassword.isPending
-                ? <ActivityIndicator color={colors.textInverse} />
-                : <Text style={styles.updateBtnText}>Update Password</Text>}
+              {changePassword.isPending ? (
+                <ActivityIndicator color={colors.textInverse} />
+              ) : (
+                <Text style={styles.updateBtnText}>Update Password</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -181,22 +187,22 @@ const styles = StyleSheet.create({
     fontSize: 32,
     lineHeight: 38,
     fontWeight: typography.bold,
-    color: '#191C1E',
+    color: colors.ink,
     letterSpacing: -0.5,
     flexShrink: 1,
   },
   pageSubtitle: {
     fontSize: typography.sm,
-    color: '#545F73',
+    color: colors.accentBrownTextMuted,
   },
   stack: {
     gap: spacing.md,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(211, 197, 172, 0.25)',
+    borderColor: colors.warmBorderAlpha19,
     padding: spacing.md,
     ...shadow.sm,
   },
@@ -209,7 +215,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: typography.md,
     fontWeight: typography.bold,
-    color: '#191C1E',
+    color: colors.ink,
   },
   formStack: {
     gap: spacing.sm,
@@ -220,7 +226,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: typography.xs,
     fontWeight: typography.semibold,
-    color: '#4F4633',
+    color: colors.accentBrownText,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     paddingLeft: 2,
@@ -228,21 +234,21 @@ const styles = StyleSheet.create({
   readonlyField: {
     height: 44,
     borderRadius: 10,
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
   readonlyFieldText: {
     fontSize: typography.sm,
-    color: '#191C1E',
+    color: colors.ink,
   },
   input: {
     height: 46,
     borderRadius: 10,
-    backgroundColor: '#F2F4F6',
+    backgroundColor: colors.uiGray1,
     paddingHorizontal: spacing.md,
     fontSize: typography.sm,
-    color: '#191C1E',
+    color: colors.ink,
     marginBottom: spacing.sm,
   },
   updateBtn: {

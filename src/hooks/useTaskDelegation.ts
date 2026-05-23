@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 import { tasksApi } from '../api/endpoints/tasks';
 import type {
   Actor,
@@ -72,13 +73,8 @@ export const useDelegateTask = () => {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      taskId,
-      payload,
-    }: {
-      taskId: string;
-      payload: CreateDelegationPayload;
-    }) => tasksApi.delegateTask(taskId, payload),
+    mutationFn: ({ taskId, payload }: { taskId: string; payload: CreateDelegationPayload }) =>
+      tasksApi.delegateTask(taskId, payload),
 
     onMutate: async ({ taskId, payload }) => {
       await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });
@@ -89,7 +85,10 @@ export const useDelegateTask = () => {
       // Try to look up the delegated user's name from the users cache
       const users = qc.getQueryData<Actor[]>(['users']);
       const delegatedUser = users?.find((u) => u._id === payload.delegatedTo);
-      const delegatedToActor: Actor = delegatedUser ?? { _id: payload.delegatedTo, name: 'Delegated User' };
+      const delegatedToActor: Actor = delegatedUser ?? {
+        _id: payload.delegatedTo,
+        name: 'Delegated User',
+      };
 
       if (previousDetail) {
         qc.setQueryData<TaskDetailTimelineResponse>(['taskDetail', taskId], {
@@ -141,13 +140,8 @@ export const useReassignTask = () => {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      taskId,
-      payload,
-    }: {
-      taskId: string;
-      payload: CreateReassignmentPayload;
-    }) => tasksApi.reassignTask(taskId, payload),
+    mutationFn: ({ taskId, payload }: { taskId: string; payload: CreateReassignmentPayload }) =>
+      tasksApi.reassignTask(taskId, payload),
 
     onMutate: async ({ taskId, payload }) => {
       await qc.cancelQueries({ queryKey: ['taskDetail', taskId] });

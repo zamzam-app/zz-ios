@@ -1,3 +1,4 @@
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   View,
@@ -12,19 +13,19 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import { Outlet } from '../../api/endpoints/outlets';
+import { useForms } from '../../hooks/useForms';
 import { useCreateOutlet, useUpdateOutlet } from '../../hooks/useOutlets';
 import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';
-import { useForms } from '../../hooks/useForms';
-import { useAuthStore } from '../../store/authStore';
-import { Outlet } from '../../api/endpoints/outlets';
-import { colors, spacing, radius, typography } from '../../theme/theme';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
+import { useAuthStore } from '../../store/authStore';
+import { colors, spacing, radius, typography } from '../../theme/theme';
 import { getApiErrorMessage } from '../../utils/errors';
 
 type Props = NativeStackScreenProps<InfrastructureStackParamList, 'CreateOutlet'>;
-type CreateOutletContentProps = {
+interface CreateOutletContentProps {
   mode?: 'create' | 'edit';
   outletToEdit?: Outlet | null;
   onSuccess: () => void;
@@ -32,7 +33,7 @@ type CreateOutletContentProps = {
   bottomPadding?: number;
   fill?: boolean;
   backgroundColor?: string;
-};
+}
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -50,7 +51,7 @@ function PickerModal({
   selected,
   onSelect,
   onClose,
-  multi,
+  multi: _multi,
 }: {
   visible: boolean;
   title: string;
@@ -125,22 +126,33 @@ export function CreateOutletContent({
     if (mode !== 'edit' || !outletToEdit) {
       return;
     }
-    setName(outletToEdit.name ?? '');
-    setDescription(outletToEdit.description ?? '');
-    setAddress(outletToEdit.address ?? '');
-    setOutletTypeId(outletToEdit.outletTypeId ?? '');
-    setFormId(outletToEdit.formId ?? '');
-    setManagerIds(outletToEdit.managerIds ?? []);
+    const nextName = outletToEdit.name ?? '';
+    const nextDescription = outletToEdit.description ?? '';
+    const nextAddress = outletToEdit.address ?? '';
+    const nextOutletTypeId = outletToEdit.outletTypeId ?? '';
+    const nextFormId = outletToEdit.formId ?? '';
+    const nextManagerIds = outletToEdit.managerIds ?? [];
+
+    queueMicrotask(() => {
+      setName(nextName);
+      setDescription(nextDescription);
+      setAddress(nextAddress);
+      setOutletTypeId(nextOutletTypeId);
+      setFormId(nextFormId);
+      setManagerIds(nextManagerIds);
+    });
   }, [mode, outletToEdit]);
 
   React.useEffect(() => {
     if (mode !== 'create') return;
-    setName('');
-    setDescription('');
-    setAddress('');
-    setOutletTypeId('');
-    setFormId('');
-    setManagerIds([]);
+    queueMicrotask(() => {
+      setName('');
+      setDescription('');
+      setAddress('');
+      setOutletTypeId('');
+      setFormId('');
+      setManagerIds([]);
+    });
   }, [mode]);
 
   const selectedType = outletTypes?.find((t) => t.id === outletTypeId);
@@ -172,7 +184,8 @@ export function CreateOutletContent({
         },
         {
           onSuccess,
-          onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to update outlet.')),
+          onError: (error) =>
+            Alert.alert('Error', getApiErrorMessage(error, 'Failed to update outlet.')),
         },
       );
       return;
@@ -190,14 +203,18 @@ export function CreateOutletContent({
       },
       {
         onSuccess,
-        onError: (error) => Alert.alert('Error', getApiErrorMessage(error, 'Failed to create outlet.')),
+        onError: (error) =>
+          Alert.alert('Error', getApiErrorMessage(error, 'Failed to create outlet.')),
       },
     );
   };
 
   return (
     <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding }]}
+        keyboardShouldPersistTaps="handled"
+      >
         <Label text="Name" required />
         <TextInput
           style={styles.input}
@@ -236,7 +253,9 @@ export function CreateOutletContent({
             <Text style={styles.fieldError}>Unable to load outlet types.</Text>
             <TouchableOpacity
               style={[styles.retryBtn, isFetchingOutletTypes && styles.retryBtnDisabled]}
-              onPress={() => { void refetchOutletTypes(); }}
+              onPress={() => {
+                void refetchOutletTypes();
+              }}
               disabled={isFetchingOutletTypes}
             >
               {isFetchingOutletTypes ? (
@@ -257,7 +276,9 @@ export function CreateOutletContent({
         <Label text="Managers" />
         <TouchableOpacity style={styles.input} onPress={() => setShowManagerPicker(true)}>
           <Text style={{ color: selectedManagers.length > 0 ? colors.text : colors.textDisabled }}>
-            {selectedManagers.length > 0 ? selectedManagers.map((m) => m.name).join(', ') : 'Select managers...'}
+            {selectedManagers.length > 0
+              ? selectedManagers.map((m) => m.name).join(', ')
+              : 'Select managers...'}
           </Text>
         </TouchableOpacity>
 
@@ -273,13 +294,13 @@ export function CreateOutletContent({
           onPress={handleSubmit}
           disabled={isSubmitting || !isAdmin}
         >
-          {isSubmitting
-            ? <ActivityIndicator color={colors.textInverse} />
-            : <Text style={styles.submitBtnText}>{submitLabel}</Text>}
+          {isSubmitting ? (
+            <ActivityIndicator color={colors.textInverse} />
+          ) : (
+            <Text style={styles.submitBtnText}>{submitLabel}</Text>
+          )}
         </TouchableOpacity>
-        {!isAdmin && (
-          <Text style={styles.helperText}>Only admins can create outlets.</Text>
-        )}
+        {!isAdmin && <Text style={styles.helperText}>Only admins can create outlets.</Text>}
       </ScrollView>
 
       <PickerModal
@@ -287,7 +308,10 @@ export function CreateOutletContent({
         title="Select Outlet Type"
         items={outletTypes ?? []}
         selected={outletTypeId}
-        onSelect={(id) => { setOutletTypeId(id); setShowTypePicker(false); }}
+        onSelect={(id) => {
+          setOutletTypeId(id);
+          setShowTypePicker(false);
+        }}
         onClose={() => setShowTypePicker(false)}
       />
       <PickerModal
@@ -296,9 +320,11 @@ export function CreateOutletContent({
         items={managers ?? []}
         selected={managerIds}
         multi
-        onSelect={(id) => setManagerIds((prev) =>
-          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-        )}
+        onSelect={(id) =>
+          setManagerIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+          )
+        }
         onClose={() => setShowManagerPicker(false)}
       />
       <PickerModal
@@ -306,7 +332,10 @@ export function CreateOutletContent({
         title="Select Form"
         items={(forms ?? []).map((f) => ({ id: f.id, name: f.title }))}
         selected={formId}
-        onSelect={(id) => { setFormId(id); setShowFormPicker(false); }}
+        onSelect={(id) => {
+          setFormId(id);
+          setShowFormPicker(false);
+        }}
         onClose={() => setShowFormPicker(false)}
       />
     </View>
@@ -315,7 +344,10 @@ export function CreateOutletContent({
 
 export default function CreateOutletScreen({ navigation }: Props) {
   return (
-    <SafeAreaView style={[styles.rootFill, { backgroundColor: colors.background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.rootFill, { backgroundColor: colors.background }]}
+      edges={['bottom']}
+    >
       <CreateOutletContent onSuccess={() => navigation.goBack()} />
     </SafeAreaView>
   );
@@ -374,7 +406,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.md,
   },
-  submitBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
+  submitBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
   helperText: {
     marginTop: spacing.xs,
     color: colors.textSecondary,

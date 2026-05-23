@@ -1,3 +1,18 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -16,35 +31,26 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DatePickerModal from '../../components/DatePickerModal';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import * as ImagePicker from 'expo-image-picker';
+
 import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioPlayer,
-  useAudioPlayerStatus,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from 'expo-audio';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+  TaskPriority,
+  TaskCategoryOption,
+  CreateTaskPayload,
+  Task,
+} from '../../api/endpoints/tasks';
+import { enqueueTaskSubmission } from '../../api/endpoints/taskSubmissionQueue';
 import {
   cancelUploadJob,
   enqueueCloudinaryUpload,
   removeUploadJob,
   waitForUploadJob,
 } from '../../api/endpoints/uploadQueue';
-import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
+import DatePickerModal from '../../components/DatePickerModal';
 import { useOutlets } from '../../hooks/useOutlets';
+import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
 import { useManagers } from '../../hooks/useUsers';
-import { TaskPriority, TaskCategoryOption, CreateTaskPayload, Task } from '../../api/endpoints/tasks';
-import { colors, spacing, radius, typography } from '../../theme/theme';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
-import { enqueueTaskSubmission } from '../../api/endpoints/taskSubmissionQueue';
+import { colors, spacing, radius, typography } from '../../theme/theme';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
 const WEEK_DAYS = [
@@ -56,14 +62,18 @@ const WEEK_DAYS = [
   { label: 'Fri', value: 5 },
   { label: 'Sat', value: 6 },
 ];
-const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({ id: String(i + 1), name: String(i + 1) }));
+const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({
+  id: String(i + 1),
+  name: String(i + 1),
+}));
 const WAVEFORM_BARS = [6, 10, 14, 8, 16, 7, 13, 9, 15, 6, 12, 10, 14, 7, 11, 9];
+const WAVEFORM_BAR_SPECS = WAVEFORM_BARS.map((height, index) => ({ id: `wave_${index}`, height }));
 const AUDIO_FILE_WAIT_RETRIES = 25;
 const AUDIO_FILE_WAIT_DELAY_MS = 120;
 
 type AttachmentType = 'image' | 'video' | 'audio' | 'file';
 
-type AttachmentItem = {
+interface AttachmentItem {
   id: string;
   type: AttachmentType;
   name: string;
@@ -73,7 +83,7 @@ type AttachmentItem = {
   remoteUrl?: string;
   error?: string;
   durationMillis?: number;
-};
+}
 
 function Label({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -143,7 +153,7 @@ function PickerModal({
   selected,
   onSelect,
   onClose,
-  multi,
+  multi: _multi,
 }: {
   visible: boolean;
   title: string;
@@ -190,12 +200,12 @@ function getAttachmentIcon(type: AttachmentType): keyof typeof MaterialCommunity
 
 function isReleasedAudioPlayerError(error: unknown) {
   return (
-    error instanceof Error
-    && /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
+    error instanceof Error &&
+    /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
   );
 }
 
-type CreateTaskContentProps = {
+interface CreateTaskContentProps {
   onSuccess: () => void;
   submitLabel?: string;
   bottomPadding?: number;
@@ -204,7 +214,7 @@ type CreateTaskContentProps = {
   initialIsRecurring?: boolean;
   hideRecurringToggle?: boolean;
   editTask?: Task;
-};
+}
 
 export function CreateTaskContent({
   onSuccess,
@@ -217,14 +227,19 @@ export function CreateTaskContent({
   editTask,
 }: CreateTaskContentProps) {
   const [description, setDescription] = useState(editTask?.description ?? '');
-  const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>(editTask?.taskCategory?._id ?? editTask?.category);
+  const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>(
+    editTask?.taskCategory?._id ?? editTask?.category,
+  );
   const [priority, setPriority] = useState<TaskPriority>(editTask?.priority ?? 'MEDIUM');
-  const [dueDate, setDueDate] = useState(editTask?.dueDate ? new Date(editTask.dueDate) : new Date());
+  const [dueDate, setDueDate] = useState(
+    editTask?.dueDate ? new Date(editTask.dueDate) : new Date(),
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [userPickedTime, setUserPickedTime] = useState(!!editTask?.dueTime);
   const [isRecurring, setIsRecurring] = useState(editTask?.isRecurring ?? initialIsRecurring);
-  const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>(editTask?.recurrenceType ?? 'WEEKLY');
+  const [recurrenceType, setRecurrenceType] = useState<'WEEKLY' | 'MONTHLY'>(
+    editTask?.recurrenceType ?? 'WEEKLY',
+  );
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>(editTask?.recurrenceDays ?? []);
 
   useEffect(() => {
@@ -233,24 +248,59 @@ export function CreateTaskContent({
     setTaskCategoryId(editTask.taskCategory?._id ?? editTask.category);
     setPriority(editTask.priority);
     setDueDate(new Date(editTask.dueDate));
-    setUserPickedTime(!!editTask.dueTime);
     setIsRecurring(!!editTask.isRecurring);
     setRecurrenceType(editTask.recurrenceType ?? 'WEEKLY');
     setRecurrenceDays(editTask.recurrenceDays ?? []);
     setOutletId(editTask.outlet?._id ?? editTask.outletId ?? '');
     setAssigneeIds(editTask.assigneeIds ?? []);
-    
+
     // Map existing attachments
     const existing: AttachmentItem[] = [];
     const atts = editTask.adminSubmission?.attachments;
     if (atts) {
-      atts.images?.forEach(url => existing.push({ id: url, type: 'image', name: url.split('/').pop() || 'image', uri: url, status: 'uploaded', remoteUrl: url }));
-      atts.videos?.forEach(url => existing.push({ id: url, type: 'video', name: url.split('/').pop() || 'video', uri: url, status: 'uploaded', remoteUrl: url }));
-      atts.audios?.forEach(url => existing.push({ id: url, type: 'audio', name: url.split('/').pop() || 'audio', uri: url, status: 'uploaded', remoteUrl: url }));
-      atts.files?.forEach(url => existing.push({ id: url, type: 'file', name: url.split('/').pop() || 'file', uri: url, status: 'uploaded', remoteUrl: url }));
+      atts.images?.forEach((url) =>
+        existing.push({
+          id: url,
+          type: 'image',
+          name: url.split('/').pop() || 'image',
+          uri: url,
+          status: 'uploaded',
+          remoteUrl: url,
+        }),
+      );
+      atts.videos?.forEach((url) =>
+        existing.push({
+          id: url,
+          type: 'video',
+          name: url.split('/').pop() || 'video',
+          uri: url,
+          status: 'uploaded',
+          remoteUrl: url,
+        }),
+      );
+      atts.audios?.forEach((url) =>
+        existing.push({
+          id: url,
+          type: 'audio',
+          name: url.split('/').pop() || 'audio',
+          uri: url,
+          status: 'uploaded',
+          remoteUrl: url,
+        }),
+      );
+      atts.files?.forEach((url) =>
+        existing.push({
+          id: url,
+          type: 'file',
+          name: url.split('/').pop() || 'file',
+          uri: url,
+          status: 'uploaded',
+          remoteUrl: url,
+        }),
+      );
     }
     setAttachments(existing);
-  }, [editTask?.id]);
+  }, [editTask]);
 
   useEffect(() => {
     setIsRecurring(initialIsRecurring);
@@ -325,7 +375,9 @@ export function CreateTaskContent({
   }, []);
 
   useEffect(() => {
-    setAssigneeIds((prev) => prev.filter((id) => filteredManagers.some((manager) => manager.id === id)));
+    setAssigneeIds((prev) =>
+      prev.filter((id) => filteredManagers.some((manager) => manager.id === id)),
+    );
   }, [filteredManagers]);
 
   useEffect(() => {
@@ -344,7 +396,9 @@ export function CreateTaskContent({
 
   useEffect(() => {
     if (!activeAudioAttachmentId) return;
-    const stillExists = attachments.some((item) => item.id === activeAudioAttachmentId && item.type === 'audio');
+    const stillExists = attachments.some(
+      (item) => item.id === activeAudioAttachmentId && item.type === 'audio',
+    );
     if (!stillExists) {
       runPreviewPlayerActionSafely(() => previewPlayer.pause());
       setActiveAudioAttachmentId(null);
@@ -363,7 +417,12 @@ export function CreateTaskContent({
     if (!pendingPlayAudioId || !previewPlayerStatus.isLoaded) return;
     runPreviewPlayerActionSafely(() => previewPlayer.play());
     setPendingPlayAudioId(null);
-  }, [pendingPlayAudioId, previewPlayerStatus.isLoaded, previewPlayer, runPreviewPlayerActionSafely]);
+  }, [
+    pendingPlayAudioId,
+    previewPlayerStatus.isLoaded,
+    previewPlayer,
+    runPreviewPlayerActionSafely,
+  ]);
 
   const formatDuration = (ms: number) => {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -414,11 +473,7 @@ export function CreateTaskContent({
     const cacheDir = FileSystem.cacheDirectory;
     if (!cacheDir) return normalizedUri;
 
-    const extFromUri = normalizedUri
-      .split(/[?#]/)[0]
-      .split('.')
-      .pop()
-      ?.toLowerCase();
+    const extFromUri = normalizedUri.split(/[?#]/)[0].split('.').pop()?.toLowerCase();
     const ext = extFromUri && /^[a-z0-9]+$/.test(extFromUri) ? extFromUri : 'm4a';
     const stagedUri = `${cacheDir}task-audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
@@ -439,7 +494,10 @@ export function CreateTaskContent({
       });
       return true;
     } catch {
-      Alert.alert('Error', 'Could not prepare the recorded audio for upload. Please try recording again.');
+      Alert.alert(
+        'Error',
+        'Could not prepare the recorded audio for upload. Please try recording again.',
+      );
       return false;
     }
   };
@@ -447,31 +505,37 @@ export function CreateTaskContent({
   const startAttachmentUpload = async (attachmentId: string, uri: string) => {
     try {
       const job = await enqueueCloudinaryUpload(uri, 'tasks');
-      setAttachments((prev) => prev.map((item) => (
-        item.id === attachmentId
-          ? { ...item, uploadJobId: job.id, status: 'uploading', error: undefined }
-          : item
-      )));
+      setAttachments((prev) =>
+        prev.map((item) =>
+          item.id === attachmentId
+            ? { ...item, uploadJobId: job.id, status: 'uploading', error: undefined }
+            : item,
+        ),
+      );
 
       const remoteUrl = await waitForUploadJob(job.id);
-      setAttachments((prev) => prev.map((item) => (
-        item.id === attachmentId
-          ? { ...item, status: 'uploaded', remoteUrl, error: undefined }
-          : item
-      )));
+      setAttachments((prev) =>
+        prev.map((item) =>
+          item.id === attachmentId
+            ? { ...item, status: 'uploaded', remoteUrl, error: undefined }
+            : item,
+        ),
+      );
 
       // We don't remove the job here anymore because the background submission queue needs it
       // void removeUploadJob(job.id);
     } catch (error) {
-      setAttachments((prev) => prev.map((item) => (
-        item.id === attachmentId
-          ? {
-            ...item,
-            status: 'failed',
-            error: error instanceof Error ? error.message : 'Upload failed',
-          }
-          : item
-      )));
+      setAttachments((prev) =>
+        prev.map((item) =>
+          item.id === attachmentId
+            ? {
+                ...item,
+                status: 'failed',
+                error: error instanceof Error ? error.message : 'Upload failed',
+              }
+            : item,
+        ),
+      );
     }
   };
 
@@ -613,7 +677,11 @@ export function CreateTaskContent({
     } catch {
       const fallbackStatus = recorder.getStatus();
       const fallbackUri = fallbackStatus.url || recorder.uri || null;
-      const fallbackDuration = Math.max(0, recordingMillis ?? 0, fallbackStatus.durationMillis ?? 0);
+      const fallbackDuration = Math.max(
+        0,
+        recordingMillis ?? 0,
+        fallbackStatus.durationMillis ?? 0,
+      );
       if (fallbackUri) {
         const saved = await saveRecordedAudioAttachment(fallbackUri, fallbackDuration);
         if (saved) {
@@ -664,11 +732,9 @@ export function CreateTaskContent({
     }
 
     const shouldRestart =
-      previewPlayerStatus.didJustFinish
-      || (
-        previewPlayerStatus.duration > 0
-        && previewPlayerStatus.currentTime >= previewPlayerStatus.duration
-      );
+      previewPlayerStatus.didJustFinish ||
+      (previewPlayerStatus.duration > 0 &&
+        previewPlayerStatus.currentTime >= previewPlayerStatus.duration);
     if (shouldRestart) {
       void previewPlayer.seekTo(0).catch(() => undefined);
     }
@@ -680,14 +746,18 @@ export function CreateTaskContent({
     const label = item.type === 'video' ? 'video' : 'file';
     try {
       let previewUri = item.uri;
-      
+
       // Handle PDF files specifically to open in-app
-      if (previewUri.toLowerCase().endsWith('.pdf') || (item.type === 'file' && item.name.toLowerCase().endsWith('.pdf'))) {
+      if (
+        previewUri.toLowerCase().endsWith('.pdf') ||
+        (item.type === 'file' && item.name.toLowerCase().endsWith('.pdf'))
+      ) {
         try {
           let localUri = previewUri;
           // If it's a remote URL, download it first
           if (previewUri.startsWith('http')) {
-            const fileName = previewUri.split('/').pop()?.split('?')[0] || item.name || 'document.pdf';
+            const fileName =
+              previewUri.split('/').pop()?.split('?')[0] || item.name || 'document.pdf';
             localUri = `${FileSystem.cacheDirectory}${fileName}`;
             const downloadRes = await FileSystem.downloadAsync(previewUri, localUri);
             if (downloadRes.status !== 200) throw new Error('Download failed');
@@ -769,10 +839,10 @@ export function CreateTaskContent({
       .map((a) => ({ id: a.uploadJobId!, type: a.type }));
 
     const existingAttachments = {
-      images: attachments.filter(a => a.type === 'image' && a.remoteUrl).map(a => a.remoteUrl!),
-      videos: attachments.filter(a => a.type === 'video' && a.remoteUrl).map(a => a.remoteUrl!),
-      audios: attachments.filter(a => a.type === 'audio' && a.remoteUrl).map(a => a.remoteUrl!),
-      files: attachments.filter(a => a.type === 'file' && a.remoteUrl).map(a => a.remoteUrl!),
+      images: attachments.filter((a) => a.type === 'image' && a.remoteUrl).map((a) => a.remoteUrl!),
+      videos: attachments.filter((a) => a.type === 'video' && a.remoteUrl).map((a) => a.remoteUrl!),
+      audios: attachments.filter((a) => a.type === 'audio' && a.remoteUrl).map((a) => a.remoteUrl!),
+      files: attachments.filter((a) => a.type === 'file' && a.remoteUrl).map((a) => a.remoteUrl!),
     };
 
     const payload: CreateTaskPayload = {
@@ -787,8 +857,8 @@ export function CreateTaskContent({
       assigneeIds,
       adminSubmission: {
         text: '',
-        attachments: existingAttachments
-      }
+        attachments: existingAttachments,
+      },
     };
 
     void enqueueTaskSubmission(payload, attachmentJobs, editTask?.id);
@@ -799,7 +869,10 @@ export function CreateTaskContent({
     <View style={[fill ? styles.rootFill : styles.rootAuto, { backgroundColor }]}>
       <ScrollView
         style={styles.formScroll}
-        contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(bottomPadding, spacing.xl) }]}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: Math.max(bottomPadding, spacing.xl) },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator
         nestedScrollEnabled
@@ -852,10 +925,16 @@ export function CreateTaskContent({
                   <Text style={styles.recordingTimerText}>{formatDuration(recordingMillis)}</Text>
                   <TouchableOpacity
                     style={styles.attachmentHeaderIconButton}
-                    onPress={() => { void discardAudioRecording(); }}
+                    onPress={() => {
+                      void discardAudioRecording();
+                    }}
                     activeOpacity={0.85}
                   >
-                    <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
+                    <MaterialCommunityIcons
+                      name="trash-can-outline"
+                      size={18}
+                      color={colors.error}
+                    />
                   </TouchableOpacity>
                 </View>
               )}
@@ -866,7 +945,9 @@ export function CreateTaskContent({
             <View style={styles.attachmentInlineDropdown}>
               <TouchableOpacity
                 style={styles.attachmentInlineDropdownItem}
-                onPress={() => { void takePhoto(); }}
+                onPress={() => {
+                  void takePhoto();
+                }}
               >
                 <View style={styles.attachmentInlineDropdownIconBox}>
                   <MaterialCommunityIcons name="camera-outline" size={18} color={colors.primary} />
@@ -876,7 +957,9 @@ export function CreateTaskContent({
 
               <TouchableOpacity
                 style={styles.attachmentInlineDropdownItem}
-                onPress={() => { void pickMedia('image'); }}
+                onPress={() => {
+                  void pickMedia('image');
+                }}
               >
                 <View style={styles.attachmentInlineDropdownIconBox}>
                   <MaterialCommunityIcons name="image-outline" size={18} color={colors.primary} />
@@ -886,7 +969,9 @@ export function CreateTaskContent({
 
               <TouchableOpacity
                 style={styles.attachmentInlineDropdownItem}
-                onPress={() => { void pickMedia('video'); }}
+                onPress={() => {
+                  void pickMedia('video');
+                }}
               >
                 <View style={styles.attachmentInlineDropdownIconBox}>
                   <MaterialCommunityIcons name="video-outline" size={18} color={colors.primary} />
@@ -895,10 +980,16 @@ export function CreateTaskContent({
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.attachmentInlineDropdownItem}
-                onPress={() => { void pickFile(); }}
+                onPress={() => {
+                  void pickFile();
+                }}
               >
                 <View style={styles.attachmentInlineDropdownIconBox}>
-                  <MaterialCommunityIcons name="file-document-outline" size={18} color={colors.primary} />
+                  <MaterialCommunityIcons
+                    name="file-document-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
                 </View>
                 <Text style={styles.attachmentInlineDropdownText}>File</Text>
               </TouchableOpacity>
@@ -938,20 +1029,22 @@ export function CreateTaskContent({
                   const isActiveAudio = isAudio && activeAudioAttachmentId === item.id;
                   const totalSeconds = isAudio
                     ? Math.max(
-                      (item.durationMillis ?? 0) / 1000,
-                      isActiveAudio ? previewPlayerStatus.duration : 0,
-                    )
+                        (item.durationMillis ?? 0) / 1000,
+                        isActiveAudio ? previewPlayerStatus.duration : 0,
+                      )
                     : 0;
                   const currentSeconds = isActiveAudio ? previewPlayerStatus.currentTime : 0;
                   const currentMillis = Math.max(0, Math.floor(currentSeconds * 1000));
                   const totalMillis = Math.max(0, Math.floor(totalSeconds * 1000));
-                  const progress = totalSeconds > 0 ? Math.min(currentSeconds / totalSeconds, 1) : 0;
+                  const progress =
+                    totalSeconds > 0 ? Math.min(currentSeconds / totalSeconds, 1) : 0;
                   const activeBarCount = Math.round(progress * WAVEFORM_BARS.length);
-                  const statusLabel = item.status === 'uploaded'
-                    ? 'Uploaded'
-                    : item.status === 'failed'
-                      ? 'Failed'
-                      : 'Uploading';
+                  const statusLabel =
+                    item.status === 'uploaded'
+                      ? 'Uploaded'
+                      : item.status === 'failed'
+                        ? 'Failed'
+                        : 'Uploading';
 
                   return (
                     <TouchableOpacity
@@ -991,7 +1084,11 @@ export function CreateTaskContent({
                               removeAttachment(item.id);
                             }}
                           >
-                            <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.error} />
+                            <MaterialCommunityIcons
+                              name="trash-can-outline"
+                              size={16}
+                              color={colors.error}
+                            />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1015,14 +1112,15 @@ export function CreateTaskContent({
                             />
                           </TouchableOpacity>
                           <View style={styles.waveformRow}>
-                            {WAVEFORM_BARS.map((barHeight, index) => (
+                            {WAVEFORM_BAR_SPECS.map(({ id, height: barHeight }, index) => (
                               <View
-                                key={`${item.id}-wave-${index}`}
+                                key={id}
                                 style={[
                                   styles.waveformBar,
                                   {
                                     height: barHeight,
-                                    backgroundColor: index < activeBarCount ? colors.primary : colors.border,
+                                    backgroundColor:
+                                      index < activeBarCount ? colors.primary : colors.border,
                                   },
                                 ]}
                               />
@@ -1054,12 +1152,12 @@ export function CreateTaskContent({
           />
         ) : isTaskCategoriesError ? (
           <View style={styles.fieldState}>
-            <Text style={styles.fieldError}>
-              Unable to load task categories. Please try again.
-            </Text>
+            <Text style={styles.fieldError}>Unable to load task categories. Please try again.</Text>
             <TouchableOpacity
               style={[styles.retryBtn, isFetchingTaskCategories && styles.retryBtnDisabled]}
-              onPress={() => { void refetchTaskCategories(); }}
+              onPress={() => {
+                void refetchTaskCategories();
+              }}
               disabled={isFetchingTaskCategories}
             >
               {isFetchingTaskCategories ? (
@@ -1078,12 +1176,22 @@ export function CreateTaskContent({
 
         <Label text="Due Date" required />
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <TouchableOpacity style={[styles.input, { flex: 1 }]} onPress={() => setShowDatePicker(true)}>
+          <TouchableOpacity
+            style={[styles.input, { flex: 1 }]}
+            onPress={() => setShowDatePicker(true)}
+          >
             <Text style={styles.inputValue}>
-              {dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {dueDate.toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.input, { flex: 1 }]} onPress={() => setShowTimePicker(true)}>
+          <TouchableOpacity
+            style={[styles.input, { flex: 1 }]}
+            onPress={() => setShowTimePicker(true)}
+          >
             <Text style={styles.inputValue}>
               {dueDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </Text>
@@ -1122,27 +1230,42 @@ export function CreateTaskContent({
             const newDate = new Date(dueDate);
             newDate.setHours(date.getHours(), date.getMinutes(), 0, 0);
             setDueDate(newDate);
-            setUserPickedTime(true);
           }}
         />
 
         {isRecurring && (
           <View style={styles.recurrenceContainer}>
             <Label text="Recurrence Type" />
-            <ChipGroup options={['WEEKLY', 'MONTHLY']} value={recurrenceType} onChange={(val: any) => { setRecurrenceType(val); setRecurrenceDays([]); }} />
-            
+            <ChipGroup
+              options={['WEEKLY', 'MONTHLY']}
+              value={recurrenceType}
+              onChange={(val: 'WEEKLY' | 'MONTHLY') => {
+                setRecurrenceType(val);
+                setRecurrenceDays([]);
+              }}
+            />
+
             <Label text={recurrenceType === 'WEEKLY' ? 'Days of Week' : 'Days of Month'} required />
             {recurrenceType === 'WEEKLY' ? (
               <View style={styles.chipRow}>
-                {WEEK_DAYS.map(o => (
+                {WEEK_DAYS.map((o) => (
                   <TouchableOpacity
                     key={o.value}
                     style={[styles.chip, recurrenceDays.includes(o.value) && styles.chipActive]}
                     onPress={() => {
-                      setRecurrenceDays(prev => prev.includes(o.value) ? prev.filter(v => v !== o.value) : [...prev, o.value].sort((a,b)=>a-b));
+                      setRecurrenceDays((prev) =>
+                        prev.includes(o.value)
+                          ? prev.filter((v) => v !== o.value)
+                          : [...prev, o.value].sort((a, b) => a - b),
+                      );
                     }}
                   >
-                    <Text style={[styles.chipText, recurrenceDays.includes(o.value) && styles.chipTextActive]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        recurrenceDays.includes(o.value) && styles.chipTextActive,
+                      ]}
+                    >
                       {o.label}
                     </Text>
                   </TouchableOpacity>
@@ -1150,7 +1273,9 @@ export function CreateTaskContent({
               </View>
             ) : (
               <TouchableOpacity style={styles.input} onPress={() => setShowMonthDaysPicker(true)}>
-                <Text style={{ color: recurrenceDays.length > 0 ? colors.text : colors.textDisabled }}>
+                <Text
+                  style={{ color: recurrenceDays.length > 0 ? colors.text : colors.textDisabled }}
+                >
                   {recurrenceDays.length > 0
                     ? recurrenceDays.sort((a, b) => a - b).join(', ')
                     : 'Select days...'}
@@ -1185,21 +1310,20 @@ export function CreateTaskContent({
         <TouchableOpacity
           style={[
             styles.submitBtn,
-            (
-              createTask.isPending
-              || isLoadingTaskCategories
-              || !hasTaskCategories
-              || !hasAssignees
-              || hasPendingAttachmentUploads
-            ) && styles.submitBtnDisabled,
+            (createTask.isPending ||
+              isLoadingTaskCategories ||
+              !hasTaskCategories ||
+              !hasAssignees ||
+              hasPendingAttachmentUploads) &&
+              styles.submitBtnDisabled,
           ]}
           onPress={handleSubmit}
           disabled={
-            createTask.isPending
-            || isLoadingTaskCategories
-            || !hasTaskCategories
-            || !hasAssignees
-            || hasPendingAttachmentUploads
+            createTask.isPending ||
+            isLoadingTaskCategories ||
+            !hasTaskCategories ||
+            !hasAssignees ||
+            hasPendingAttachmentUploads
           }
         >
           {createTask.isPending ? (
@@ -1215,7 +1339,10 @@ export function CreateTaskContent({
         title="Select Outlet"
         items={outlets ?? []}
         selected={outletId}
-        onSelect={(id) => { setOutletId(id); setShowOutletPicker(false); }}
+        onSelect={(id) => {
+          setOutletId(id);
+          setShowOutletPicker(false);
+        }}
         onClose={() => setShowOutletPicker(false)}
       />
 
@@ -1227,7 +1354,11 @@ export function CreateTaskContent({
         multi
         onSelect={(id) => {
           const num = Number(id);
-          setRecurrenceDays((prev) => prev.includes(num) ? prev.filter(x => x !== num) : [...prev, num].sort((a, b) => a - b));
+          setRecurrenceDays((prev) =>
+            prev.includes(num)
+              ? prev.filter((x) => x !== num)
+              : [...prev, num].sort((a, b) => a - b),
+          );
         }}
         onClose={() => setShowMonthDaysPicker(false)}
       />
@@ -1245,7 +1376,6 @@ export function CreateTaskContent({
         }}
         onClose={() => setShowAssigneePicker(false)}
       />
-
     </View>
   );
 }
@@ -1254,7 +1384,10 @@ type Props = NativeStackScreenProps<TasksStackParamList, 'CreateTask'>;
 
 export default function CreateTaskScreen({ navigation }: Props) {
   return (
-    <SafeAreaView style={[styles.rootFill, { backgroundColor: colors.background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.rootFill, { backgroundColor: colors.background }]}
+      edges={['bottom']}
+    >
       <CreateTaskContent onSuccess={() => navigation.goBack()} />
     </SafeAreaView>
   );
@@ -1383,13 +1516,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-  },
-  attachmentInlineIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   attachmentInlineDropdownText: {
     color: colors.text,
@@ -1586,7 +1712,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: colors.textInverse, fontSize: typography.base, fontWeight: typography.semibold },
+  submitBtnText: {
+    color: colors.textInverse,
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+  },
 
   pickerRoot: { flex: 1, backgroundColor: colors.background },
   modalHeader: {

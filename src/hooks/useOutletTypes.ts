@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 import { outletTypesApi } from '../api/endpoints/outletTypes';
 
 export const useOutletTypes = () =>
@@ -19,8 +20,13 @@ export const useCreateOutletType = () => {
 export const useUpdateOutletType = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { name?: string; description?: string } }) =>
-      outletTypesApi.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: { name?: string; description?: string };
+    }) => outletTypesApi.update(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['outlet-types'] }),
   });
 };

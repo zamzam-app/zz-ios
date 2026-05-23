@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export interface FilterOption<T> {
@@ -26,7 +27,9 @@ export function FilterDropdown<T>({ options, value, onChange, maxVisible = 6 }: 
   return (
     <View style={styles.wrap}>
       <TouchableOpacity style={styles.pill} onPress={() => setOpen((o) => !o)} activeOpacity={0.8}>
-        <Text style={styles.pillText} numberOfLines={1}>{active.label}</Text>
+        <Text style={styles.pillText} numberOfLines={1}>
+          {active.label}
+        </Text>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={12} color="#fff" />
       </TouchableOpacity>
 
@@ -49,7 +52,10 @@ export function FilterDropdown<T>({ options, value, onChange, maxVisible = 6 }: 
                     i === options.length - 1 && styles.optionLast,
                     isActive && styles.optionActive,
                   ]}
-                  onPress={() => { onChange(opt.value); setOpen(false); }}
+                  onPress={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
                   activeOpacity={0.65}
                 >
                   <Text style={[styles.optionText, isActive && styles.optionTextActive]}>
@@ -82,7 +88,7 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: typography.sm,
     fontWeight: typography.semibold,
-    color: '#fff',
+    color: colors.textInverse,
     flexShrink: 1,
   },
 
