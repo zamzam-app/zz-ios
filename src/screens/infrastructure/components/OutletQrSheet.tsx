@@ -14,15 +14,21 @@ interface QrCodeRef {
 interface OutletQrSheetProps {
   visible: boolean;
   outlet: Outlet | null;
-  qrRef: React.RefObject<QrCodeRef | null>;
+  onQrRef: (ref: QrCodeRef | null) => void;
   onClose: () => void;
   onDownload: () => void;
   onOpenReviewUrl: () => void;
 }
 
-function OutletQrSheet({ visible, outlet, qrRef, onClose, onDownload, onOpenReviewUrl }: OutletQrSheetProps) {
-  const buildQrUrl = (token: string) =>
-    `${QR_REVIEW_BASE_URL}/review/${encodeURIComponent(token)}`;
+function OutletQrSheet({
+  visible,
+  outlet,
+  onQrRef,
+  onClose,
+  onDownload,
+  onOpenReviewUrl,
+}: OutletQrSheetProps) {
+  const buildQrUrl = (token: string) => `${QR_REVIEW_BASE_URL}/review/${encodeURIComponent(token)}`;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -45,7 +51,7 @@ function OutletQrSheet({ visible, outlet, qrRef, onClose, onDownload, onOpenRevi
                   backgroundColor={colors.surface}
                   color="#000000"
                   getRef={(ref) => {
-                    (qrRef as React.MutableRefObject<QrCodeRef | null>).current = ref;
+                    onQrRef(ref);
                   }}
                 />
               </View>

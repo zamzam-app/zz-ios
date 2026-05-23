@@ -13,7 +13,7 @@ import {
 import type { Outlet } from '../../../api/endpoints/outlets';
 import { colors, spacing, radius, typography } from '../../../theme/theme';
 
-import { CreateOutletContent } from '../CreateOutletScreen';
+import { OutletFormContent } from './OutletForm';
 
 interface OutletEditorSheetProps {
   visible: boolean;
@@ -50,7 +50,7 @@ function OutletEditorSheet({
             </View>
           </View>
 
-          <CreateOutletContent
+          <OutletFormContent
             mode={isEdit ? 'edit' : undefined}
             outletToEdit={isEdit ? outlet : undefined}
             onSuccess={onSuccess}

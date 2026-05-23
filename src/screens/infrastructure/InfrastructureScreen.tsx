@@ -163,7 +163,9 @@ export default function InfrastructureScreen() {
       <OutletQrSheet
         visible={selectedQrOutlet !== null}
         outlet={selectedQrOutlet}
-        qrRef={qrRef}
+        onQrRef={(ref) => {
+          qrRef.current = ref;
+        }}
         onClose={() => setSelectedQrOutlet(null)}
         onDownload={handleDownloadQr}
         onOpenReviewUrl={handleOpenReviewUrl}

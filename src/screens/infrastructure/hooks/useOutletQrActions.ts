@@ -14,8 +14,7 @@ export function useOutletQrActions() {
   const [selectedQrOutlet, setSelectedQrOutlet] = React.useState<Outlet | null>(null);
   const qrRef = React.useRef<QrCodeRef | null>(null);
 
-  const buildQrUrl = (token: string) =>
-    `${QR_REVIEW_BASE_URL}/review/${encodeURIComponent(token)}`;
+  const buildQrUrl = (token: string) => `${QR_REVIEW_BASE_URL}/review/${encodeURIComponent(token)}`;
 
   const handleOpenQrModal = (outlet: Outlet) => {
     if (!outlet.qrToken) {

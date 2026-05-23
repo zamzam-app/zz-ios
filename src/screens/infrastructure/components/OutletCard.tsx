@@ -23,7 +23,14 @@ function FallbackOutletImage({ name }: { name: string }) {
   );
 }
 
-function OutletCard({ outlet, isAdmin, onPress, onQrPress, onEditPress, onDelete }: OutletCardProps) {
+function OutletCard({
+  outlet,
+  isAdmin,
+  onPress,
+  onQrPress,
+  onEditPress,
+  onDelete,
+}: OutletCardProps) {
   const imageUri = outlet.images?.[0];
   const managerLabel =
     outlet.managerNames && outlet.managerNames.length > 0
