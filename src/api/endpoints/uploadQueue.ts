@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { uploadToCloudinary } from './upload';
+import { uploadToCloudinary } from './uploads';
 
 const UPLOAD_QUEUE_STORAGE_KEY = 'upload_queue_v1';
 const DEFAULT_MAX_ATTEMPTS = 4;

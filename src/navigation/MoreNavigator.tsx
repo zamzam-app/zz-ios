@@ -1,7 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 
-import { CustomCake, UploadedCakeImage } from '../api/endpoints/upload';
+import type { CustomCake, UploadedCakeImage } from '../api/endpoints/uploads';
 import FormBuilderScreen from '../screens/more/FormBuilderScreen';
 import ManagersScreen from '../screens/more/ManagersScreen';
 import MoreScreen from '../screens/more/MoreScreen';

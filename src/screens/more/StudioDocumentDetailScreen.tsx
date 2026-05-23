@@ -4,7 +4,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CustomCake, UploadedCakeImage } from '../../api/endpoints/upload';
+import type { CustomCake, UploadedCakeImage } from '../../api/endpoints/uploads';
 import { MoreStackParamList } from '../../navigation/MoreNavigator';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
