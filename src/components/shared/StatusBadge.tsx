@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { TaskStatus } from '../api/endpoints/tasks';
-import { colors, typography, radius } from '../theme/theme';
+import { TaskStatus } from '../../api/endpoints/tasks';
+import { colors, typography, radius } from '../../theme/theme';
 
 interface StatusBadgeConfig {
   label: string;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { colors } from '../theme/theme';
+import { colors } from '../../theme/theme';
 
 interface UnreadBadgeProps {
   count: number;

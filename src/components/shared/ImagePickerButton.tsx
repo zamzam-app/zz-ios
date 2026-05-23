@@ -15,8 +15,8 @@ import {
   enqueueCloudinaryUpload,
   removeUploadJob,
   waitForUploadJob,
-} from '../api/endpoints/uploads';
-import { colors, typography } from '../theme/theme';
+} from '../../api/endpoints/uploads';
+import { colors, typography } from '../../theme/theme';
 
 interface Props {
   imageUrl?: string;

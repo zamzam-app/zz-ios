@@ -45,7 +45,7 @@ import {
   removeUploadJob,
   waitForUploadJob,
 } from '../../api/endpoints/uploads';
-import DatePickerModal from '../../components/DatePickerModal';
+import DatePickerModal from '../../components/shared/DatePickerModal';
 import { useOutlets } from '../../hooks/infrastructure';
 import { useCreateTask, useTaskCategories } from '../../hooks/tasks';
 import { useManagers } from '../../hooks/useUsers';

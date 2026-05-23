@@ -8,7 +8,7 @@ import {
   ViewStyle,
 } from 'react-native';
 
-import { colors } from '../theme/theme';
+import { colors } from '../../theme/theme';
 
 type StarRatingMode = 'display' | 'interactive';
 

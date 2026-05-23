@@ -23,9 +23,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Task, TaskPriority, tasksApi } from '../../api/endpoints/tasks';
-import DatePickerModal from '../../components/DatePickerModal';
+import DatePickerModal from '../../components/shared/DatePickerModal';
+import UnreadBadge from '../../components/shared/UnreadBadge';
 import TaskQueueStatusBanner from '../../components/TaskQueueStatusBanner';
-import UnreadBadge from '../../components/UnreadBadge';
 import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
 import { useInfiniteTasks, useUnreadIds } from '../../hooks/tasks';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';

@@ -2,7 +2,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 
-import { colors, spacing, radius, typography, shadow } from '../theme/theme';
+import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 
 interface DatePickerModalProps {
   visible: boolean;

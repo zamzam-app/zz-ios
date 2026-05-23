@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FranchiseRankingItem, MetricsHeatmapItem } from '../../api/endpoints/analytics';
 import { Review } from '../../api/endpoints/reviews';
-import StarRating from '../../components/StarRating';
+import StarRating from '../../components/shared/StarRating';
 import { ReviewMetricFilter } from '../../constants/reviewFilters';
 import { useFranchiseAnalytics } from '../../hooks/analytics';
 import { useCriticalReviews, useReviews } from '../../hooks/reviews';

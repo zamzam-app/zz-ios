@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Review, UserResponse } from '../../api/endpoints/reviews';
 import { uploadToCloudinary } from '../../api/endpoints/uploads';
-import StarRating from '../../components/StarRating';
+import StarRating from '../../components/shared/StarRating';
 import { useMarkReviewAsRead, useReview, useResolveComplaint } from '../../hooks/reviews';
 import { useForm } from '../../hooks/tasks';
 import { useUsers } from '../../hooks/useUsers';
