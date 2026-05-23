@@ -39,12 +39,12 @@ import {
   Task,
 } from '../../api/endpoints/tasks';
 import {
-  enqueueTaskSubmission,
   cancelUploadJob,
   enqueueCloudinaryUpload,
   removeUploadJob,
   waitForUploadJob,
 } from '../../api/endpoints/uploads';
+import { enqueueTaskSubmission } from '../../api/endpoints/tasks';
 import DatePickerModal from '../../components/DatePickerModal';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';

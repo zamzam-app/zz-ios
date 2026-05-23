@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { CreateTaskPayload, UpdateTaskPayload } from '../tasks';
+import { CreateTaskPayload, UpdateTaskPayload } from './taskTypes';
 
 const TASK_QUEUE_STORAGE_KEY = 'task_submission_queue_v1';
 

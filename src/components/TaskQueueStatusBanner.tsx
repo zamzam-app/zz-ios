@@ -7,7 +7,7 @@ import {
   retryFailedJobs,
   clearFailedJobs,
   clearAllPendingJobs,
-} from '../api/endpoints/uploads';
+} from '../api/endpoints/tasks';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export default function TaskQueueStatusBanner() {

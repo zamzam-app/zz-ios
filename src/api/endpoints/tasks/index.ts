@@ -72,3 +72,14 @@ export const tasksApi = {
   getAttachments: attachment.getAttachments,
   addComment: attachment.addComment,
 };
+
+// ─── Task Submission Queue ───────────────────────────────────────────────────
+
+export {
+  enqueueTaskSubmission,
+  getTaskQueueStatus,
+  retryFailedJobs,
+  clearFailedJobs,
+  clearAllPendingJobs,
+} from './taskSubmissionQueueApi';
+export type { TaskSubmissionJob } from './taskSubmissionQueueStore';
