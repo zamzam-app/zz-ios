@@ -44,7 +44,7 @@ import {
   enqueueCloudinaryUpload,
   removeUploadJob,
   waitForUploadJob,
-} from '../../api/endpoints/uploadQueue';
+} from '../../api/endpoints/uploads';
 import DatePickerModal from '../../components/DatePickerModal';
 import { useOutlets } from '../../hooks/useOutlets';
 import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';

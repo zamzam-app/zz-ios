@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { queryClient } from '../queryClient';
 
 import { CreateTaskPayload, UpdateTaskPayload, tasksApi } from './tasks';
-import { waitForUploadJob, removeUploadJob } from './uploadQueue';
+import { waitForUploadJob, removeUploadJob } from './uploads';
 
 const TASK_QUEUE_STORAGE_KEY = 'task_submission_queue_v1';
 const MAX_ATTEMPTS = 5;
