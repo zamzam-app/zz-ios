@@ -25,7 +25,7 @@ import {
   useIncidentsOverview,
   useOutletFeedbackSummary,
   useTasksOverview,
-} from '../../hooks/useAnalytics';
+} from '../../hooks/analytics';
 import { AppTabParamList } from '../../navigation/AppNavigator';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 

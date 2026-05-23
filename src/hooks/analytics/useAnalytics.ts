@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { analyticsApi, Period } from '../api/endpoints/analytics';
+import { analyticsApi, Period } from '../../api/endpoints/analytics';
 
 const ANALYTICS_STALE_TIME_MS = 60_000;
 
