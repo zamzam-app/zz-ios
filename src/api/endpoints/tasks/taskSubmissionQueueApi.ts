@@ -1,4 +1,4 @@
-import type { CreateTaskPayload, UpdateTaskPayload } from './taskTypes';
+import { removeUploadJob } from '../uploads/uploadQueueApi';
 
 import { processQueue, getIsQueueProcessing } from './taskSubmissionProcessor';
 import {
@@ -9,7 +9,9 @@ import {
   TaskSubmissionJob,
   MAX_ATTEMPTS,
 } from './taskSubmissionQueueStore';
-import { removeUploadJob } from '../uploads/uploadQueueApi';
+import type { CreateTaskPayload, UpdateTaskPayload } from './taskTypes';
+
+
 
 export async function enqueueTaskSubmission(
   payload: CreateTaskPayload | UpdateTaskPayload,

@@ -32,11 +32,7 @@ export {
   useMarkMultipleViewed,
 } from './useTaskView';
 
-export {
-  useTaskDetail,
-  useTaskTimeline,
-  useEventTypeCounts,
-} from './useTaskTimeline';
+export { useTaskDetail, useTaskTimeline, useEventTypeCounts } from './useTaskTimeline';
 
 export {
   useTaskAttachments,
@@ -45,10 +41,4 @@ export {
   useAddComment,
 } from './useTaskAttachments';
 
-export {
-  useForms,
-  useForm,
-  useCreateForm,
-  useUpdateForm,
-  useDeleteForm,
-} from './useForms';
+export { useForms, useForm, useCreateForm, useUpdateForm, useDeleteForm } from './useForms';

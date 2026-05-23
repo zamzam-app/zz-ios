@@ -42,7 +42,17 @@ import DelegationSheet from '../../components/DelegationSheet';
 import StatusBadge from '../../components/StatusBadge';
 import TimelineEventCard from '../../components/TimelineEventCard';
 import TimelineSkeleton from '../../components/TimelineSkeleton';
-import { useAddAttachments, useAddComment, useTask, useUpdateTaskStatus, useDeleteTask, useTaskDetail, useTaskTimeline, useEventTypeCounts, useMarkTaskViewed } from '../../hooks/tasks';
+import {
+  useAddAttachments,
+  useAddComment,
+  useTask,
+  useUpdateTaskStatus,
+  useDeleteTask,
+  useTaskDetail,
+  useTaskTimeline,
+  useEventTypeCounts,
+  useMarkTaskViewed,
+} from '../../hooks/tasks';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';

@@ -24,13 +24,7 @@ import {
   QUESTION_TYPE_OPTIONS,
   SupportedQuestion,
 } from '../../api/endpoints/forms';
-import {
-  useForms,
-  useCreateForm,
-  useUpdateForm,
-  useDeleteForm,
-  useForm,
-} from '../../hooks/tasks';
+import { useForms, useCreateForm, useUpdateForm, useDeleteForm, useForm } from '../../hooks/tasks';
 import type { MoreStackParamList } from '../../navigation/MoreNavigator';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
 

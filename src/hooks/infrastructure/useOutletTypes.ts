@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { outletTypesApi } from '../api/endpoints/outletTypes';
+import { outletTypesApi } from '../../api/endpoints/outletTypes';
 
 export const useOutletTypes = () =>
   useQuery({

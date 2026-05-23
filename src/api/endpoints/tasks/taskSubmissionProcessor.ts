@@ -1,6 +1,6 @@
 import { queryClient } from '../../queryClient';
-import { tasksApi } from '.';
-import type { CreateTaskPayload, UpdateTaskPayload } from './taskTypes';
+import { removeUploadJob } from '../uploads/uploadQueueApi';
+import { waitForUploadJob } from '../uploads/uploadQueueSubscriptions';
 
 import {
   ensureLoaded,
@@ -10,8 +10,9 @@ import {
   MAX_ATTEMPTS,
   RETRY_DELAY_BASE,
 } from './taskSubmissionQueueStore';
-import { removeUploadJob } from '../uploads/uploadQueueApi';
-import { waitForUploadJob } from '../uploads/uploadQueueSubscriptions';
+import type { CreateTaskPayload, UpdateTaskPayload } from './taskTypes';
+
+import { tasksApi } from '.';
 
 let isQueueProcessing = false;
 

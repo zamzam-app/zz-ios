@@ -11,4 +11,3 @@ export {
 } from './uploadQueueApi';
 export { subscribeToUploadJob, waitForUploadJob } from './uploadQueueSubscriptions';
 export type { UploadQueueStatus, UploadQueueJob, QueueListener } from './uploadQueueStore';
-

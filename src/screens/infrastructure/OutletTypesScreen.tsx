@@ -24,7 +24,7 @@ import {
   useCreateOutletType,
   useUpdateOutletType,
   useDeleteOutletType,
-} from '../../hooks/useOutletTypes';
+} from '../../hooks/infrastructure';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';

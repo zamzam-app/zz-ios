@@ -25,7 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Outlet } from '../../api/endpoints/outlets';
 import { QR_REVIEW_BASE_URL } from '../../config/env';
-import { useOutlets, useDeleteOutlet } from '../../hooks/useOutlets';
+import { useOutlets, useDeleteOutlet } from '../../hooks/infrastructure';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
