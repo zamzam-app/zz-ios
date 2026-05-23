@@ -37,7 +37,8 @@ import {
   TaskCategoryOption,
   CreateTaskPayload,
   Task,
- enqueueTaskSubmission } from '../../api/endpoints/tasks';
+  enqueueTaskSubmission,
+} from '../../api/endpoints/tasks';
 import {
   cancelUploadJob,
   enqueueCloudinaryUpload,

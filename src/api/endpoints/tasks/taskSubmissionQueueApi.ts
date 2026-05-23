@@ -11,8 +11,6 @@ import {
 } from './taskSubmissionQueueStore';
 import type { CreateTaskPayload, UpdateTaskPayload } from './taskTypes';
 
-
-
 export async function enqueueTaskSubmission(
   payload: CreateTaskPayload | UpdateTaskPayload,
   attachmentJobs: { id: string; type: 'image' | 'video' | 'audio' | 'file' }[],
