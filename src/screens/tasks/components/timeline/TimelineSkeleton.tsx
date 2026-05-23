@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
-import { colors, spacing, radius } from '../theme/theme';
+import { colors, spacing, radius } from '../../../../theme/theme';
 
 // ─── Skeleton Config ────────────────────────────────────────────────────────
 

@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { colors, spacing, radius, typography } from '../theme/theme';
-import type { SerializedTimelineEvent } from '../types/task';
+import { colors, spacing, radius, typography } from '../../../../theme/theme';
+import type { SerializedTimelineEvent } from '../../../../types/task';
 
 interface TimelineEventDelegationProps {
   event: SerializedTimelineEvent;

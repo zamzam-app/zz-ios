@@ -2,16 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { colors, spacing, typography } from '../theme/theme';
-import { TaskEventType } from '../types/task';
-import type { SerializedTimelineEvent, AttachmentPreview } from '../types/task';
+import { colors, spacing, typography } from '../../../../theme/theme';
+import { TaskEventType } from '../../../../types/task';
+import type { SerializedTimelineEvent, AttachmentPreview } from '../../../../types/task';
 
+import { formatRelativeTime } from './timelineDateFormatters';
 import TimelineEventAttachment from './TimelineEventAttachment';
+import { eventColors } from './timelineEventColorMap';
 import TimelineEventComment from './TimelineEventComment';
 import TimelineEventCreated from './TimelineEventCreated';
 import TimelineEventDelegation from './TimelineEventDelegation';
 import TimelineEventGeneric from './TimelineEventGeneric';
-import { eventTypeIcon, eventColors, formatRelativeTime } from './TimelineEventShared';
+import { eventTypeIcon } from './timelineEventIconMap';
 import TimelineEventStatus from './TimelineEventStatus';
 
 // ─── Props ──────────────────────────────────────────────────────────────────

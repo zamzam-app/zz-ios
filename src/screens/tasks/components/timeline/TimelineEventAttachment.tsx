@@ -2,11 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { colors, spacing, radius, typography } from '../theme/theme';
-import { TaskEventType, AttachmentType } from '../types/task';
-import type { SerializedTimelineEvent, AttachmentPreview } from '../types/task';
+import { colors, spacing, radius, typography } from '../../../../theme/theme';
+import { TaskEventType, AttachmentType } from '../../../../types/task';
+import type { SerializedTimelineEvent, AttachmentPreview } from '../../../../types/task';
 
-import { formatFileSize } from './TimelineEventShared';
+import { formatFileSize } from './timelineFileFormatters';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 

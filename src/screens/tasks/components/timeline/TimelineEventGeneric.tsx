@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { colors, spacing, typography } from '../theme/theme';
-import { TaskEventType } from '../types/task';
-import type { SerializedTimelineEvent } from '../types/task';
+import { colors, spacing, typography } from '../../../../theme/theme';
+import { TaskEventType } from '../../../../types/task';
+import type { SerializedTimelineEvent } from '../../../../types/task';
 
 interface TimelineEventGenericProps {
   event: SerializedTimelineEvent;

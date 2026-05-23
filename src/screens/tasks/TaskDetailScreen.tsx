@@ -38,10 +38,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TaskStatus } from '../../api/endpoints/tasks';
 import { uploadToCloudinary } from '../../api/endpoints/uploads';
-import DelegationSheet from './components/DelegationSheet';
 import StatusBadge from '../../components/shared/StatusBadge';
-import TimelineEventCard from '../../components/TimelineEventCard';
-import TimelineSkeleton from '../../components/TimelineSkeleton';
 import {
   useAddAttachments,
   useAddComment,
@@ -61,6 +58,8 @@ import type { SerializedTimelineEvent, AttachmentPreview, TaskAttachment } from 
 import { getApiErrorMessage } from '../../utils/errors';
 import { flattenInfiniteData } from '../../utils/pagination';
 
+import DelegationSheet from './components/DelegationSheet';
+import { TimelineEventCard, TimelineSkeleton } from './components/timeline';
 import { CreateTaskContent } from './CreateTaskScreen';
 import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
 
