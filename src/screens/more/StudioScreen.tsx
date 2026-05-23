@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Product, Category } from '../../api/endpoints/products';
+import type { Product, Category } from '../../api/endpoints/studio';
 import type { CustomCake, UploadedCakeImage } from '../../api/endpoints/uploads';
 import ImagePickerButton from '../../components/ImagePickerButton';
 import {
