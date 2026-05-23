@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { tasksApi } from '../api/endpoints/tasks';
+import { tasksApi } from '../../api/endpoints/tasks';
 import type {
   Actor,
   CreateDelegationPayload,
@@ -8,15 +8,10 @@ import type {
   TaskDelegationRecord,
   ActiveDelegation,
   TaskDetailTimelineResponse,
-} from '../types/task';
+} from '../../types/task';
 
 // ─── Delegation Queries ─────────────────────────────────────────────────────
 
-/**
- * Fetch delegation history for a specific task.
- *
- * Query key: `['delegation', 'history', taskId]`
- */
 export const useDelegationHistory = (
   taskId: string,
   query?: { limit?: number; skip?: number },
@@ -28,11 +23,6 @@ export const useDelegationHistory = (
     enabled: (options?.enabled ?? true) && !!taskId,
   });
 
-/**
- * Fetch tasks currently delegated to the current user.
- *
- * Query key: `['delegation', 'delegatedToMe']`
- */
 export const useDelegatedToMe = (options?: { enabled?: boolean }) =>
   useQuery<ActiveDelegation[]>({
     queryKey: ['delegation', 'delegatedToMe'],
@@ -40,11 +30,6 @@ export const useDelegatedToMe = (options?: { enabled?: boolean }) =>
     enabled: options?.enabled ?? true,
   });
 
-/**
- * Fetch delegations created by the current user.
- *
- * Query key: `['delegation', 'myDelegations']`
- */
 export const useMyDelegations = (options?: { enabled?: boolean }) =>
   useQuery<ActiveDelegation[]>({
     queryKey: ['delegation', 'myDelegations'],
@@ -54,21 +39,6 @@ export const useMyDelegations = (options?: { enabled?: boolean }) =>
 
 // ─── Delegation Mutations ───────────────────────────────────────────────────
 
-/**
- * Delegate a task to another user (temporary hand-off).
- *
- * Effects:
- *   - Sets `task.activeOwner` → delegated user
- *   - Sets `task.activeDelegation` sub-document
- *   - Creates `TaskDelegation` audit record
- *   - Emits `REASSIGNED` event
- *
- * Cache invalidation:
- *   - `['taskDetail', taskId]` — owner/delegation changed
- *   - `['taskTimeline', taskId]` — new REASSIGNED event
- *   - `['delegation']` — delegation lists changed
- *   - `['task', taskId]`
- */
 export const useDelegateTask = () => {
   const qc = useQueryClient();
 
@@ -125,17 +95,6 @@ export const useDelegateTask = () => {
   });
 };
 
-/**
- * Reassign a task to another user permanently.
- *
- * Effects:
- *   - Sets `task.activeOwner` → new owner
- *   - Clears any existing `activeDelegation`
- *   - Emits `REASSIGNED` event
- *
- * Cache invalidation:
- *   - Same as delegateTask
- */
 export const useReassignTask = () => {
   const qc = useQueryClient();
 
@@ -184,17 +143,6 @@ export const useReassignTask = () => {
   });
 };
 
-/**
- * Clear an active delegation, restoring ownership to the original owner.
- *
- * Effects:
- *   - Clears `activeDelegation` sub-document
- *   - Restores `activeOwner` to the original owner
- *   - Emits `REASSIGNED` event with `revokeDelegation: true`
- *
- * Cache invalidation:
- *   - Same as delegateTask
- */
 export const useClearDelegation = () => {
   const qc = useQueryClient();
 

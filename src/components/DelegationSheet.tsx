@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 
 import type { User } from '../api/endpoints/users';
-import { useDelegateTask } from '../hooks/useTaskDelegation';
+import { useDelegateTask } from '../hooks/tasks';
 import { useUsers } from '../hooks/useUsers';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
@@ -22,11 +22,8 @@ interface DelegationSheetProps {
   visible: boolean;
   onClose: () => void;
   taskId: string;
-  /** Description of the task, shown in the sheet header for context */
   taskDescription?: string;
-  /** User IDs to exclude from the list (already attached / current user) */
   excludeUserIds?: string[];
-  /** Outlet ID associated with the task, if any */
   outletId?: string | null;
 }
 

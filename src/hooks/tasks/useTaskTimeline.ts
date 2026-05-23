@@ -1,22 +1,16 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 
-import { tasksApi } from '../api/endpoints/tasks';
+import { tasksApi } from '../../api/endpoints/tasks';
 import type {
   SerializedTimelineEvent,
   TaskDetailTimelineResponse,
   EventTypeCounts,
   TimelineQuery,
-} from '../types/task';
-import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
+} from '../../types/task';
+import { cursorPageParam, cursorQueryFn } from '../../utils/pagination';
 
 // ─── Task Detail (Summary + First Timeline Page) ────────────────────────────
 
-/**
- * Fetch task detail including summary metadata and the first page of the
- * timeline.
- *
- * Query key: `['taskDetail', taskId]`
- */
 export const useTaskDetail = (
   taskId: string,
   options?: { enabled?: boolean; initialTimelineLimit?: number },
@@ -27,22 +21,8 @@ export const useTaskDetail = (
     enabled: (options?.enabled ?? true) && !!taskId,
   });
 
-// ─── Timeline (Cursor-Paginated Event Log) ──────────────────────────────────
+// ─── Timeline (Cursor-paginated timeline of task events, newest-first.) ──────
 
-/**
- * Cursor-paginated timeline of task events, newest-first.
- *
- * Query key: `['taskTimeline', taskId]` or `['taskTimeline', taskId, { types }]`
- * when an event-type filter is active.
- *
- * @example
- * ```tsx
- * const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
- *   useTaskTimeline(taskId, { types: [TaskEventType.COMMENTED] });
- *
- * const events = flattenInfiniteData(data);
- * ```
- */
 export const useTaskTimeline = (
   taskId: string,
   filters?: { types?: TimelineQuery['types'] },
@@ -66,12 +46,6 @@ export const useTaskTimeline = (
 
 // ─── Event Type Counts ──────────────────────────────────────────────────────
 
-/**
- * Get the count of events grouped by type for a task.
- * Used to populate timeline filter chips (e.g. "Comments (12)").
- *
- * Query key: `['eventTypeCounts', taskId]`
- */
 export const useEventTypeCounts = (taskId: string, options?: { enabled?: boolean }) =>
   useQuery<EventTypeCounts>({
     queryKey: ['eventTypeCounts', taskId],

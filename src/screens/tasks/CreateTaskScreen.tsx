@@ -47,7 +47,7 @@ import {
 import { enqueueTaskSubmission } from '../../api/endpoints/tasks';
 import DatePickerModal from '../../components/DatePickerModal';
 import { useOutlets } from '../../hooks/useOutlets';
-import { useCreateTask, useTaskCategories } from '../../hooks/useTasks';
+import { useCreateTask, useTaskCategories } from '../../hooks/tasks';
 import { useManagers } from '../../hooks/useUsers';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { colors, spacing, radius, typography } from '../../theme/theme';

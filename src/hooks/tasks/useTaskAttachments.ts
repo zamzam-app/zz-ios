@@ -1,31 +1,17 @@
 import { useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 
-import { tasksApi } from '../api/endpoints/tasks';
+import { tasksApi } from '../../api/endpoints/tasks';
 import type {
   AddAttachmentPayload,
   RemoveAttachmentPayload,
   TaskAttachment,
   AttachmentQuery,
   TaskDetailTimelineResponse,
-} from '../types/task';
-import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
+} from '../../types/task';
+import { cursorPageParam, cursorQueryFn } from '../../utils/pagination';
 
 // ─── Attachment Paginated Query ─────────────────────────────────────────────
 
-/**
- * Cursor-paginated list of attachments for a task.
- *
- * Query key: `['taskAttachments', taskId]` or `['taskAttachments', taskId, { type }]`
- * when an attachment-type filter is active.
- *
- * @example
- * ```tsx
- * const { data, fetchNextPage, hasNextPage } =
- *   useTaskAttachments(taskId, { type: AttachmentType.IMAGE });
- *
- * const attachments = flattenInfiniteData(data);
- * ```
- */
 export const useTaskAttachments = (
   taskId: string,
   filters?: { type?: AttachmentQuery['type'] },
@@ -49,25 +35,6 @@ export const useTaskAttachments = (
 
 // ─── Attachment Mutations ───────────────────────────────────────────────────
 
-/**
- * Register uploaded attachments with a task.
- *
- * Caches and optimistic previews:
- *   - `['taskTimeline', taskId]` — new ATTACHMENT_ADDED event will appear
- *   - `['taskAttachments', taskId]` — new attachments in list
- *   - `['taskDetail', taskId]` — threadStats.attachmentCount increments
- *
- * @example
- * ```ts
- * const { mutate: addAttachments } = useAddAttachments();
- * addAttachments({
- *   taskId,
- *   payload: {
- *     files: [{ url: cloudinaryUrl, type: AttachmentType.IMAGE, size: 12345 }],
- *   },
- * });
- * ```
- */
 export const useAddAttachments = () => {
   const qc = useQueryClient();
 
@@ -113,19 +80,6 @@ export const useAddAttachments = () => {
   });
 };
 
-/**
- * Soft-delete an attachment from a task.
- *
- * @example
- * ```ts
- * const { mutate: removeAttachment } = useRemoveAttachment();
- * removeAttachment({
- *   taskId: 'abc',
- *   attachmentId: 'xyz',
- *   payload: { reason: 'Wrong file uploaded' },
- * });
- * ```
- */
 export const useRemoveAttachment = () => {
   const qc = useQueryClient();
 
@@ -177,10 +131,6 @@ export const useRemoveAttachment = () => {
   });
 };
 
-/**
- * Add a comment to a task thread.
- * Invalidates ['taskTimeline', taskId] so the new COMMENTED event shows up.
- */
 export const useAddComment = () => {
   const qc = useQueryClient();
 

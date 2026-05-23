@@ -6,7 +6,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 import { useReviewBadgeStatus } from '../hooks/useReviews';
-import { useUnreadAggregated } from '../hooks/useTaskView';
+import { useUnreadAggregated } from '../hooks/tasks';
 import OverviewScreen from '../screens/overview/OverviewScreen';
 import { useAuthStore } from '../store/authStore';
 import { colors, typography, shadow } from '../theme/theme';

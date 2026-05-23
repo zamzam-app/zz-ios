@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Outlet } from '../../api/endpoints/outlets';
-import { useForms } from '../../hooks/useForms';
+import { useForms } from '../../hooks/tasks';
 import { useCreateOutlet, useUpdateOutlet } from '../../hooks/useOutlets';
 import { useOutletTypes } from '../../hooks/useOutletTypes';
 import { useManagers } from '../../hooks/useUsers';

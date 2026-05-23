@@ -1,23 +1,17 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { tasksApi } from '../api/endpoints/tasks';
+import { tasksApi } from '../../api/endpoints/tasks';
 import type {
   UnreadTaskCount,
   AggregatedUnread,
   RecentlyViewedTask,
   RecentlyViewedQuery,
   TaskDetailTimelineResponse,
-} from '../types/task';
-import { cursorPageParam, cursorQueryFn } from '../utils/pagination';
+} from '../../types/task';
+import { cursorPageParam, cursorQueryFn } from '../../utils/pagination';
 
 // ─── Unread Queries ─────────────────────────────────────────────────────────
 
-/**
- * Fetch per-task unread counts. Only returns tasks with `unreadCount > 0`.
- * Tasks NOT in this response should have their badges cleared.
- *
- * Query key: `['unread', 'counts']`
- */
 export const useUnreadCount = (limit?: number) =>
   useQuery<UnreadTaskCount[]>({
     queryKey: ['unread', 'counts', limit].filter((x) => x != null),
@@ -27,11 +21,6 @@ export const useUnreadCount = (limit?: number) =>
     refetchInterval: 60 * 1000, // Poll every minute as fallback
   });
 
-/**
- * Fetch the total aggregated unread count for the app icon badge.
- *
- * Query key: `['unread', 'aggregated']`
- */
 export const useUnreadAggregated = () =>
   useQuery<AggregatedUnread>({
     queryKey: ['unread', 'aggregated'],
@@ -40,12 +29,6 @@ export const useUnreadAggregated = () =>
     refetchInterval: 60 * 1000,
   });
 
-/**
- * Fetch a lightweight list of task IDs that have unread events.
- * Useful for highlighting tasks without needing per-task counts.
- *
- * Query key: `['unread', 'ids']`
- */
 export const useUnreadIds = () =>
   useQuery<string[]>({
     queryKey: ['unread', 'ids'],
@@ -54,17 +37,6 @@ export const useUnreadIds = () =>
     refetchInterval: 60 * 1000,
   });
 
-/**
- * Cursor-paginated list of recently viewed tasks.
- *
- * Query key: `['unread', 'recentlyViewed']`
- *
- * @example
- * ```tsx
- * const { data, fetchNextPage, hasNextPage } = useRecentlyViewed({ limit: 20 });
- * const items = flattenInfiniteData(data);
- * ```
- */
 export const useRecentlyViewed = (
   query?: Omit<RecentlyViewedQuery, 'cursor'>,
   options?: { enabled?: boolean },
@@ -82,18 +54,6 @@ export const useRecentlyViewed = (
 
 // ─── View Tracking Mutations ────────────────────────────────────────────────
 
-/**
- * Mark a single task as viewed by the current user.
- * Called when the task detail screen mounts.
- *
- * Upserts a `TaskView` record and resets the user's `unreadMap` entry.
- *
- * Cache invalidation:
- *   - `['unread', 'counts']` — refresh per-task counts
- *   - `['unread', 'aggregated']` — refresh badge total
- *   - `['unread', 'ids']` — refresh ID list
- *   - `['task', taskId]` — refresh task cache (unreadCount may have changed)
- */
 export const useMarkTaskViewed = () => {
   const qc = useQueryClient();
 
@@ -165,13 +125,6 @@ export const useMarkTaskViewed = () => {
   });
 };
 
-/**
- * Mark multiple tasks as viewed in a single request.
- * Use for bulk-marking (e.g. "mark all as read").
- *
- * Cache invalidation:
- *   - Same as single view, but for each task ID
- */
 export const useMarkMultipleViewed = () => {
   const qc = useQueryClient();
 

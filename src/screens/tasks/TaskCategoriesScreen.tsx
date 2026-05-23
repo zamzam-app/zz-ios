@@ -22,7 +22,7 @@ import {
   useCreateTaskCategory,
   useUpdateTaskCategory,
   useDeleteTaskCategory,
-} from '../../hooks/useTasks';
+} from '../../hooks/tasks';
 import { TasksStackParamList } from '../../navigation/TasksNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';

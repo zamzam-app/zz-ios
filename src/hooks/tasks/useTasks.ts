@@ -6,7 +6,7 @@ import {
   CreateTaskPayload,
   TaskStatus,
   UpdateTaskPayload,
-} from '../api/endpoints/tasks';
+} from '../../api/endpoints/tasks';
 
 export const useTasks = (query?: TasksQuery) =>
   useQuery({
