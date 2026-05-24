@@ -2,12 +2,12 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 
 import type { CustomCake, UploadedCakeImage } from '../api/endpoints/uploads';
-import FormBuilderScreen from '../screens/more/FormBuilderScreen';
-import ManagersScreen from '../screens/more/ManagersScreen';
+import FormBuilderScreen from '../screens/more/forms/FormBuilderScreen';
+import ManagersScreen from '../screens/more/managers/ManagersScreen';
 import MoreScreen from '../screens/more/MoreScreen';
 import SettingsScreen from '../screens/more/SettingsScreen';
+import StudioScreen from '../screens/more/studio/StudioScreen';
 import StudioDocumentDetailScreen from '../screens/more/StudioDocumentDetailScreen';
-import StudioScreen from '../screens/more/StudioScreen';
 import { colors, typography } from '../theme/theme';
 
 import InfrastructureNavigator from './InfrastructureNavigator';

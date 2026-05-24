@@ -5,9 +5,9 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { MoreStackParamList } from '../../navigation/MoreNavigator';
-import { useAuthStore } from '../../store/authStore';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import type { MoreStackParamList } from '../../../navigation/MoreNavigator';
+import { useAuthStore } from '../../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../../theme/theme';
 
 import {
   StudioCatalogueTab,
@@ -16,8 +16,8 @@ import {
   ProductFormSheet,
   CategoryFormSheet,
   CategoryManagerSheet,
-} from './studio/components';
-import { useStudioState } from './studio/hooks';
+} from './components';
+import { useStudioState } from './hooks';
 
 type StudioNav = NativeStackNavigationProp<MoreStackParamList, 'Studio'>;
 type StudioTab = 'catalogue' | 'ai' | 'uploads';

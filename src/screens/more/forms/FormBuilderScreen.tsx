@@ -5,12 +5,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Form } from '../../api/endpoints/forms';
-import { useForms, useCreateForm, useDeleteForm } from '../../hooks/tasks';
-import type { MoreStackParamList } from '../../navigation/MoreNavigator';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import { Form } from '../../../api/endpoints/forms';
+import { useForms, useCreateForm, useDeleteForm } from '../../../hooks/tasks';
+import type { MoreStackParamList } from '../../../navigation/MoreNavigator';
+import { colors, spacing, radius, typography, shadow } from '../../../theme/theme';
 
-import { FormBuilderList, FormEditorSheet } from './forms/components';
+import { FormBuilderList, FormEditorSheet } from './components';
 
 export default function FormBuilderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();

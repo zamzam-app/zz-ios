@@ -5,12 +5,12 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { MoreStackParamList } from '../../navigation/MoreNavigator';
-import { useAuthStore } from '../../store/authStore';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
+import type { MoreStackParamList } from '../../../navigation/MoreNavigator';
+import { useAuthStore } from '../../../store/authStore';
+import { colors, spacing, radius, typography, shadow } from '../../../theme/theme';
 
-import { ManagersList, ManagerEditorSheet } from './managers/components';
-import { useManagersState } from './managers/hooks';
+import { ManagersList, ManagerEditorSheet } from './components';
+import { useManagersState } from './hooks';
 
 export default function ManagersScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();
