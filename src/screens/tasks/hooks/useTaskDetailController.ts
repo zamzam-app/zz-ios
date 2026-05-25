@@ -277,8 +277,21 @@ export function useTaskDetailController(
 
   const timelineEvents = useMemo(() => {
     const rawEvents = flattenInfiniteData(timelineQuery.data);
-    const clubbed: typeof rawEvents = [];
+    const seenEventKeys = new Set<string>();
+    const deduped: typeof rawEvents = [];
+
     for (const event of rawEvents) {
+      const eventKey =
+        event._id && event.sortKey
+          ? `${event._id}:${event.sortKey}`
+          : `${event.type}:${event.createdAt}:${event.createdBy._id}`;
+      if (seenEventKeys.has(eventKey)) continue;
+      seenEventKeys.add(eventKey);
+      deduped.push(event);
+    }
+
+    const clubbed: typeof rawEvents = [];
+    for (const event of deduped) {
       if (event.type === TaskEventType.ATTACHMENT_ADDED) {
         const lastEvent = clubbed[clubbed.length - 1];
         if (

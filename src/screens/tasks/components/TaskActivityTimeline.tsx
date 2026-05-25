@@ -55,7 +55,8 @@ export function TaskActivityTimeline({
   );
 
   const keyExtractor = useCallback(
-    (item: SerializedTimelineEvent) => `${item.sortKey}:${item._id || 'no-id'}`,
+    (item: SerializedTimelineEvent, index: number) =>
+      `${item.sortKey}:${item._id || 'no-id'}:${index}`,
     [],
   );
 
