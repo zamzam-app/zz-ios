@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 
-import {
-  Task,
-  CreateTaskPayload,
-  TaskPriority,
-  enqueueTaskSubmission,
-} from '../../../api/endpoints/tasks';
+import { Task, CreateTaskPayload, TaskPriority } from '../../../api/endpoints/tasks';
+import { enqueueTaskSubmission } from '../../../api/endpoints/tasks/taskSubmissionQueueApi';
 import { useOutlets } from '../../../hooks/infrastructure';
 import { useCreateTask, useTaskCategories } from '../../../hooks/tasks';
 import { useManagers } from '../../../hooks/useUsers';
