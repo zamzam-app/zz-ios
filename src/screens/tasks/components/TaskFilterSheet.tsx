@@ -163,7 +163,7 @@ export function TaskFilterSheet({
                         {dueDateFilter ? 'Change Date' : 'Select Date'}
                       </Text>
                     </TouchableOpacity>
-                  )}{' '}
+                  )}
                   {dueDateFilter && !showDueDatePicker && (
                     <TouchableOpacity
                       style={[styles.filterActionBtn, styles.filterActionBtnSecondary]}

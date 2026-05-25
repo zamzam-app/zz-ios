@@ -328,29 +328,6 @@ export function useTaskDetailController(
     });
   }, [source]);
 
-  // ─── Logging effects ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (__DEV__) console.warn('[TaskDetailScreen] Navigated to TaskDetailScreen. taskId:', taskId);
-  }, [taskId]);
-
-  useEffect(() => {
-    if (taskDetail && __DEV__) {
-      console.warn('[TaskDetailScreen] Fetched taskDetail successfully for taskId:', taskId, {
-        summary: taskDetail.summary,
-        timelinePage: taskDetail.timeline,
-      });
-    }
-  }, [taskDetail, taskId]);
-
-  useEffect(() => {
-    if (legacyTask && __DEV__) {
-      console.warn(
-        '[TaskDetailScreen] Fetched legacyTask successfully for taskId:',
-        taskId,
-        legacyTask,
-      );
-    }
-  }, [legacyTask, taskId]);
 
   useEffect(() => {
     if (detailError) {

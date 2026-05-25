@@ -103,7 +103,6 @@ export function TaskSummaryCard({
         <View style={styles.ownerTopRow}>
           <View style={styles.ownerHeadingWrap}>
             <View style={styles.ownerTitleRow}>
-              {' '}
               <Text style={styles.ownerTitle}>{categoryName || 'Task'}</Text>
               {isOverdue ? <Text style={styles.overdueTopTag}>Overdue</Text> : null}
             </View>
