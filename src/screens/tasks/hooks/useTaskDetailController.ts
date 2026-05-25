@@ -215,7 +215,12 @@ export function useTaskDetailController(
   const addCommentMutation = useAddComment();
   const { mutate: mutateMarkTaskViewed } = useMarkTaskViewed();
 
-  const { data: legacyTask } = useTask(taskId);
+  const {
+    data: legacyTask,
+    isLoading: legacyLoading,
+  } = useTask(taskId);
+
+  // ─── Mark task viewed on focus...
 
   const updateStatus = useUpdateTaskStatus();
   const deleteTask = useDeleteTask();
@@ -597,7 +602,9 @@ export function useTaskDetailController(
     // Future: navigate to user profile
   }, []);
 
-  const isLoading = detailLoading;
+  // Keep loading until ALL primary queries settle — avoids flash of "not found"
+  // while the legacy task fallback query is still in-flight.
+  const isLoading = detailLoading || legacyLoading;
 
   return {
     // Data
