@@ -120,30 +120,42 @@ export interface FranchiseAnalyticsResponse {
 
 export const analyticsApi = {
   getQuickInsights: (period: Period) =>
-    client.get<QuickInsightsResponse>('/analytics/quick-insights', { params: { period } }),
+    client
+      .get<QuickInsightsResponse>('/analytics/quick-insights', { params: { period } })
+      .then((r) => r.data),
 
   getGlobalCsat: (period: Period) =>
-    client.get<GlobalCsatResponse>('/analytics/global-csat', { params: { period } }),
+    client
+      .get<GlobalCsatResponse>('/analytics/global-csat', { params: { period } })
+      .then((r) => r.data),
 
   getCsatTrendline: (period: Period) =>
-    client.get<CsatTrendlineResponse>('/analytics/csat-trendline', { params: { period } }),
+    client
+      .get<CsatTrendlineResponse>('/analytics/csat-trendline', { params: { period } })
+      .then((r) => r.data),
 
   getIncidentsOverview: (period: Period) =>
-    client.get<IncidentsOverviewResponse>('/analytics/incidents-overview', { params: { period } }),
+    client
+      .get<IncidentsOverviewResponse>('/analytics/incidents-overview', { params: { period } })
+      .then((r) => r.data),
 
   getOutletFeedbackSummary: (period: Period) =>
-    client.get<OutletFeedbackSummaryResponse>('/analytics/outlet-feedback-summary', {
-      params: { period },
-    }),
+    client
+      .get<OutletFeedbackSummaryResponse>('/analytics/outlet-feedback-summary', {
+        params: { period },
+      })
+      .then((r) => r.data),
 
   getFranchiseAnalytics: (period?: Period) =>
-    client.get<FranchiseAnalyticsResponse>(
-      '/analytics/franchise',
-      period ? { params: { period } } : undefined,
-    ),
+    client
+      .get<FranchiseAnalyticsResponse>(
+        '/analytics/franchise',
+        period ? { params: { period } } : undefined,
+      )
+      .then((r) => r.data),
 
   getTasksOverview: (period?: Period) =>
     client
       .get<TasksOverviewResponse>('/tasks/overview', period ? { params: { period } } : undefined)
-      .then((response) => response.data),
+      .then((r) => r.data),
 };

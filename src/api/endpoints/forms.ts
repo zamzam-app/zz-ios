@@ -187,5 +187,7 @@ export const formsApi = {
       })
       .then((r) => mapForm(r.data)),
 
-  delete: (id: string) => client.delete(`/forms/${id}`),
+  delete: async (id: string) => {
+    await client.delete(`/forms/${id}`);
+  },
 };

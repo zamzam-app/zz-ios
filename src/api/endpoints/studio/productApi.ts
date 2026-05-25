@@ -62,5 +62,7 @@ export const productsApi = {
     return mapProduct(r.data);
   },
 
-  delete: (id: string) => client.delete(`/product/${id}`),
+  delete: async (id: string) => {
+    await client.delete(`/product/${id}`);
+  },
 };

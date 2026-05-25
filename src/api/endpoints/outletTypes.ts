@@ -40,5 +40,7 @@ export const outletTypesApi = {
   update: (id: string, payload: { name?: string; description?: string }) =>
     client.patch<RawOutletType>(`/outlet-type/${id}`, payload).then((r) => mapOutletType(r.data)),
 
-  delete: (id: string) => client.delete(`/outlet-type/${id}`),
+  delete: async (id: string) => {
+    await client.delete(`/outlet-type/${id}`);
+  },
 };

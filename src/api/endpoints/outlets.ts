@@ -142,5 +142,7 @@ export const outletsApi = {
   update: (id: string, payload: UpdateOutletPayload) =>
     client.patch<RawOutlet>(`/outlet/${id}`, payload).then((r) => mapOutlet(r.data)),
 
-  delete: (id: string) => client.delete(`/outlet/${id}`),
+  delete: async (id: string) => {
+    await client.delete(`/outlet/${id}`);
+  },
 };

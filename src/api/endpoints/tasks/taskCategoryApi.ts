@@ -29,6 +29,6 @@ export async function updateCategory(id: string, payload: { name?: string; descr
   return mapTaskCategory(r.data);
 }
 
-export function deleteCategory(id: string) {
-  return client.delete(`/task-category/${id}`);
+export async function deleteCategory(id: string) {
+  await client.delete(`/task-category/${id}`);
 }

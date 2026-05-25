@@ -328,7 +328,6 @@ export function useTaskDetailController(
     });
   }, [source]);
 
-
   useEffect(() => {
     if (detailError) {
       const err = getAxiosLikeErrorDetails(detailError);

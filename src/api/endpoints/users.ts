@@ -79,11 +79,14 @@ export const usersApi = {
   update: (id: string, payload: UpdateManagerPayload) =>
     client.patch<RawUser>(`/users/${id}`, payload).then((r) => mapUser(r.data)),
 
-  delete: (id: string) => client.delete(`/users/${id}`),
+  delete: async (id: string) => {
+    await client.delete(`/users/${id}`);
+  },
 
-  changePassword: (id: string, payload: ChangePasswordPayload) =>
-    client.post(`/users/change-password/${id}`, {
+  changePassword: async (id: string, payload: ChangePasswordPayload) => {
+    await client.post(`/users/change-password/${id}`, {
       oldPassword: payload.oldPassword,
       newPassword: payload.newPassword,
-    }),
+    });
+  },
 };

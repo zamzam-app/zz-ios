@@ -21,5 +21,7 @@ export const categoriesApi = {
   update: (id: string, payload: { name?: string; description?: string }) =>
     client.patch<RawCategory>(`/category/${id}`, payload).then((r) => mapCategory(r.data)),
 
-  delete: (id: string) => client.delete(`/category/${id}`),
+  delete: async (id: string) => {
+    await client.delete(`/category/${id}`);
+  },
 };

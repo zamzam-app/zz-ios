@@ -61,6 +61,6 @@ export async function updateStatus(id: string, status: TaskStatus) {
   return mapTask(r.data);
 }
 
-export function remove(id: string) {
-  return client.delete(`/tasks/${id}`);
+export async function remove(id: string) {
+  await client.delete(`/tasks/${id}`);
 }
