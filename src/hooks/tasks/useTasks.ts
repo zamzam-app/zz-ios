@@ -44,7 +44,7 @@ export const useTaskCategories = () =>
 export const useCreateTaskCategory = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { name: string; description: string }) =>
+    mutationFn: (payload: { name: string; description?: string }) =>
       tasksApi.createCategory(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-categories'] });

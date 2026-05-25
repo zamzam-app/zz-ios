@@ -19,7 +19,7 @@ export async function listCategories(): Promise<TaskCategoryOption[]> {
   );
 }
 
-export async function createCategory(payload: { name: string; description: string }) {
+export async function createCategory(payload: { name: string; description?: string }) {
   const r = await client.post<RawTaskCategory>('/task-category', payload);
   return mapTaskCategory(r.data);
 }
