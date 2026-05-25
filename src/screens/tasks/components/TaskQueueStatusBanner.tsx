@@ -7,8 +7,8 @@ import {
   retryFailedJobs,
   clearFailedJobs,
   clearAllPendingJobs,
-} from '../api/endpoints/tasks';
-import { colors, spacing, radius, typography, shadow } from '../theme/theme';
+} from '../../../api/endpoints/tasks';
+import { colors, spacing, radius, typography, shadow } from '../../../theme/theme';
 
 export default function TaskQueueStatusBanner() {
   const [status, setStatus] = useState(getTaskQueueStatus());
