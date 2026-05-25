@@ -17,7 +17,7 @@ const AUDIO_FILE_WAIT_DELAY_MS = 120;
 function normalizeLocalFileUri(uri: string): string {
   const trimmed = uri.trim();
   if (!trimmed) return trimmed;
-  if (trimmed.startsWith('file://') || trimmed.startsWith('content://')) return trimmed;
+  if (trimmed.startsWith('file://')) return trimmed;
   if (trimmed.startsWith('file:/')) {
     const pathOnly = trimmed.replace(/^file:\/*/, '');
     return `file://${pathOnly}`;

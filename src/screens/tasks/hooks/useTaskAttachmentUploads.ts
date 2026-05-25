@@ -12,7 +12,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking, Platform } from 'react-native';
+import { Alert, Linking } from 'react-native';
 
 import {
   cancelUploadJob,
@@ -56,7 +56,7 @@ const AUDIO_FILE_WAIT_DELAY_MS = 120;
 function normalizeLocalFileUri(uri: string): string {
   const trimmed = uri.trim();
   if (!trimmed) return trimmed;
-  if (trimmed.startsWith('file://') || trimmed.startsWith('content://')) {
+  if (trimmed.startsWith('file://')) {
     return trimmed;
   }
   if (trimmed.startsWith('file:/')) {
@@ -435,7 +435,7 @@ export function useTaskAttachmentUploads() {
   const openAttachmentExternally = async (item: AttachmentItem) => {
     const label = item.type === 'video' ? 'video' : 'file';
     try {
-      let previewUri = item.uri;
+      const previewUri = item.uri;
 
       if (
         previewUri.toLowerCase().endsWith('.pdf') ||
@@ -459,14 +459,6 @@ export function useTaskAttachmentUploads() {
           return;
         } catch (error) {
           console.warn('[CreateTask] Failed to open PDF in-app', error);
-        }
-      }
-
-      if (Platform.OS === 'android' && previewUri.startsWith('file://')) {
-        try {
-          previewUri = await FileSystem.getContentUriAsync(previewUri);
-        } catch {
-          // Fallback
         }
       }
 
