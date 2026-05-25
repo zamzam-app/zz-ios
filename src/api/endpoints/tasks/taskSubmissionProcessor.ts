@@ -2,6 +2,7 @@ import { queryClient } from '../../queryClient';
 import { removeUploadJob } from '../uploads/uploadQueueApi';
 import { waitForUploadJob } from '../uploads/uploadQueueSubscriptions';
 
+import { create as createTask, update as updateTask } from './taskCrudApi';
 import {
   ensureLoaded,
   persistQueue,
@@ -11,8 +12,6 @@ import {
   RETRY_DELAY_BASE,
 } from './taskSubmissionQueueStore';
 import type { CreateTaskPayload, UpdateTaskPayload } from './taskTypes';
-
-import { tasksApi } from '.';
 
 let isQueueProcessing = false;
 
@@ -84,13 +83,13 @@ async function processQueue() {
         ...nextJob.payload,
         adminSubmission: updatedAdminSubmission,
       };
-      await tasksApi.update(nextJob.taskId, finalPayload);
+      await updateTask(nextJob.taskId, finalPayload);
     } else {
       const finalPayload: CreateTaskPayload = {
         ...(nextJob.payload as CreateTaskPayload),
         adminSubmission: updatedAdminSubmission,
       };
-      await tasksApi.create(finalPayload);
+      await createTask(finalPayload);
     }
 
     // 4. Invalidate cache to refresh UI
