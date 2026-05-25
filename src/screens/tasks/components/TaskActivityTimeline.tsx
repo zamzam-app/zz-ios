@@ -43,10 +43,10 @@ export function TaskActivityTimeline({
   onActorPress,
 }: TaskActivityTimelineProps) {
   const renderEvent = useCallback(
-    ({ item }: { item: SerializedTimelineEvent }) => (
+    ({ item, index }: { item: SerializedTimelineEvent; index: number }) => (
       <TimelineEventCard
         event={item}
-        isLast={item.sortKey === filteredEvents[filteredEvents.length - 1]?.sortKey}
+        isLast={index === filteredEvents.length - 1}
         onAttachmentPress={onAttachmentPress}
         onActorPress={onActorPress}
       />
@@ -54,7 +54,11 @@ export function TaskActivityTimeline({
     [filteredEvents, onAttachmentPress, onActorPress],
   );
 
-  const keyExtractor = useCallback((item: SerializedTimelineEvent) => item._id, []);
+  const keyExtractor = useCallback(
+    (item: SerializedTimelineEvent, index: number) =>
+      `${item.sortKey}:${item._id || 'no-id'}:${index}`,
+    [],
+  );
 
   return (
     <FlashList

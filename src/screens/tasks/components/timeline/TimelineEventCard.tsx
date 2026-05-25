@@ -68,25 +68,32 @@ function TimelineEventCard({
       <View style={styles.railColumn}>
         {/* Vertical rail line */}
         {!isLast && <View style={styles.railLine} />}
-        {/* Icon node circle */}
-        <View style={[styles.iconNode, { backgroundColor: nodeBg }]}>
-          <Ionicons name={icon as IoniconName} size={14} color={nodeFg} />
-        </View>
+        {/* Icon node circle (hidden for REASSIGNED — the banner already has its own icon) */}
+        {event.type !== TaskEventType.REASSIGNED && (
+          <View style={[styles.iconNode, { backgroundColor: nodeBg }]}>
+            <Ionicons name={icon as IoniconName} size={14} color={nodeFg} />
+          </View>
+        )}
       </View>
 
       {/* Content Card */}
       <View style={styles.contentColumn}>
         {/* Actor + Action + Timestamp row */}
         <View style={styles.headerRow}>
-          <View style={styles.actorInfo}>
-            <Text
-              style={styles.actorName}
-              onPress={onActorPress ? () => onActorPress(event.createdBy._id) : undefined}
-            >
-              {event.createdBy.name}
-            </Text>
-            <Text style={styles.actionText}> · {actionLabel}</Text>
-          </View>
+          {event.type === TaskEventType.REASSIGNED ? (
+            /* REASSIGNED events show their own detailed banner below — skip redundant header */
+            <View style={{ flex: 1 }} />
+          ) : (
+            <View style={styles.actorInfo}>
+              <Text
+                style={styles.actorName}
+                onPress={onActorPress ? () => onActorPress(event.createdBy._id) : undefined}
+              >
+                {event.createdBy.name}
+              </Text>
+              <Text style={styles.actionText}> · {actionLabel}</Text>
+            </View>
+          )}
           <Text style={styles.timestamp}>{formatRelativeTime(event.createdAt)}</Text>
         </View>
 

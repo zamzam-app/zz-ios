@@ -18,27 +18,44 @@ interface TimelineEventDelegationProps {
 function TimelineEventDelegation({ event }: TimelineEventDelegationProps) {
   const { data, delegationSummary } = event;
 
-  const delegatedBy = data.delegatedBy as string | undefined;
-  const delegatedTo = data.delegatedTo as string | undefined;
   const isRevocation = data.revokeDelegation === true;
   const from = data.from as string | undefined;
   const to = data.to as string | undefined;
   const note = data.note as string | undefined;
   const reason = data.reason as string | undefined;
 
-  // Use delegationSummary if available (server-side enriched)
-  const summaryDelegatedTo = delegationSummary?.delegatedTo?.name;
-  const summaryDelegatedBy = delegationSummary?.delegatedBy?.name;
+  const readActorName = (value: unknown): string | undefined => {
+    if (typeof value === 'string' && value.trim()) return value;
+    if (value && typeof value === 'object') {
+      const rec = value as Record<string, unknown>;
+      const name = rec.name;
+      return typeof name === 'string' && name.trim() ? name : undefined;
+    }
+    return undefined;
+  };
+
+  // Prefer enriched summary names, then fall back to raw event payload fields.
+  const delegatedToName =
+    delegationSummary?.delegatedTo?.name ??
+    readActorName(data.delegatedTo) ??
+    readActorName(data.to) ??
+    ((data.toName as string | undefined) || undefined);
+  const delegatedByName =
+    delegationSummary?.delegatedBy?.name ??
+    readActorName(data.delegatedBy) ??
+    readActorName(data.from) ??
+    ((data.fromName as string | undefined) || undefined);
+  const isDelegation = Boolean(delegatedToName) && !isRevocation;
 
   // Delegation (temporary hand-off)
-  if (delegatedBy && delegatedTo) {
+  if (isDelegation) {
     return (
       <View style={styles.container}>
-        <View style={styles.banner}>
-          <Ionicons name="people" size={14} color={colors.warning} />
-          <Text style={styles.bannerText}>
-            Delegated to <Text style={styles.highlight}>{summaryDelegatedTo ?? delegatedTo}</Text>
-            {summaryDelegatedBy ? <Text> by {summaryDelegatedBy}</Text> : null}
+        <View style={[styles.banner, styles.delegationBanner]}>
+          <Ionicons name="people" size={14} color={colors.textInverse} />
+          <Text style={[styles.bannerText, styles.delegationBannerText]}>
+            Delegated to <Text style={styles.highlight}>{delegatedToName}</Text>
+            {delegatedByName ? <Text> by {delegatedByName}</Text> : null}
           </Text>
         </View>
         {note ? <Text style={styles.note}>{note}</Text> : null}
@@ -82,7 +99,7 @@ export default React.memo(TimelineEventDelegation);
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: spacing.xs,
+    marginTop: 0,
   },
   banner: {
     flexDirection: 'row',
@@ -93,6 +110,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs + 2,
     borderRadius: radius.sm,
     alignSelf: 'flex-start',
+  },
+  delegationBanner: {
+    backgroundColor: colors.black,
+  },
+  delegationBannerText: {
+    color: colors.textInverse,
   },
   revokeBanner: {
     backgroundColor: colors.errorLight,

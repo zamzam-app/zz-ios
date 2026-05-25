@@ -44,7 +44,7 @@ export const useTaskCategories = () =>
 export const useCreateTaskCategory = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { name: string; description: string }) =>
+    mutationFn: (payload: { name: string; description?: string }) =>
       tasksApi.createCategory(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-categories'] });
@@ -82,7 +82,8 @@ export const useCreateTask = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateTaskPayload) => tasksApi.create(payload),
-    onSuccess: () => {
+    onSuccess: (created) => {
+      qc.setQueryData(['task', created.id], created);
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
@@ -96,10 +97,10 @@ export const useUpdateTaskStatus = () => {
     mutationFn: ({ id, status }: { id: string; status: TaskStatus }) =>
       tasksApi.updateStatus(id, status),
     onSuccess: (updated) => {
+      qc.setQueryData(['task', updated.id], updated);
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
-      qc.invalidateQueries({ queryKey: ['task', updated.id] });
       qc.invalidateQueries({ queryKey: ['taskTimeline', updated.id] });
       qc.invalidateQueries({ queryKey: ['taskDetail', updated.id] });
       qc.invalidateQueries({ queryKey: ['eventTypeCounts', updated.id] });
@@ -125,10 +126,10 @@ export const useUpdateTask = () => {
     mutationFn: ({ id, payload }: { id: string; payload: UpdateTaskPayload }) =>
       tasksApi.update(id, payload),
     onSuccess: (updated) => {
+      qc.setQueryData(['task', updated.id], updated);
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-infinite'] });
       qc.invalidateQueries({ queryKey: ['tasks-overview'] });
-      qc.invalidateQueries({ queryKey: ['task', updated.id] });
       qc.invalidateQueries({ queryKey: ['taskTimeline', updated.id] });
       qc.invalidateQueries({ queryKey: ['taskDetail', updated.id] });
       qc.invalidateQueries({ queryKey: ['eventTypeCounts', updated.id] });

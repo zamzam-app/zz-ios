@@ -75,6 +75,10 @@ function getAxiosLikeErrorDetails(error: unknown) {
   };
 }
 
+function isNotFoundApiError(error: unknown) {
+  return getAxiosLikeErrorDetails(error).status === 404;
+}
+
 function buildAttachmentName(url: string, prefix: string, index: number) {
   const safePrefix = prefix.toLowerCase();
   try {
@@ -206,6 +210,7 @@ export function useTaskDetailController(
   const {
     data: taskDetail,
     isLoading: detailLoading,
+    status: detailStatus,
     error: detailError,
     refetch: refetchDetail,
   } = useTaskDetail(taskId);
@@ -215,7 +220,15 @@ export function useTaskDetailController(
   const addCommentMutation = useAddComment();
   const { mutate: mutateMarkTaskViewed } = useMarkTaskViewed();
 
-  const { data: legacyTask } = useTask(taskId);
+  const {
+    data: legacyTask,
+    isLoading: legacyLoading,
+    status: legacyStatus,
+    error: legacyError,
+    refetch: refetchLegacy,
+  } = useTask(taskId);
+
+  // ─── Mark task viewed on focus...
 
   const updateStatus = useUpdateTaskStatus();
   const deleteTask = useDeleteTask();
@@ -264,8 +277,21 @@ export function useTaskDetailController(
 
   const timelineEvents = useMemo(() => {
     const rawEvents = flattenInfiniteData(timelineQuery.data);
-    const clubbed: typeof rawEvents = [];
+    const seenEventKeys = new Set<string>();
+    const deduped: typeof rawEvents = [];
+
     for (const event of rawEvents) {
+      const eventKey =
+        event._id && event.sortKey
+          ? `${event._id}:${event.sortKey}`
+          : `${event.type}:${event.createdAt}:${event.createdBy._id}`;
+      if (seenEventKeys.has(eventKey)) continue;
+      seenEventKeys.add(eventKey);
+      deduped.push(event);
+    }
+
+    const clubbed: typeof rawEvents = [];
+    for (const event of deduped) {
       if (event.type === TaskEventType.ATTACHMENT_ADDED) {
         const lastEvent = clubbed[clubbed.length - 1];
         if (
@@ -327,7 +353,6 @@ export function useTaskDetailController(
       setManagerAttachments(nextAttachments);
     });
   }, [source]);
-
 
   useEffect(() => {
     if (detailError) {
@@ -598,7 +623,16 @@ export function useTaskDetailController(
     // Future: navigate to user profile
   }, []);
 
-  const isLoading = detailLoading;
+  // Keep loading until both primary queries have either succeeded or failed.
+  // `isLoading` can be false briefly before a fetch starts, which caused a
+  // transient "Task not found" render before the shimmer.
+  const detailQueryComplete = detailStatus === 'success' || detailStatus === 'error';
+  const legacyQueryComplete = legacyStatus === 'success' || legacyStatus === 'error';
+  const allQueriesComplete = detailQueryComplete && legacyQueryComplete;
+  const isLoading = !allQueriesComplete || detailLoading || legacyLoading;
+  const hasLoadError = allQueriesComplete && !source && Boolean(detailError || legacyError);
+  const isTaskNotFound =
+    hasLoadError && (isNotFoundApiError(detailError) || isNotFoundApiError(legacyError));
 
   return {
     // Data
@@ -606,7 +640,12 @@ export function useTaskDetailController(
     taskDetail,
     legacyTask,
     isLoading,
+    allQueriesComplete,
     detailError,
+    legacyError,
+    hasLoadError,
+    isTaskNotFound,
+    refetchLegacy,
     isAdmin,
     timelineQuery,
     eventTypeCountsQuery,

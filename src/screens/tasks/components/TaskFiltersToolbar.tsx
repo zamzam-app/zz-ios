@@ -147,6 +147,9 @@ export function TaskFiltersToolbar({
     setRowWidth(event.nativeEvent.layout.width);
   };
 
+  const getCount = (key: string) =>
+    key === 'TODAY' ? todayCount : key === 'HIGH_PRIORITY' ? highPriorityCount : unreadCount;
+
   return (
     <View style={styles.controlsRow} onLayout={handleControlsLayout}>
       <View style={styles.filterMenuWrapCompact}>

@@ -1,17 +1,9 @@
 import { create } from 'zustand';
 
-import client from '../api/client';
+import { authApi, AuthUser } from '../api/endpoints/authApi';
 import { queryClient } from '../api/queryClient';
 import { refreshTokenStorage, tokenStorage } from '../api/storage';
 import { syncPushToken } from '../utils/notifications';
-
-export interface AuthUser {
-  _id?: string;
-  id: string;
-  email: string;
-  name: string;
-  role: 'admin' | 'manager' | 'user';
-}
 
 interface AuthState {
   user: AuthUser | null;
@@ -27,14 +19,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   login: async (identifier, password, isAdminLogin) => {
-    const payload = isAdminLogin
-      ? { email: identifier, password }
-      : { userName: identifier, password };
-
-    const { data } = await client.post<{ access_token: string; refresh_token?: string }>(
-      '/auth/login',
-      payload,
-    );
+    const data = await authApi.login(identifier, password, isAdminLogin);
 
     await tokenStorage.set(data.access_token);
 
@@ -44,7 +29,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await refreshTokenStorage.clear();
     }
 
-    const { data: profile } = await client.get<AuthUser>('/auth/profile');
+    const profile = await authApi.getProfile();
 
     set({ user: profile });
     void syncPushToken();
@@ -52,7 +37,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     try {
-      await client.post('/auth/logout');
+      await authApi.logout();
     } catch {
       // best-effort
     }
@@ -67,7 +52,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const token = await tokenStorage.get();
       if (!token) return;
 
-      const { data: profile } = await client.get<AuthUser>('/auth/profile');
+      const profile = await authApi.getProfile();
       set({ user: profile });
       void syncPushToken();
     } catch {

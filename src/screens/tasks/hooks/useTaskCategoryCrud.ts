@@ -45,10 +45,10 @@ export function useTaskCategoryCrud() {
 
   const handleCloseModal = () => setShowModal(false);
 
-  const handleSubmit = (name: string, description: string) => {
+  const handleSubmit = (name: string, description?: string) => {
     if (editing) {
       updateCategory.mutate(
-        { id: editing.id, payload: { name, description } },
+        { id: editing.id, payload: { name, description: description ?? '' } },
         {
           onSuccess: () => {
             setShowModal(false);

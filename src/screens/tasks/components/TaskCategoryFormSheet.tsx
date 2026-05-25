@@ -8,6 +8,9 @@ import {
   TextInput,
   ActivityIndicator,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 
 import { TaskCategoryOption } from '../../../api/endpoints/tasks';
@@ -17,7 +20,7 @@ interface TaskCategoryFormSheetProps {
   visible: boolean;
   initial?: TaskCategoryOption;
   onClose: () => void;
-  onSubmit: (name: string, description: string) => void;
+  onSubmit: (name: string, description?: string) => void;
   submitting: boolean;
 }
 
@@ -31,7 +34,6 @@ export function TaskCategoryFormSheet({
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [nameError, setNameError] = useState<string | null>(null);
-  const [descriptionError, setDescriptionError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (visible) {
@@ -41,7 +43,6 @@ export function TaskCategoryFormSheet({
         setName(nextName);
         setDescription(nextDescription);
         setNameError(null);
-        setDescriptionError(null);
       });
     }
   }, [visible, initial]);
@@ -58,15 +59,8 @@ export function TaskCategoryFormSheet({
       setNameError(null);
     }
 
-    if (trimmedDescription.length < 5) {
-      setDescriptionError('Description must be at least 5 characters.');
-      hasError = true;
-    } else {
-      setDescriptionError(null);
-    }
-
     if (hasError) return;
-    onSubmit(trimmedName, trimmedDescription);
+    onSubmit(trimmedName, trimmedDescription || undefined);
   };
 
   return (
@@ -84,53 +78,60 @@ export function TaskCategoryFormSheet({
             </View>
           </View>
 
-          <View style={styles.formInner}>
-            <Text style={styles.label}>Name</Text>
-            <TextInput
-              style={[styles.input, nameError && styles.inputError]}
-              placeholder="e.g. Cleaning, Maintenance"
-              placeholderTextColor={colors.textDisabled}
-              value={name}
-              onChangeText={(value) => {
-                setName(value);
-                if (nameError) setNameError(null);
-              }}
-            />
-            {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.formWrapper}
+          >
+            <ScrollView
+              style={styles.formScroll}
+              contentContainerStyle={styles.formInner}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.label}>Name</Text>
+              <TextInput
+                style={[styles.input, nameError && styles.inputError]}
+                placeholder="e.g. Cleaning, Maintenance"
+                placeholderTextColor={colors.textDisabled}
+                value={name}
+                onChangeText={(value) => {
+                  setName(value);
+                  if (nameError) setNameError(null);
+                }}
+              />
+              {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
 
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.descriptionInput, descriptionError && styles.inputError]}
-              placeholder="Brief description..."
-              placeholderTextColor={colors.textDisabled}
-              value={description}
-              onChangeText={(value) => {
-                setDescription(value);
-                if (descriptionError) setDescriptionError(null);
-              }}
-              multiline
-            />
-            {descriptionError ? <Text style={styles.fieldError}>{descriptionError}</Text> : null}
+              <Text style={styles.label}>Description</Text>
+              <Text style={styles.optionalLabel}>(optional)</Text>
+              <TextInput
+                style={[styles.input, styles.descriptionInput]}
+                placeholder="Brief description..."
+                placeholderTextColor={colors.textDisabled}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+              />
 
-            <View style={styles.formActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={submitting}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.submitBtn}
-                onPress={handleSubmit}
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <ActivityIndicator color={colors.textInverse} />
-                ) : (
-                  <Text style={styles.submitBtnText}>
-                    {initial ? 'Save Changes' : 'Create Category'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+              <View style={styles.formActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={submitting}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.submitBtn}
+                  onPress={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color={colors.textInverse} />
+                  ) : (
+                    <Text style={styles.submitBtnText}>
+                      {initial ? 'Save Changes' : 'Create Category'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </View>
     </Modal>
@@ -196,9 +197,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.uiGray1,
   },
 
+  formWrapper: {
+    maxHeight: 400,
+  },
+  formScroll: {
+    flexGrow: 0,
+  },
   formInner: {
     padding: spacing.md,
     gap: spacing.xs,
+    paddingBottom: spacing.xl,
+  },
+  optionalLabel: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: -2,
+    marginBottom: 2,
   },
   label: {
     marginTop: spacing.sm,

@@ -46,3 +46,4 @@ yarn-error.*
 # .agents
 /.cursor
 .tmp-tests
+.antigravitycli

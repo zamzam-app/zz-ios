@@ -29,6 +29,30 @@
   - Navigation: `src/navigation/`
 - Keep environment usage centralized in `src/config/env.ts`
 
+## API & Mutation Conventions
+
+### Endpoint Return Types
+- Endpoint modules (`src/api/endpoints/{domain}/*`) **must** return unwrapped domain data, never raw `AxiosResponse` objects.
+  - Use `.then((r) => r.data)` or `async/await` with destructuring (`const { data } = await client.get(...)`) to unwrap before returning.
+  - Delete/void-returning methods should use `async/await` to return `Promise<void>`.
+  - Hooks calling these endpoints should not need to manually unwrap `.data`.
+
+### Direct Client Usage
+- Raw `client` (from `src/api/client.ts`) should never be imported outside `src/api/endpoints/`.
+  - Any API call needed by a screen, hook, or utility must be routed through a dedicated endpoint module first.
+  - If no endpoint module exists for the domain, create one (e.g., `src/api/endpoints/authApi.ts`).
+
+### Mutation Cache Strategy
+- Mutations that return an updated entity **must** use `queryClient.setQueryData()` to immediately write-through to the detail cache, alongside `invalidateQueries()` for related lists.
+  - Write-through first (instant UX), then invalidate (ensure freshness).
+  - Example: `qc.setQueryData(['task', updated.id], updated)` then `qc.invalidateQueries({ queryKey: ['tasks'] })`.
+  - Detail cache keys follow the pattern: `['entityName', entityId]`.
+
+### Query Key Ownership
+- Query key schemas are owned by each domain's hook module (e.g., `src/hooks/tasks/useTasks.ts` defines `['task', id]`).
+- Endpoint modules should never reference or manage query keys — they only expose the API functions.
+- This keeps concerns separated: hooks orchestrate caching, endpoints handle HTTP.
+
 ## Folder Structure
 
 Code is organized by **feature domain** with local `components/` and `hooks/` directories:

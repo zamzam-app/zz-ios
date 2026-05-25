@@ -19,7 +19,7 @@ export async function listCategories(): Promise<TaskCategoryOption[]> {
   );
 }
 
-export async function createCategory(payload: { name: string; description: string }) {
+export async function createCategory(payload: { name: string; description?: string }) {
   const r = await client.post<RawTaskCategory>('/task-category', payload);
   return mapTaskCategory(r.data);
 }
@@ -29,6 +29,6 @@ export async function updateCategory(id: string, payload: { name?: string; descr
   return mapTaskCategory(r.data);
 }
 
-export function deleteCategory(id: string) {
-  return client.delete(`/task-category/${id}`);
+export async function deleteCategory(id: string) {
+  await client.delete(`/task-category/${id}`);
 }
