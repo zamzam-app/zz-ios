@@ -1,3 +1,4 @@
+import axios from 'axios';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 
@@ -42,6 +43,10 @@ export async function syncPushToken() {
   try {
     await usersApi.syncPushToken(token);
   } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      // Silently ignore 401 — expected when user is logged out or session expired
+      return;
+    }
     console.warn('Failed to sync push token', err);
   }
 }
