@@ -14,7 +14,7 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc --noEmit --watch",
-    "do": "npm run format:check && npm run lint && npm run typecheck && git add ."
+    "do": "npm run format &&  npm run lint:fix && npm run typecheck && git add ."
   },
   "dependencies": {
     "@expo/ngrok": "^4.0.0",

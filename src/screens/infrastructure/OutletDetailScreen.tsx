@@ -3,8 +3,7 @@ import React from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useOutlet } from '../../hooks/useOutlets';
-import { useOutletTypes } from '../../hooks/useOutletTypes';
+import { useOutlet, useOutletTypes } from '../../hooks/infrastructure';
 import { useManagers } from '../../hooks/useUsers';
 import { InfrastructureStackParamList } from '../../navigation/InfrastructureNavigator';
 import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
