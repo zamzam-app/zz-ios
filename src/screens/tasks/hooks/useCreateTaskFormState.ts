@@ -9,10 +9,25 @@ import { useManagers } from '../../../hooks/useUsers';
 
 import { AttachmentItem, useTaskAttachmentUploads } from './useTaskAttachmentUploads';
 
-export function useCreateTaskFormState(editTask?: Task, initialIsRecurring = false) {
+type TaskFormMode = 'create' | 'edit';
+
+function getTaskCategoryId(task?: Task) {
+  return task?.taskCategory?._id ?? task?.category;
+}
+
+function getTaskOutletId(task?: Task) {
+  return task?.outlet?._id ?? task?.outletId ?? '';
+}
+
+export function useCreateTaskFormState(
+  editTask?: Task,
+  initialIsRecurring = false,
+  mode: TaskFormMode = editTask ? 'edit' : 'create',
+) {
+  const isEditMode = mode === 'edit';
   const [description, setDescription] = useState(editTask?.description ?? '');
   const [taskCategoryId, setTaskCategoryId] = useState<string | undefined>(
-    editTask?.taskCategory?._id ?? editTask?.category,
+    getTaskCategoryId(editTask),
   );
   const [priority, setPriority] = useState<TaskPriority>(editTask?.priority ?? 'MEDIUM');
   const [dueDate, setDueDate] = useState(
@@ -26,7 +41,7 @@ export function useCreateTaskFormState(editTask?: Task, initialIsRecurring = fal
   );
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>(editTask?.recurrenceDays ?? []);
   const [showMonthDaysPicker, setShowMonthDaysPicker] = useState(false);
-  const [outletId, setOutletId] = useState(editTask?.outlet?._id ?? editTask?.outletId ?? '');
+  const [outletId, setOutletId] = useState(getTaskOutletId(editTask));
   const [assigneeIds, setAssigneeIds] = useState<string[]>(editTask?.assigneeIds ?? []);
   const [showOutletPicker, setShowOutletPicker] = useState(false);
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
@@ -67,15 +82,15 @@ export function useCreateTaskFormState(editTask?: Task, initialIsRecurring = fal
   const createTask = useCreateTask();
 
   useEffect(() => {
-    if (!editTask) return;
+    if (!isEditMode || !editTask) return;
     setDescription(editTask.description);
-    setTaskCategoryId(editTask.taskCategory?._id ?? editTask.category);
+    setTaskCategoryId(getTaskCategoryId(editTask));
     setPriority(editTask.priority);
     setDueDate(new Date(editTask.dueDate));
     setIsRecurring(!!editTask.isRecurring);
     setRecurrenceType(editTask.recurrenceType ?? 'WEEKLY');
     setRecurrenceDays(editTask.recurrenceDays ?? []);
-    setOutletId(editTask.outlet?._id ?? editTask.outletId ?? '');
+    setOutletId(getTaskOutletId(editTask));
     setAssigneeIds(editTask.assigneeIds ?? []);
 
     const existing: AttachmentItem[] = [];
@@ -123,7 +138,7 @@ export function useCreateTaskFormState(editTask?: Task, initialIsRecurring = fal
       );
     }
     setExistingAttachments(existing);
-  }, [editTask, setExistingAttachments]);
+  }, [editTask, isEditMode, setExistingAttachments]);
 
   const selectedOutlet = outlets?.find((o) => o.id === outletId);
   const filteredManagers = useMemo(() => {
@@ -145,12 +160,18 @@ export function useCreateTaskFormState(editTask?: Task, initialIsRecurring = fal
     : undefined;
 
   useEffect(() => {
-    setAssigneeIds((prev) =>
-      prev.filter((id) => filteredManagers.some((manager) => manager.id === id)),
-    );
+    setAssigneeIds((prev) => {
+      const next = prev.filter((id) => filteredManagers.some((manager) => manager.id === id));
+      return next.length === prev.length ? prev : next;
+    });
   }, [filteredManagers]);
 
   const handleSubmit = (onSuccess: () => void) => {
+    const editTaskId = editTask?.id;
+    if (isEditMode && !editTaskId) {
+      console.error('[TaskForm] Cannot update task without an id.', { editTask });
+      return Alert.alert('Cannot update task', 'Task details are still loading. Please try again.');
+    }
     if (!description.trim()) return Alert.alert('Required', 'Please enter a description.');
     if (!taskCategoryId) return Alert.alert('Required', 'Please select a category.');
     if (!hasAssignees) return Alert.alert('Required', 'Please assign at least one manager.');
@@ -192,7 +213,7 @@ export function useCreateTaskFormState(editTask?: Task, initialIsRecurring = fal
       },
     };
 
-    void enqueueTaskSubmission(payload, attachmentJobs, editTask?.id);
+    void enqueueTaskSubmission(payload, attachmentJobs, isEditMode ? editTaskId : undefined);
     onSuccess();
   };
 
@@ -259,6 +280,7 @@ export function useCreateTaskFormState(editTask?: Task, initialIsRecurring = fal
     isFetchingTaskCategories,
     refetchTaskCategories,
     createTask,
+    isEditMode,
 
     // Derived
     selectedOutlet,

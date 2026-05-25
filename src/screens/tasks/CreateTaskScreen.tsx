@@ -19,19 +19,22 @@ interface CreateTaskContentProps {
   initialIsRecurring?: boolean;
   hideRecurringToggle?: boolean;
   editTask?: Task;
+  mode?: 'create' | 'edit';
 }
 
 export function CreateTaskContent({
   onSuccess,
-  submitLabel = 'Create Task',
+  submitLabel,
   bottomPadding: _bottomPadding,
   fill = true,
   backgroundColor = colors.background,
   initialIsRecurring = false,
   hideRecurringToggle = false,
   editTask,
+  mode = editTask ? 'edit' : 'create',
 }: CreateTaskContentProps) {
-  const formState = useCreateTaskFormState(editTask, initialIsRecurring);
+  const formState = useCreateTaskFormState(editTask, initialIsRecurring, mode);
+  const resolvedSubmitLabel = submitLabel ?? (mode === 'edit' ? 'Save Changes' : 'Create Task');
 
   const handleSubmit = () => {
     formState.handleSubmit(onSuccess);
@@ -140,7 +143,7 @@ export function CreateTaskContent({
         onAttachmentItemPress={formState.handleAttachmentPress}
         onAttachmentRemove={formState.removeAttachment}
         // Config
-        submitLabel={submitLabel}
+        submitLabel={resolvedSubmitLabel}
         hideRecurringToggle={hideRecurringToggle}
         // Close handlers
         onCloseDatePicker={() => formState.setShowDatePicker(false)}

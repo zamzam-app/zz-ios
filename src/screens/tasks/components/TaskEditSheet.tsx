@@ -1,18 +1,26 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 
+import { Task } from '../../../api/endpoints/tasks';
 import { colors } from '../../../theme/theme';
 import { CreateTaskContent } from '../CreateTaskScreen';
 
 interface TaskEditSheetProps {
   visible: boolean;
   onClose: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  legacyTask?: any;
+  editTask?: Task;
+  onSuccess?: () => void;
 }
 
-export function TaskEditSheet({ visible, onClose, legacyTask }: TaskEditSheetProps) {
+export function TaskEditSheet({ visible, onClose, editTask, onSuccess }: TaskEditSheetProps) {
+  if (!visible) return null;
+
+  const handleSuccess = () => {
+    onSuccess?.();
+    onClose();
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.editModalRoot}>
@@ -27,14 +35,22 @@ export function TaskEditSheet({ visible, onClose, legacyTask }: TaskEditSheetPro
               </TouchableOpacity>
             </View>
           </View>
-          <CreateTaskContent
-            onSuccess={onClose}
-            editTask={legacyTask ?? undefined}
-            submitLabel="Save Changes"
-            bottomPadding={24}
-            fill
-            backgroundColor={colors.surface}
-          />
+          {editTask?.id ? (
+            <CreateTaskContent
+              mode="edit"
+              onSuccess={handleSuccess}
+              editTask={editTask}
+              submitLabel="Save Changes"
+              bottomPadding={24}
+              fill
+              backgroundColor={colors.surface}
+            />
+          ) : (
+            <View style={styles.editLoadingWrap}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.editLoadingText}>Loading task details...</Text>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -74,4 +90,15 @@ const styles = StyleSheet.create({
   },
   editSheetTitle: { fontSize: 18, fontWeight: '700' as const, color: colors.text },
   editSheetClose: { padding: 4 },
+  editLoadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  editLoadingText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
 });

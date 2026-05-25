@@ -1,6 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  LayoutChangeEvent,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+} from 'react-native';
 
 import { colors, spacing, radius, typography } from '../../../theme/theme';
 
@@ -62,6 +72,9 @@ const FILTER_CHIPS: FilterChipDef[] = [
   },
 ];
 
+const SEARCH_COLLAPSED_WIDTH = 40;
+const SEARCH_ANIMATION_MS = 240;
+
 export function TaskFiltersToolbar({
   activeFilter,
   priorityFilter,
@@ -77,9 +90,65 @@ export function TaskFiltersToolbar({
 }: TaskFiltersToolbarProps) {
   const isFilterActive =
     priorityFilter !== 'ALL' || Boolean(dueDateFilter) || metricFilter !== 'all';
+  const inputRef = useRef<TextInput>(null);
+  const [searchProgress] = useState(() => new Animated.Value(searchQuery ? 1 : 0));
+  const [isSearchExpanded, setIsSearchExpanded] = useState(Boolean(searchQuery));
+  const [rowWidth, setRowWidth] = useState(0);
+
+  const expandedSearchWidth = rowWidth
+    ? Math.max(
+        SEARCH_COLLAPSED_WIDTH,
+        rowWidth - spacing.md * 2 - SEARCH_COLLAPSED_WIDTH - spacing.xs - spacing.sm,
+      )
+    : 280;
+
+  const searchWidth = searchProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [SEARCH_COLLAPSED_WIDTH, expandedSearchWidth],
+  });
+
+  const filterChipsOpacity = searchProgress.interpolate({
+    inputRange: [0, 0.55, 1],
+    outputRange: [1, 0.35, 0],
+  });
+
+  const searchFieldOpacity = searchProgress.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [0, 0, 1],
+  });
+
+  const animateSearch = (toValue: 0 | 1, onComplete?: () => void) => {
+    Animated.timing(searchProgress, {
+      toValue,
+      duration: SEARCH_ANIMATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished) onComplete?.();
+    });
+  };
+
+  const expandSearch = () => {
+    if (!isSearchExpanded) {
+      setIsSearchExpanded(true);
+      requestAnimationFrame(() => inputRef.current?.focus());
+      animateSearch(1);
+      return;
+    }
+    inputRef.current?.focus();
+  };
+
+  const collapseSearch = () => {
+    if (searchQuery.trim()) return;
+    animateSearch(0, () => setIsSearchExpanded(false));
+  };
+
+  const handleControlsLayout = (event: LayoutChangeEvent) => {
+    setRowWidth(event.nativeEvent.layout.width);
+  };
 
   return (
-    <View style={styles.controlsRow}>
+    <View style={styles.controlsRow} onLayout={handleControlsLayout}>
       <View style={styles.filterMenuWrapCompact}>
         <TouchableOpacity
           accessibilityRole="button"
@@ -96,21 +165,39 @@ export function TaskFiltersToolbar({
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchWrapCompact}>
-        <Ionicons
-          name="search"
-          size={14}
-          color={colors.textSecondary}
-          style={styles.searchIconCompact}
-        />
-        <TextInput
-          value={searchQuery}
-          onChangeText={onSearchChange}
-          style={styles.searchInputCompact}
-          placeholder="Search..."
-          placeholderTextColor={colors.textSecondary}
-        />
-        {searchQuery.length > 0 && (
+      <Animated.View style={[styles.searchWrapCompact, { width: searchWidth }]}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={isSearchExpanded ? 'Focus task search' : 'Search tasks'}
+          activeOpacity={0.82}
+          onPress={expandSearch}
+          style={styles.searchTapTarget}
+        >
+          <Ionicons
+            name="search"
+            size={18}
+            color={isSearchExpanded ? colors.primaryDark : colors.textSecondary}
+            style={styles.searchIconCompact}
+          />
+          <Animated.View
+            pointerEvents={isSearchExpanded ? 'auto' : 'none'}
+            style={[styles.searchFieldWrap, { opacity: searchFieldOpacity }]}
+          >
+            <TextInput
+              ref={inputRef}
+              value={searchQuery}
+              onChangeText={onSearchChange}
+              onBlur={collapseSearch}
+              editable={isSearchExpanded}
+              style={styles.searchInputCompact}
+              placeholder="Search..."
+              placeholderTextColor={colors.textSecondary}
+              returnKeyType="search"
+              accessibilityLabel="Search tasks"
+            />
+          </Animated.View>
+        </TouchableOpacity>
+        {isSearchExpanded && searchQuery.length > 0 && (
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Clear search"
@@ -121,37 +208,48 @@ export function TaskFiltersToolbar({
             <Text style={styles.searchClearTextCompact}>x</Text>
           </TouchableOpacity>
         )}
-      </View>
+      </Animated.View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterScrollContent}
+      <Animated.View
+        pointerEvents={isSearchExpanded ? 'none' : 'auto'}
+        style={[styles.filterChipsWrap, { opacity: filterChipsOpacity }]}
       >
-        {FILTER_CHIPS.map((f) => {
-          const count =
-            f.key === 'TODAY'
-              ? todayCount
-              : f.key === 'HIGH_PRIORITY'
-                ? highPriorityCount
-                : unreadCount;
-          const isActive = activeFilter === f.key;
-          return (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.filterChip, { backgroundColor: isActive ? f.activeBg : f.inactiveBg }]}
-              onPress={() => onFilterChipPress(f.key)}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[styles.filterChipText, { color: isActive ? f.activeText : f.inactiveText }]}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScrollContent}
+        >
+          {FILTER_CHIPS.map((f) => {
+            const count =
+              f.key === 'TODAY'
+                ? todayCount
+                : f.key === 'HIGH_PRIORITY'
+                  ? highPriorityCount
+                  : unreadCount;
+            const isActive = activeFilter === f.key;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: isActive ? f.activeBg : f.inactiveBg },
+                ]}
+                onPress={() => onFilterChipPress(f.key)}
+                activeOpacity={0.8}
               >
-                {f.emoji} {f.label} {count > 0 ? ` (${count})` : ''}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    { color: isActive ? f.activeText : f.inactiveText },
+                  ]}
+                >
+                  {f.emoji} {f.label} {count > 0 ? ` (${count})` : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
@@ -184,42 +282,58 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryTint,
   },
   searchWrapCompact: {
-    width: 110,
+    height: 40,
     justifyContent: 'center',
     marginRight: spacing.xs,
+    overflow: 'hidden',
   },
-  searchInputCompact: {
+  searchTapTarget: {
+    flex: 1,
     height: 40,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingLeft: 30,
-    paddingRight: 20,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+  },
+  searchFieldWrap: {
+    flex: 1,
+  },
+  searchInputCompact: {
+    height: 38,
+    paddingLeft: 38,
+    paddingRight: 32,
     fontSize: typography.sm,
     color: colors.text,
-    backgroundColor: colors.surface,
+    fontWeight: typography.medium,
   },
   searchIconCompact: {
     position: 'absolute',
-    left: 10,
+    left: 11,
     zIndex: 2,
   },
   searchClearBtnCompact: {
     position: 'absolute',
-    right: 6,
-    width: 18,
-    height: 18,
+    right: 8,
+    width: 24,
+    height: 24,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.uiGray4,
+    zIndex: 3,
   },
   searchClearTextCompact: {
-    fontSize: typography.xs,
+    fontSize: typography.sm,
     color: colors.textSecondary,
     fontWeight: typography.bold,
-    lineHeight: 14,
+    lineHeight: 16,
     includeFontPadding: false,
+  },
+  filterChipsWrap: {
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
   },
   filterScrollContent: {
     alignItems: 'center',

@@ -208,7 +208,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       <TaskEditSheet
         visible={ctrl.showEditModal}
         onClose={() => ctrl.setShowEditModal(false)}
-        legacyTask={ctrl.legacyTask}
+        editTask={ctrl.legacyTask}
+        onSuccess={() => {
+          void ctrl.refetchDetail();
+          void ctrl.timelineQuery.refetch();
+        }}
       />
 
       {/* ── Image Viewer Modal ────────────────────────────────────────── */}
