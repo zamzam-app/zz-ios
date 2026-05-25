@@ -34,7 +34,10 @@ export const useCreateProduct = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: productsApi.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: (created) => {
+      qc.setQueryData(['product', created.id], created);
+      qc.invalidateQueries({ queryKey: ['products'] });
+    },
   });
 };
 
@@ -48,7 +51,10 @@ export const useUpdateProduct = () => {
       id: string;
       payload: Parameters<typeof productsApi.update>[1];
     }) => productsApi.update(id, payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: (updated) => {
+      qc.setQueryData(['product', updated.id], updated);
+      qc.invalidateQueries({ queryKey: ['products'] });
+    },
   });
 };
 
