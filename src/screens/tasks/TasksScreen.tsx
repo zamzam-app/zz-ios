@@ -196,45 +196,48 @@ export default function TasksScreen() {
         onShowDueDatePicker={setShowDueDatePicker}
       />
 
-      <Modal
-        visible={showCreateModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowCreateModal(false)}
-      >
-        <View style={styles.createModalRoot}>
-          <TouchableOpacity
-            activeOpacity={1}
-            style={styles.createModalScrim}
-            onPress={() => setShowCreateModal(false)}
-          />
-          <View style={styles.createSheet}>
-            <View style={styles.createSheetTop}>
-              <View style={styles.createSheetHandle} />
-              <View style={styles.createSheetHeader}>
-                <Text style={styles.createSheetTitle}>Assign New Task</Text>
-                <TouchableOpacity
-                  style={styles.createSheetClose}
-                  onPress={() => setShowCreateModal(false)}
-                >
-                  <Ionicons name="close" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            <CreateTaskContent
-              onSuccess={() => {
-                setShowCreateModal(false);
-                void refetch();
-              }}
-              initialIsRecurring={activeTab === 'RECURRING'}
-              hideRecurringToggle
-              bottomPadding={24}
-              fill
-              backgroundColor={colors.surface}
+      {showCreateModal && (
+        <Modal
+          visible={showCreateModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowCreateModal(false)}
+        >
+          <View style={styles.createModalRoot}>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.createModalScrim}
+              onPress={() => setShowCreateModal(false)}
             />
+            <View style={styles.createSheet}>
+              <View style={styles.createSheetTop}>
+                <View style={styles.createSheetHandle} />
+                <View style={styles.createSheetHeader}>
+                  <Text style={styles.createSheetTitle}>Assign New Task</Text>
+                  <TouchableOpacity
+                    style={styles.createSheetClose}
+                    onPress={() => setShowCreateModal(false)}
+                  >
+                    <Ionicons name="close" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <CreateTaskContent
+                mode="create"
+                onSuccess={() => {
+                  setShowCreateModal(false);
+                  void refetch();
+                }}
+                initialIsRecurring={activeTab === 'RECURRING'}
+                hideRecurringToggle
+                bottomPadding={24}
+                fill
+                backgroundColor={colors.surface}
+              />
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
       <TaskAttachmentsSheet
         visible={Boolean(attachmentModal)}

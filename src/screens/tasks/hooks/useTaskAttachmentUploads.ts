@@ -283,9 +283,9 @@ export function useTaskAttachmentUploads() {
     });
   };
 
-  const setExistingAttachments = (existingAttachments: AttachmentItem[]) => {
+  const setExistingAttachments = useCallback((existingAttachments: AttachmentItem[]) => {
     setAttachments(existingAttachments);
-  };
+  }, []);
 
   const pickMedia = async (kind: 'image' | 'video') => {
     setShowAttachmentMenu(false);

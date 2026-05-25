@@ -96,6 +96,12 @@ async function processQueue() {
     void queryClient.invalidateQueries({ queryKey: ['tasks'] });
     void queryClient.invalidateQueries({ queryKey: ['tasks-infinite'] });
     void queryClient.invalidateQueries({ queryKey: ['tasks-overview'] });
+    if (nextJob.taskId) {
+      void queryClient.invalidateQueries({ queryKey: ['task', nextJob.taskId] });
+      void queryClient.invalidateQueries({ queryKey: ['taskDetail', nextJob.taskId] });
+      void queryClient.invalidateQueries({ queryKey: ['taskTimeline', nextJob.taskId] });
+      void queryClient.invalidateQueries({ queryKey: ['eventTypeCounts', nextJob.taskId] });
+    }
 
     // 5. Cleanup associated upload jobs
     for (const jobRef of nextJob.attachmentJobs) {
