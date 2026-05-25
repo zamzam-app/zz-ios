@@ -16,3 +16,5 @@ export { SubmissionBlock } from './SubmissionBlock';
 export { TaskSubmissionSheet } from './TaskSubmissionSheet';
 export { TaskEditSheet } from './TaskEditSheet';
 export { TaskAttachmentViewer } from './TaskAttachmentViewer';
+export { TaskCategoryList } from './TaskCategoryList';
+export { TaskCategoryFormSheet } from './TaskCategoryFormSheet';
