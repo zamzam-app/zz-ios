@@ -34,9 +34,9 @@ function TimelineEventDelegation({ event }: TimelineEventDelegationProps) {
   if (delegatedBy && delegatedTo) {
     return (
       <View style={styles.container}>
-        <View style={styles.banner}>
-          <Ionicons name="people" size={14} color={colors.warning} />
-          <Text style={styles.bannerText}>
+        <View style={[styles.banner, styles.delegationBanner]}>
+          <Ionicons name="people" size={14} color={colors.textInverse} />
+          <Text style={[styles.bannerText, styles.delegationBannerText]}>
             Delegated to <Text style={styles.highlight}>{summaryDelegatedTo ?? delegatedTo}</Text>
             {summaryDelegatedBy ? <Text> by {summaryDelegatedBy}</Text> : null}
           </Text>
@@ -93,6 +93,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs + 2,
     borderRadius: radius.sm,
     alignSelf: 'flex-start',
+  },
+  delegationBanner: {
+    backgroundColor: colors.black,
+  },
+  delegationBannerText: {
+    color: colors.textInverse,
   },
   revokeBanner: {
     backgroundColor: colors.errorLight,
