@@ -1,852 +1,114 @@
 import { Ionicons } from '@expo/vector-icons';
-import { RouteProp, useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useQuery } from '@tanstack/react-query';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  Alert,
-  Image,
-  Linking,
-} from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Task, TaskPriority, tasksApi } from '../../api/endpoints/tasks';
-import DatePickerModal from '../../components/shared/DatePickerModal';
-import UnreadBadge from '../../components/shared/UnreadBadge';
-import TaskQueueStatusBanner from '../../components/TaskQueueStatusBanner';
-import { TaskMetricFilter, TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
-import { useInfiniteTasks, useUnreadIds } from '../../hooks/tasks';
-import { TasksStackParamList } from '../../navigation/TasksNavigator';
-import { useAuthStore } from '../../store/authStore';
-import { colors, spacing, radius, typography, shadow } from '../../theme/theme';
-import { getApiErrorMessage } from '../../utils/errors';
+import { TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
+import { colors, spacing, radius, typography } from '../../theme/theme';
 
+import {
+  TaskBoardHeader,
+  TaskFiltersToolbar,
+  TaskFilterSheet,
+  OpenTaskList,
+  CompletedTasksAccordion,
+  TaskAttachmentsSheet,
+} from './components';
 import { CreateTaskContent } from './CreateTaskScreen';
-import { buildTaskCardFooterModel } from './taskAssignedTime';
-import { buildTaskBarModel } from './taskBadges';
-import { getTaskAssigneeNames, getTaskCategoryName, getTaskOutletName } from './taskDisplay';
-
-type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
-type TasksRoute = RouteProp<TasksStackParamList, 'TasksList'>;
-type PriorityFilter = TaskPriority | 'ALL';
-type FilterSection = 'priority' | 'dueDate';
-
-const PRIORITY_FILTERS: { label: string; value: PriorityFilter }[] = [
-  { label: 'All priorities', value: 'ALL' },
-  { label: 'High', value: 'HIGH' },
-  { label: 'Medium', value: 'MEDIUM' },
-  { label: 'Low', value: 'LOW' },
-];
-
-function toTimestamp(iso?: string | null) {
-  if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.getTime();
-}
-
-function compareCreatedAtDesc(a: Task, b: Task) {
-  const createdA = toTimestamp(a.createdAt) ?? 0;
-  const createdB = toTimestamp(b.createdAt) ?? 0;
-  return createdB - createdA;
-}
-
-function completedTaskSortValue(task: Task) {
-  return toTimestamp(task.completedAt ?? task.updatedAt ?? task.createdAt) ?? 0;
-}
-
-function compareCompletedTaskOrder(a: Task, b: Task) {
-  const completedDiff = completedTaskSortValue(b) - completedTaskSortValue(a);
-  if (completedDiff !== 0) return completedDiff;
-
-  return compareCreatedAtDesc(a, b);
-}
-
-type AttachmentType = 'images' | 'videos' | 'audios' | 'files';
-
-function buildAttachmentName(url: string, prefix: string, index: number) {
-  try {
-    const parsed = new URL(url);
-    const fileName = parsed.pathname.split('/').pop();
-    if (fileName) return decodeURIComponent(fileName);
-  } catch {
-    // fallback for non-url strings
-  }
-  const fallback = url.split('/').pop()?.split('?')[0];
-  if (fallback) return decodeURIComponent(fallback);
-  return `${prefix}-${index + 1}`;
-}
-
-function getTaskAttachmentUrls(task: Task, type: AttachmentType) {
-  if (type === 'images') return task.attachments?.images ?? task.imageUrls ?? [];
-  if (type === 'videos') return task.attachments?.videos ?? [];
-  if (type === 'audios') return task.attachments?.audios ?? [];
-  return task.attachments?.files ?? [];
-}
-
-function formatDate(iso?: string | null, dueTime?: string | null) {
-  if (!iso) return 'No due date';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'No due date';
-  const dateStr = date.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-  if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
-    const [hours, minutes] = dueTime.split(':');
-    const h = parseInt(hours, 10);
-    const m = parseInt(minutes, 10);
-    const suffix = h >= 12 ? 'PM' : 'AM';
-    const displayH = h % 12 || 12;
-    const timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${suffix}`;
-    return `${dateStr} ${timeStr}`;
-  }
-  return dateStr;
-}
-
-function formatRelativeTime(iso?: string | null) {
-  if (!iso) return 'Closed';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'Closed';
-
-  const diffMs = Date.now() - date.getTime();
-  const mins = Math.max(1, Math.floor(diffMs / 60000));
-  if (mins < 60) return `Closed ${mins}m ago`;
-
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `Closed ${hours}h ago`;
-
-  const days = Math.floor(hours / 24);
-  return `Closed ${days}d ago`;
-}
-
-function formatDueDisplay(dueDateStr?: string | null, dueTime?: string | null) {
-  if (!dueDateStr) return 'No due date';
-  const date = new Date(dueDateStr);
-  if (Number.isNaN(date.getTime())) return 'No due date';
-
-  const today = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(today.getDate() + 1);
-
-  const isToday = date.toDateString() === today.toDateString();
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-  let timeStr = '';
-  if (dueTime && dueTime.match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
-    const [hours, minutes] = dueTime.split(':');
-    const h = parseInt(hours, 10);
-    const m = parseInt(minutes, 10);
-    const suffix = h >= 12 ? 'PM' : 'AM';
-    const displayH = h % 12 || 12;
-    timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${suffix}`;
-  }
-
-  if (isToday) {
-    return timeStr ? `Due: ${timeStr}` : 'Due: Today';
-  }
-  if (isTomorrow) {
-    return `Due: Tomorrow${timeStr ? ` ${timeStr}` : ''}`;
-  }
-
-  const datePart = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
-  return `Due: ${datePart}${timeStr ? ` ${timeStr}` : ''}`;
-}
-
-function OpenTaskCard({
-  task,
-  onPress,
-  hasUnread,
-}: {
-  task: Task;
-  onPress: () => void;
-  hasUnread: boolean;
-}) {
-  const outletName = getTaskOutletName(task);
-  const categoryName = getTaskCategoryName(task);
-  const assigneeNames = getTaskAssigneeNames(task);
-
-  const upperCategory = (categoryName || '').toUpperCase();
-  const priority = task.priority;
-
-  let chipBg = colors.uiSlate200;
-  let chipText = colors.uiSlate600;
-  let chipLabel = categoryName || 'Task';
-
-  if (priority === 'HIGH' || upperCategory.includes('HIGH')) {
-    chipBg = colors.errorLight;
-    chipText = colors.error;
-    chipLabel = 'HIGH PRIORITY';
-  } else if (
-    priority === 'MEDIUM' ||
-    upperCategory.includes('ROUTINE') ||
-    upperCategory.includes('MEDIUM')
-  ) {
-    chipBg = colors.infoLight;
-    chipText = colors.info;
-    chipLabel = categoryName || 'ROUTINE';
-  } else if (
-    priority === 'LOW' ||
-    upperCategory.includes('VENDOR') ||
-    upperCategory.includes('LOW')
-  ) {
-    chipBg = colors.warningLight;
-    chipText = colors.primary;
-    chipLabel = categoryName || 'VENDOR';
-  }
-
-  const titleText = task.title || 'Task';
-  let descText = '';
-  const descLines = (task.description || '').split('\n');
-  if (descLines.length > 1) {
-    descText = descLines.slice(1).join('\n').trim();
-  } else if (task.description !== task.title) {
-    descText = task.description;
-  }
-
-  const names = assigneeNames;
-
-  return (
-    <TouchableOpacity
-      style={[styles.openCard, hasUnread ? styles.unreadCard : styles.readCard]}
-      onPress={onPress}
-      activeOpacity={0.82}
-    >
-      <View style={styles.openCardTopRow}>
-        <View style={styles.topRowLeft}>
-          {hasUnread && <View style={styles.unreadDot} />}
-          <View
-            style={[
-              styles.openCardPill,
-              { backgroundColor: chipBg, borderColor: colors.transparent },
-            ]}
-          >
-            <Text style={[styles.openCardPillText, { color: chipText }]}>{chipLabel}</Text>
-          </View>
-          <Text style={styles.openCardDueText}>{formatDueDisplay(task.dueDate, task.dueTime)}</Text>
-        </View>
-        {outletName ? (
-          <Text style={styles.openCardOutletName} numberOfLines={1}>
-            {outletName}
-          </Text>
-        ) : null}
-      </View>
-
-      <Text style={[styles.openTitle, !hasUnread && styles.viewedTitle]} numberOfLines={2}>
-        {titleText}
-      </Text>
-
-      {descText ? (
-        <Text
-          style={[styles.openDescription, !hasUnread && styles.viewedDescription]}
-          numberOfLines={3}
-        >
-          {descText}
-        </Text>
-      ) : null}
-
-      <View style={styles.assigneeRow}>
-        <Text style={styles.assigneeText}>
-          <Text style={styles.assigneeLabel}>Assigned to: </Text>
-          <Text style={styles.assigneeStrong}>
-            {names.length > 0 ? names.join(', ') : 'Unassigned'}
-          </Text>
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function CompletedTaskCard({
-  task,
-  onPress,
-  onOpenAttachment,
-  hasUnread,
-}: {
-  task: Task;
-  onPress: () => void;
-  onOpenAttachment: (task: Task, type: AttachmentType) => void;
-  hasUnread: boolean;
-}) {
-  const outletName = getTaskOutletName(task);
-  const categoryName = getTaskCategoryName(task);
-  const taskBar = buildTaskBarModel(task);
-  const imageCount = getTaskAttachmentUrls(task, 'images').length;
-  const videoCount = getTaskAttachmentUrls(task, 'videos').length;
-  const audioCount = getTaskAttachmentUrls(task, 'audios').length;
-  const fileCount = getTaskAttachmentUrls(task, 'files').length;
-  const footerModel = buildTaskCardFooterModel(task);
-
-  return (
-    <TouchableOpacity
-      style={[styles.completedCard, !hasUnread && styles.viewedCard]}
-      onPress={onPress}
-      activeOpacity={0.78}
-    >
-      <View style={styles.openCardTopRow}>
-        {hasUnread && (
-          <View style={styles.unreadDotWrap}>
-            <UnreadBadge count={1} dotOnly />
-          </View>
-        )}
-        <View style={styles.openCardPill}>
-          <Text style={styles.openCardPillText}>{categoryName || 'Task'}</Text>
-        </View>
-        {outletName ? (
-          <Text style={styles.openCardOutletName} numberOfLines={1}>
-            {outletName}
-          </Text>
-        ) : null}
-      </View>
-      <Text style={styles.completedWhen}>{formatRelativeTime(task.completedAt)}</Text>
-
-      <Text style={styles.openTitle} numberOfLines={2}>
-        {taskBar.title}
-      </Text>
-      <Text style={styles.openMetaLine} numberOfLines={1}>
-        <Text style={styles.openMetaLabel}>Assigned to: </Text>
-        <Text style={styles.openMetaStrong}>{taskBar.assigneeLabel}</Text>
-      </Text>
-      <Text style={styles.openMetaLine} numberOfLines={1}>
-        <Text style={styles.openMetaLabel}>Due: </Text>
-        <Text style={styles.openMetaStrong}>{formatDate(task.dueDate, task.dueTime)}</Text>
-      </Text>
-
-      <View style={styles.openCardDivider} />
-
-      <View style={styles.openCardFooter}>
-        <View style={styles.openCardAttachmentActions}>
-          <TouchableOpacity
-            style={styles.openCardIconBtn}
-            onPress={() => onOpenAttachment(task, 'images')}
-          >
-            <Ionicons name="camera-outline" size={15} color={colors.textSecondary} />
-            {imageCount > 0 ? <Text style={styles.openCardIconCount}>{imageCount}</Text> : null}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.openCardIconBtn}
-            onPress={() => onOpenAttachment(task, 'videos')}
-          >
-            <Ionicons name="videocam-outline" size={15} color={colors.textSecondary} />
-            {videoCount > 0 ? <Text style={styles.openCardIconCount}>{videoCount}</Text> : null}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.openCardIconBtn}
-            onPress={() => onOpenAttachment(task, 'files')}
-          >
-            <Ionicons name="document-outline" size={15} color={colors.textSecondary} />
-            {fileCount > 0 ? <Text style={styles.openCardIconCount}>{fileCount}</Text> : null}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.openCardIconBtn}
-            onPress={() => onOpenAttachment(task, 'audios')}
-          >
-            <Ionicons name="mic-outline" size={15} color={colors.textSecondary} />
-            {audioCount > 0 ? <Text style={styles.openCardIconCount}>{audioCount}</Text> : null}
-          </TouchableOpacity>
-        </View>
-        {footerModel.assignedTimeLabel ? (
-          <Text style={styles.openCardAssignedTime} numberOfLines={1}>
-            {footerModel.assignedTimeLabel}
-          </Text>
-        ) : null}
-      </View>
-    </TouchableOpacity>
-  );
-}
+import { useTasksBoardState } from './hooks/useTasksBoardState';
 
 export default function TasksScreen() {
-  const [showCompletedAccordion, setShowCompletedAccordion] = useState(false);
-  const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === 'admin';
-  const isManager = user?.role === 'manager';
-  const userIdentifier = user?._id || user?.id;
-  const navigation = useNavigation<Nav>();
-  const route = useRoute<TasksRoute>();
-  const [activeTab, setActiveTab] = useState<'NORMAL' | 'RECURRING'>('NORMAL');
-  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
-  const [dueDateFilter, setDueDateFilter] = useState<Date | null>(null);
-  const [metricFilter, setMetricFilter] = useState<TaskMetricFilter>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [activeFilterSection, setActiveFilterSection] = useState<FilterSection>('priority');
-  const [showDueDatePicker, setShowDueDatePicker] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [attachmentModal, setAttachmentModal] = useState<{
-    task: Task;
-    type: AttachmentType;
-  } | null>(null);
-  const [lastLoadError, setLastLoadError] = useState('');
+  const {
+    // User / nav
+    isAdmin,
+    isManager,
+    navigation,
 
-  const [activeFilter, setActiveFilter] = useState<'ALL' | 'TODAY' | 'UNREAD' | 'HIGH_PRIORITY'>(
-    'ALL',
-  );
-  const { data: unreadIds = [], refetch: refetchUnreadIds } = useUnreadIds();
-  const unreadSet = useMemo(() => new Set(unreadIds), [unreadIds]);
+    // Tab
+    activeTab,
+    setActiveTab,
 
-  useEffect(() => {
-    const incomingMetric = route.params?.initialTaskFilter?.metric;
-    if (incomingMetric === 'critical') {
-      queueMicrotask(() => setActiveFilter('HIGH_PRIORITY'));
-    } else if (incomingMetric === 'due_today') {
-      queueMicrotask(() => setActiveFilter('TODAY'));
-    }
-  }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
+    // Filters
+    activeFilter,
+    setActiveFilter,
+    priorityFilter,
+    setPriorityFilter,
+    dueDateFilter,
+    setDueDateFilter,
+    metricFilter,
+    setMetricFilter,
+    searchQuery,
+    setSearchQuery,
 
-  const showOpenSection = metricFilter !== 'resolved';
-  const showCompletedSection = metricFilter === 'all' || metricFilter === 'resolved';
+    // Filter modal
+    showFilterModal,
+    setShowFilterModal,
+    activeFilterSection,
+    setActiveFilterSection,
+    showDueDatePicker,
+    setShowDueDatePicker,
 
-  const todayStart = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-  const todayEnd = useMemo(() => {
-    const d = new Date();
-    d.setHours(23, 59, 59, 999);
-    return d;
-  }, []);
+    // Create / accordion / attachment
+    showCreateModal,
+    setShowCreateModal,
+    showCompletedAccordion,
+    setShowCompletedAccordion,
+    attachmentModal,
+    setAttachmentModal,
 
-  const todayCountQuery = useQuery({
-    queryKey: ['tasks-count-today', activeTab, userIdentifier, isAdmin],
-    queryFn: () =>
-      tasksApi.listPaginated({
-        status: 'OPEN',
-        dueFrom: todayStart.toISOString(),
-        dueTo: todayEnd.toISOString(),
-        assigneeId: isAdmin ? undefined : userIdentifier,
-        isRecurring: activeTab === 'RECURRING',
-        limit: 1,
-      }),
-    staleTime: 10 * 1000,
-  });
-  const todayCount = todayCountQuery.data?.meta.total ?? 0;
+    // Counts
+    todayCount,
+    highPriorityCount,
 
-  const highPriorityCountQuery = useQuery({
-    queryKey: ['tasks-count-high', activeTab, userIdentifier, isAdmin],
-    queryFn: () =>
-      tasksApi.listPaginated({
-        status: 'OPEN',
-        priority: 'HIGH',
-        assigneeId: isAdmin ? undefined : userIdentifier,
-        isRecurring: activeTab === 'RECURRING',
-        limit: 1,
-      }),
-    staleTime: 10 * 1000,
-  });
-  const highPriorityCount = highPriorityCountQuery.data?.meta.total ?? 0;
+    // Queries & derived data
+    openTasksQuery,
+    completedTasksQuery,
+    openTasks,
+    completedTasks,
+    openTasksTotal,
+    completedTasksTotal,
+    isLoading,
+    isFetching,
+    showOpenSection,
+    showCompletedSection,
 
-  const effectivePriorityFilter: TaskPriority | undefined =
-    activeFilter === 'HIGH_PRIORITY'
-      ? 'HIGH'
-      : priorityFilter === 'ALL'
-        ? undefined
-        : priorityFilter;
+    // Unread
+    unreadIds,
+    unreadSet,
 
-  const effectiveOpenDueDateStart =
-    activeFilter === 'TODAY'
-      ? todayStart
-      : dueDateFilter
-        ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
-        : null;
-  const effectiveOpenDueDateEnd =
-    activeFilter === 'TODAY'
-      ? todayEnd
-      : effectiveOpenDueDateStart
-        ? new Date(effectiveOpenDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
-        : null;
+    // Computed
+    formatFilterDate,
 
-  const effectiveCompletedDueDateStart = dueDateFilter
-    ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
-    : null;
-  const effectiveCompletedDueDateEnd = effectiveCompletedDueDateStart
-    ? new Date(effectiveCompletedDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
-    : null;
-
-  const openTasksQuery = useInfiniteTasks(
-    {
-      status: 'OPEN',
-      limit: 20,
-      priority: effectivePriorityFilter,
-      search: debouncedSearchQuery || undefined,
-      dueFrom: effectiveOpenDueDateStart ? effectiveOpenDueDateStart.toISOString() : undefined,
-      dueTo: effectiveOpenDueDateEnd ? effectiveOpenDueDateEnd.toISOString() : undefined,
-      assigneeId: isAdmin ? undefined : userIdentifier,
-      isRecurring: activeTab === 'RECURRING',
-    },
-    { enabled: showOpenSection },
-  );
-
-  const completedTasksQuery = useInfiniteTasks(
-    {
-      status: 'COMPLETED',
-      limit: 20,
-      priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
-      search: debouncedSearchQuery || undefined,
-      dueFrom: effectiveCompletedDueDateStart
-        ? effectiveCompletedDueDateStart.toISOString()
-        : undefined,
-      dueTo: effectiveCompletedDueDateEnd ? effectiveCompletedDueDateEnd.toISOString() : undefined,
-      assigneeId: isAdmin ? undefined : userIdentifier,
-      isRecurring: activeTab === 'RECURRING',
-    },
-    { enabled: showCompletedSection },
-  );
-
-  const { refetch: refetchOpen } = openTasksQuery;
-  const { refetch: refetchCompleted } = completedTasksQuery;
-  const { refetch: refetchTodayCount } = todayCountQuery;
-  const { refetch: refetchHighPriorityCount } = highPriorityCountQuery;
-
-  useFocusEffect(
-    React.useCallback(() => {
-      void refetchUnreadIds();
-      void refetchOpen();
-      void refetchCompleted();
-      void refetchTodayCount();
-      void refetchHighPriorityCount();
-    }, [
-      refetchUnreadIds,
-      refetchOpen,
-      refetchCompleted,
-      refetchTodayCount,
-      refetchHighPriorityCount,
-    ]),
-  );
-
-  useEffect(() => {
-    const incomingMetric = route.params?.initialTaskFilter?.metric;
-    if (!incomingMetric) return;
-    queueMicrotask(() => setMetricFilter(incomingMetric));
-  }, [route.params?.initialTaskFilter?.metric, route.params?.initialTaskFilter?.nonce]);
-
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery.trim());
-    }, 350);
-    return () => clearTimeout(handle);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    const openError = openTasksQuery.error;
-    const completedError = completedTasksQuery.error;
-    if (!openError && !completedError) {
-      if (lastLoadError) queueMicrotask(() => setLastLoadError(''));
-      return;
-    }
-    const message = getApiErrorMessage(
-      openError ?? completedError,
-      'Could not apply filters. Please try again.',
-    );
-    if (message === lastLoadError) return;
-    queueMicrotask(() => setLastLoadError(message));
-    Alert.alert('Could not load tasks', message);
-  }, [openTasksQuery.error, completedTasksQuery.error, lastLoadError]);
-
-  const openTasksFromApi = useMemo(() => {
-    const isRecTab = activeTab === 'RECURRING';
-    return (openTasksQuery.data?.pages ?? [])
-      .flatMap((page) => page.data)
-      .filter((task) => !!task.isRecurring === isRecTab);
-  }, [openTasksQuery.data?.pages, activeTab]);
-  const completedTasksFromApi = useMemo(() => {
-    const isRecTab = activeTab === 'RECURRING';
-    return (completedTasksQuery.data?.pages ?? [])
-      .flatMap((page) => page.data)
-      .filter((task) => !!task.isRecurring === isRecTab);
-  }, [completedTasksQuery.data?.pages, activeTab]);
-
-  const openTasks = useMemo(() => {
-    let list = [...openTasksFromApi].sort(compareCreatedAtDesc);
-    if (activeFilter === 'UNREAD') {
-      list = list.filter((task) => unreadSet.has(task.id));
-    }
-    return list;
-  }, [openTasksFromApi, activeFilter, unreadSet]);
-
-  const completedTasks = useMemo(
-    () => [...completedTasksFromApi].sort(compareCompletedTaskOrder),
-    [completedTasksFromApi],
-  );
-  const openTasksTotal = openTasks.length;
-  const completedTasksTotal = completedTasks.length;
-
-  const formatFilterDate = (date: Date) =>
-    date.toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-
-  const onDueDateChange = (selectedDate: Date) => {
-    setDueDateFilter(selectedDate);
-  };
-
-  const refetch = async () => {
-    const refetchers: (() => Promise<unknown>)[] = [];
-    if (showOpenSection) refetchers.push(() => openTasksQuery.refetch());
-    if (showCompletedSection) refetchers.push(() => completedTasksQuery.refetch());
-    refetchers.push(() => refetchUnreadIds());
-    await Promise.all(refetchers.map((run) => run()));
-  };
-
-  const isLoading = showOpenSection
-    ? openTasksQuery.isLoading || (showCompletedSection && completedTasksQuery.isLoading)
-    : completedTasksQuery.isLoading;
-  const isFetching = showOpenSection
-    ? openTasksQuery.isFetching || (showCompletedSection && completedTasksQuery.isFetching)
-    : completedTasksQuery.isFetching;
-
-  const renderFilterChips = () => {
-    const filters = [
-      {
-        key: 'TODAY' as const,
-        label: 'Today',
-        emoji: '🔥',
-        count: todayCount,
-        activeBg: '#FFEAD2',
-        activeText: '#C2410C',
-        inactiveBg: '#F3F4F6',
-        inactiveText: '#4B5563',
-      },
-      {
-        key: 'UNREAD' as const,
-        label: 'Unread',
-        emoji: '🔵',
-        count: unreadIds.length,
-        activeBg: '#DBEAFE',
-        activeText: '#1D4ED8',
-        inactiveBg: '#F3F4F6',
-        inactiveText: '#4B5563',
-      },
-      {
-        key: 'HIGH_PRIORITY' as const,
-        label: 'High Priority',
-        emoji: '🔴',
-        count: highPriorityCount,
-        activeBg: '#FEE2E2',
-        activeText: '#B91C1C',
-        inactiveBg: '#F3F4F6',
-        inactiveText: '#4B5563',
-      },
-    ];
-
-    return (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterScrollContent}
-      >
-        {filters.map((f) => {
-          const isActive = activeFilter === f.key;
-          return (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.filterChip, { backgroundColor: isActive ? f.activeBg : f.inactiveBg }]}
-              onPress={() => setActiveFilter(isActive ? 'ALL' : f.key)}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[styles.filterChipText, { color: isActive ? f.activeText : f.inactiveText }]}
-              >
-                {f.emoji} {f.label} {f.count > 0 ? ` (${f.count})` : ''}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    );
-  };
-
-  const openAttachmentModal = (task: Task, type: AttachmentType) => {
-    const urls = getTaskAttachmentUrls(task, type);
-    if (urls.length === 0) {
-      Alert.alert('No attachments', `No ${type} found for this task.`);
-      return;
-    }
-    setAttachmentModal({ task, type });
-  };
-
-  const getDeterministicFileNameFromUrl = (value: string) => {
-    let hash = 0;
-    for (let i = 0; i < value.length; i += 1) {
-      hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-    }
-    return `document-${hash}`;
-  };
-
-  const openExternalAttachment = async (url: string, type?: AttachmentType) => {
-    const trimmedUrl = url.trim();
-    // Handle PDF and other files specifically to open in-app
-    const isPdf = trimmedUrl.toLowerCase().split('?')[0].endsWith('.pdf');
-    if (isPdf || type === 'files') {
-      try {
-        const fileName =
-          trimmedUrl.split('/').pop()?.split('?')[0] || getDeterministicFileNameFromUrl(trimmedUrl);
-        const localUri = `${FileSystem.cacheDirectory}${fileName}`;
-
-        const downloadRes = await FileSystem.downloadAsync(trimmedUrl, localUri);
-
-        if (downloadRes.status === 200) {
-          const sharingAvailable = await Sharing.isAvailableAsync();
-          if (sharingAvailable) {
-            await Sharing.shareAsync(downloadRes.uri, {
-              dialogTitle: isPdf ? 'Open PDF' : 'Open File',
-            });
-            return;
-          }
-        }
-      } catch (error) {
-        console.warn('[Tasks] Failed to open file in-app', error);
-      }
-    }
-
-    try {
-      const canOpen = await Linking.canOpenURL(trimmedUrl);
-      if (!canOpen) {
-        Alert.alert('Attachment unavailable', 'Could not open this attachment.');
-        return;
-      }
-      await Linking.openURL(trimmedUrl);
-    } catch {
-      Alert.alert('Attachment unavailable', 'Could not open this attachment.');
-    }
-  };
-
-  const attachmentModalUrls = attachmentModal
-    ? getTaskAttachmentUrls(attachmentModal.task, attachmentModal.type)
-    : [];
-  const attachmentModalTitle = attachmentModal
-    ? attachmentModal.type === 'images'
-      ? 'Image Attachments'
-      : attachmentModal.type === 'videos'
-        ? 'Video Attachments'
-        : attachmentModal.type === 'audios'
-          ? 'Audio Attachments'
-          : 'File Attachments'
-    : '';
+    // Actions
+    openAttachmentModal,
+    openExternalAttachment,
+    refetch,
+  } = useTasksBoardState();
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-      <View style={styles.header}>
-        <View style={{ flexShrink: 1, marginRight: spacing.sm }}>
-          <Text style={styles.heading} numberOfLines={1}>
-            Task Board
-          </Text>
-          <Text style={styles.subheading} numberOfLines={1}>
-            Manage and assign outlet operations.
-          </Text>
-        </View>
-        <View style={styles.headerBtns}>
-          {isAdmin && (
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={() => navigation.navigate('TaskCategories')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.secondaryBtnText}>Categories</Text>
-            </TouchableOpacity>
-          )}
-          {!isManager && (
-            <TouchableOpacity
-              style={styles.createBtn}
-              onPress={() => setShowCreateModal(true)}
-              activeOpacity={0.84}
-            >
-              <Text style={styles.createBtnText}>+ New</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-      <TaskQueueStatusBanner />
+      <TaskBoardHeader
+        isAdmin={isAdmin}
+        isManager={isManager}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onNavigateToCategories={() => navigation.navigate('TaskCategories')}
+        onCreatePress={() => setShowCreateModal(true)}
+      />
 
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'NORMAL' && styles.tabItemActive]}
-          onPress={() => setActiveTab('NORMAL')}
-        >
-          <Text style={[styles.tabText, activeTab === 'NORMAL' && styles.tabTextActive]}>
-            Normal Task
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'RECURRING' && styles.tabItemActive]}
-          onPress={() => setActiveTab('RECURRING')}
-        >
-          <Text style={[styles.tabText, activeTab === 'RECURRING' && styles.tabTextActive]}>
-            Recurring Task
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.controlsRow}>
-        <View style={styles.filterMenuWrapCompact}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Open filters"
-            style={[
-              styles.filterIconBtnCompact,
-              (priorityFilter !== 'ALL' || Boolean(dueDateFilter) || metricFilter !== 'all') &&
-                styles.filterIconBtnActive,
-            ]}
-            onPress={() => setShowFilterModal(true)}
-            activeOpacity={0.82}
-          >
-            <Ionicons
-              name="options-outline"
-              size={18}
-              color={
-                priorityFilter === 'ALL' && !dueDateFilter && metricFilter === 'all'
-                  ? colors.textSecondary
-                  : colors.primaryDark
-              }
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.searchWrapCompact}>
-          <Ionicons
-            name="search"
-            size={14}
-            color={colors.textSecondary}
-            style={styles.searchIconCompact}
-          />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchInputCompact}
-            placeholder="Search..."
-            placeholderTextColor={colors.textSecondary}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              style={styles.searchClearBtnCompact}
-              onPress={() => setSearchQuery('')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.searchClearTextCompact}>x</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {renderFilterChips()}
-      </View>
+      <TaskFiltersToolbar
+        activeFilter={activeFilter}
+        priorityFilter={priorityFilter}
+        dueDateFilter={dueDateFilter}
+        metricFilter={metricFilter}
+        todayCount={todayCount}
+        highPriorityCount={highPriorityCount}
+        unreadCount={unreadIds.length}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onFilterPress={() => setShowFilterModal(true)}
+        onFilterChipPress={(key) => setActiveFilter(activeFilter === key ? 'ALL' : key)}
+      />
 
       {metricFilter !== 'all' && (
         <View style={styles.metricFilterChipRow}>
@@ -891,229 +153,48 @@ export default function TasksScreen() {
               <Text style={styles.sectionCount}>{openTasksTotal} active</Text>
             </View>
 
-            <View style={styles.openListShell}>
-              <FlatList
-                style={styles.openList}
-                data={openTasks}
-                keyExtractor={(task) => task.id}
-                contentContainerStyle={
-                  openTasks.length > 0 ? styles.openListContent : styles.openListEmptyContent
+            <OpenTaskList
+              tasks={openTasks}
+              isLoading={isLoading}
+              isFetching={isFetching}
+              hasNextPage={openTasksQuery.hasNextPage ?? false}
+              isFetchingNextPage={openTasksQuery.isFetchingNextPage ?? false}
+              unreadSet={unreadSet}
+              onRefresh={refetch}
+              onLoadMore={() => {
+                if (openTasksQuery.hasNextPage) {
+                  void openTasksQuery.fetchNextPage();
                 }
-                showsVerticalScrollIndicator
-                persistentScrollbar
-                refreshControl={
-                  <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />
-                }
-                onEndReached={() => {
-                  if (openTasksQuery.hasNextPage && !openTasksQuery.isFetchingNextPage) {
-                    void openTasksQuery.fetchNextPage();
-                  }
-                }}
-                onEndReachedThreshold={0.3}
-                renderItem={({ item }) => (
-                  <View style={styles.openCardWrap}>
-                    <OpenTaskCard
-                      task={item}
-                      onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-                      hasUnread={unreadSet.has(item.id)}
-                    />
-                  </View>
-                )}
-                ListFooterComponent={
-                  openTasksQuery.isFetchingNextPage ? (
-                    <View style={styles.loadingMoreWrap}>
-                      <ActivityIndicator color={colors.primary} />
-                    </View>
-                  ) : null
-                }
-                ListEmptyComponent={
-                  isLoading ? (
-                    <View style={styles.loadingWrap}>
-                      <ActivityIndicator color={colors.primary} />
-                    </View>
-                  ) : (
-                    <View style={styles.emptyWrap}>
-                      <Text style={styles.empty}>
-                        {isManager ? 'No open tasks found for you' : 'No open tasks found'}
-                      </Text>
-                    </View>
-                  )
-                }
-              />
-            </View>
+              }}
+              onTaskPress={(taskId) => navigation.navigate('TaskDetail', { taskId })}
+              emptyMessage={isManager ? 'No open tasks found for you' : 'No open tasks found'}
+            />
           </>
         )}
       </View>
 
-      <Modal
+      <TaskFilterSheet
         visible={showFilterModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
+        priorityFilter={priorityFilter}
+        dueDateFilter={dueDateFilter}
+        activeFilterSection={activeFilterSection}
+        showDueDatePicker={showDueDatePicker}
+        onClose={() => {
           setShowFilterModal(false);
           setShowDueDatePicker(false);
         }}
-      >
-        <View style={styles.createModalRoot}>
-          <TouchableOpacity
-            activeOpacity={1}
-            style={styles.createModalScrim}
-            onPress={() => {
-              setShowFilterModal(false);
-              setShowDueDatePicker(false);
-            }}
-          />
-          <View style={styles.filterSheet}>
-            <View style={styles.createSheetTop}>
-              <View style={styles.createSheetHandle} />
-              <View style={styles.createSheetHeader}>
-                <Text style={styles.createSheetTitle}>Filters</Text>
-                <TouchableOpacity
-                  style={styles.createSheetClose}
-                  onPress={() => {
-                    setShowFilterModal(false);
-                    setShowDueDatePicker(false);
-                  }}
-                >
-                  <Ionicons name="close" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.filterBody}>
-              <View style={styles.filterSidebar}>
-                <TouchableOpacity
-                  style={[
-                    styles.filterSidebarItem,
-                    activeFilterSection === 'priority' && styles.filterSidebarItemActive,
-                  ]}
-                  onPress={() => setActiveFilterSection('priority')}
-                >
-                  <Text
-                    style={[
-                      styles.filterSidebarItemText,
-                      activeFilterSection === 'priority' && styles.filterSidebarItemTextActive,
-                    ]}
-                  >
-                    Priority
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.filterSidebarItem,
-                    activeFilterSection === 'dueDate' && styles.filterSidebarItemActive,
-                  ]}
-                  onPress={() => setActiveFilterSection('dueDate')}
-                >
-                  <Text
-                    style={[
-                      styles.filterSidebarItemText,
-                      activeFilterSection === 'dueDate' && styles.filterSidebarItemTextActive,
-                    ]}
-                  >
-                    Due Date
-                  </Text>
-                </TouchableOpacity>
-                <View style={styles.filterSidebarFooter}>
-                  <TouchableOpacity
-                    style={styles.filterSidebarClearBtn}
-                    onPress={() => {
-                      setPriorityFilter('ALL');
-                      setDueDateFilter(null);
-                      setShowDueDatePicker(false);
-                      setActiveFilterSection('priority');
-                    }}
-                    activeOpacity={0.82}
-                  >
-                    <Text style={styles.filterSidebarClearBtnText}>Clear Filters</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <ScrollView
-                style={styles.filterContent}
-                contentContainerStyle={{ paddingBottom: spacing.lg }}
-                showsVerticalScrollIndicator={false}
-              >
-                {activeFilterSection === 'priority' && (
-                  <View style={styles.filterSection}>
-                    <Text style={styles.filterSectionTitle}>Filter by priority</Text>
-                    {PRIORITY_FILTERS.map((option, index) => {
-                      const active = option.value === priorityFilter;
-                      return (
-                        <TouchableOpacity
-                          key={option.value}
-                          style={[
-                            styles.priorityOption,
-                            index < PRIORITY_FILTERS.length - 1 && styles.priorityOptionDivider,
-                            active && styles.priorityOptionActive,
-                          ]}
-                          onPress={() => setPriorityFilter(option.value)}
-                          activeOpacity={0.7}
-                        >
-                          <Text
-                            style={[
-                              styles.priorityOptionText,
-                              active && styles.priorityOptionTextActive,
-                            ]}
-                          >
-                            {option.label}
-                          </Text>
-                          {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
-
-                {activeFilterSection === 'dueDate' && (
-                  <View style={styles.filterSection}>
-                    <Text style={styles.filterSectionTitle}>Filter by due date</Text>
-                    <Text style={styles.filterSectionHint}>
-                      {dueDateFilter
-                        ? `Selected: ${formatFilterDate(dueDateFilter)}`
-                        : 'No date selected'}
-                    </Text>
-
-                    {!showDueDatePicker && (
-                      <TouchableOpacity
-                        style={styles.filterActionBtn}
-                        onPress={() => setShowDueDatePicker(true)}
-                        activeOpacity={0.82}
-                      >
-                        <Text style={styles.filterActionBtnText}>
-                          {dueDateFilter ? 'Change Date' : 'Select Date'}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-
-                    {dueDateFilter && !showDueDatePicker && (
-                      <TouchableOpacity
-                        style={[styles.filterActionBtn, styles.filterActionBtnSecondary]}
-                        onPress={() => setDueDateFilter(null)}
-                        activeOpacity={0.82}
-                      >
-                        <Text
-                          style={[styles.filterActionBtnText, styles.filterActionBtnSecondaryText]}
-                        >
-                          Clear Date
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-
-                    <DatePickerModal
-                      visible={showDueDatePicker}
-                      value={dueDateFilter ?? new Date()}
-                      onClose={() => setShowDueDatePicker(false)}
-                      onChange={onDueDateChange}
-                    />
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onPriorityChange={setPriorityFilter}
+        onDueDateChange={(date) => setDueDateFilter(date)}
+        onClearDueDate={() => setDueDateFilter(null)}
+        onClearFilters={() => {
+          setPriorityFilter('ALL');
+          setDueDateFilter(null);
+          setShowDueDatePicker(false);
+          setActiveFilterSection('priority');
+        }}
+        onFilterSectionChange={setActiveFilterSection}
+        onShowDueDatePicker={setShowDueDatePicker}
+      />
 
       <Modal
         visible={showCreateModal}
@@ -1155,142 +236,30 @@ export default function TasksScreen() {
         </View>
       </Modal>
 
-      <Modal
+      <TaskAttachmentsSheet
         visible={Boolean(attachmentModal)}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAttachmentModal(null)}
-      >
-        <View style={styles.attachModalRoot}>
-          <TouchableOpacity
-            style={styles.attachModalScrim}
-            activeOpacity={1}
-            onPress={() => setAttachmentModal(null)}
-          />
-          <View style={styles.attachModalCard}>
-            <View style={styles.attachModalHeader}>
-              <Text style={styles.attachModalTitle}>{attachmentModalTitle}</Text>
-              <TouchableOpacity
-                onPress={() => setAttachmentModal(null)}
-                style={styles.attachModalCloseBtn}
-              >
-                <Ionicons name="close" size={16} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
+        attachmentModal={attachmentModal}
+        onClose={() => setAttachmentModal(null)}
+        onOpenExternal={openExternalAttachment}
+      />
 
-            <ScrollView contentContainerStyle={styles.attachModalContent}>
-              {attachmentModal?.type === 'images'
-                ? attachmentModalUrls.map((url) => (
-                    <TouchableOpacity
-                      key={url}
-                      onPress={() => {
-                        void openExternalAttachment(url, attachmentModal?.type);
-                      }}
-                      activeOpacity={0.84}
-                      style={styles.attachImageItem}
-                    >
-                      <Image
-                        source={{ uri: url }}
-                        style={styles.attachImageThumb}
-                        resizeMode="cover"
-                      />
-                    </TouchableOpacity>
-                  ))
-                : attachmentModalUrls.map((url, index) => (
-                    <TouchableOpacity
-                      key={url}
-                      style={styles.attachRow}
-                      onPress={() => {
-                        void openExternalAttachment(url, attachmentModal?.type);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.attachRowLeft}>
-                        <Ionicons
-                          name={
-                            attachmentModal?.type === 'videos'
-                              ? 'videocam-outline'
-                              : attachmentModal?.type === 'audios'
-                                ? 'mic-outline'
-                                : 'document-outline'
-                          }
-                          size={16}
-                          color={colors.primaryDark}
-                        />
-                        <Text style={styles.attachRowText} numberOfLines={1}>
-                          {buildAttachmentName(url, attachmentModal?.type ?? 'file', index)}
-                        </Text>
-                      </View>
-                      <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                  ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Persistent Sticky Completed Tasks Accordion */}
       {showCompletedSection && (
-        <View
-          style={[
-            styles.accordionContainer,
-            showCompletedAccordion && styles.accordionContainerExpanded,
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.completedAccordionToggle}
-            onPress={() => setShowCompletedAccordion(!showCompletedAccordion)}
-            activeOpacity={0.9}
-          >
-            <View style={styles.accordionHeaderLeft}>
-              <View
-                style={[styles.sectionDot, styles.sectionDotCompleted, { marginRight: spacing.sm }]}
-              />
-              <Text style={styles.accordionTitle}>Completed Tasks</Text>
-              <View style={styles.accordionCountBadge}>
-                <Text style={styles.accordionCountText}>{completedTasksTotal}</Text>
-              </View>
-            </View>
-            <Ionicons
-              name={showCompletedAccordion ? 'chevron-down' : 'chevron-up'}
-              size={20}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          {showCompletedAccordion && (
-            <View style={styles.accordionContentHorizontal}>
-              <FlatList
-                horizontal
-                data={completedTasks}
-                keyExtractor={(task) => task.id}
-                contentContainerStyle={styles.completedRow}
-                showsHorizontalScrollIndicator={false}
-                onEndReached={() => {
-                  if (completedTasksQuery.hasNextPage && !completedTasksQuery.isFetchingNextPage) {
-                    void completedTasksQuery.fetchNextPage();
-                  }
-                }}
-                onEndReachedThreshold={0.4}
-                renderItem={({ item }) => (
-                  <CompletedTaskCard
-                    task={item}
-                    onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-                    onOpenAttachment={openAttachmentModal}
-                    hasUnread={unreadSet.has(item.id)}
-                  />
-                )}
-                ListFooterComponent={
-                  completedTasksQuery.isFetchingNextPage ? (
-                    <View style={styles.completedLoadingMoreWrap}>
-                      <ActivityIndicator color={colors.primary} />
-                    </View>
-                  ) : null
-                }
-              />
-            </View>
-          )}
-        </View>
+        <CompletedTasksAccordion
+          tasks={completedTasks}
+          isExpanded={showCompletedAccordion}
+          hasNextPage={completedTasksQuery.hasNextPage ?? false}
+          isFetchingNextPage={completedTasksQuery.isFetchingNextPage ?? false}
+          unreadSet={unreadSet}
+          onToggle={() => setShowCompletedAccordion(!showCompletedAccordion)}
+          onLoadMore={() => {
+            if (completedTasksQuery.hasNextPage) {
+              void completedTasksQuery.fetchNextPage();
+            }
+          }}
+          onTaskPress={(taskId) => navigation.navigate('TaskDetail', { taskId })}
+          onOpenAttachment={openAttachmentModal}
+          totalCount={completedTasksTotal}
+        />
       )}
     </SafeAreaView>
   );
@@ -1299,93 +268,43 @@ export default function TasksScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.screenBackground },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+  sectionsContainer: {
+    flex: 1,
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: 170,
   },
-  headerBtns: {
+  sectionHeader: {
+    marginBottom: spacing.sm,
     flexDirection: 'row',
-    gap: spacing.sm,
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  heading: {
-    fontSize: 26,
+  sectionHeadingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.accentYellow,
+  },
+  sectionTitle: {
+    fontSize: typography.xs,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: colors.accentBrownText,
     fontWeight: typography.bold,
+  },
+  sectionCount: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    backgroundColor: colors.uiGray4,
     color: colors.text,
-    letterSpacing: -0.5,
-  },
-  subheading: {
-    marginTop: 2,
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-  },
-  secondaryBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 9,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.warmBorderAlpha50,
-    backgroundColor: colors.buttonLightBg,
-  },
-  secondaryBtnText: {
-    color: colors.text,
-    fontWeight: typography.semibold,
-    fontSize: typography.sm,
-  },
-  createBtn: {
-    backgroundColor: colors.buttonPrimaryBg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radius.md,
-    ...shadow.sm,
-  },
-  createBtnText: {
-    color: colors.textInverse,
-    fontWeight: typography.semibold,
-    fontSize: typography.sm,
+    textTransform: 'uppercase',
+    fontSize: 10,
+    fontWeight: typography.bold,
   },
 
-  controlsRow: {
-    zIndex: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    paddingTop: spacing.sm,
-  },
-  filterIconBtnActive: {
-    borderColor: colors.primaryTintStrong,
-    backgroundColor: colors.primaryTint,
-  },
-  priorityOption: {
-    minHeight: 42,
-    paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  priorityOptionDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  priorityOptionActive: {
-    backgroundColor: colors.primaryTint,
-  },
-  priorityOptionText: {
-    fontSize: typography.sm,
-    color: colors.text,
-    fontWeight: typography.medium,
-  },
-  priorityOptionTextActive: {
-    color: colors.primary,
-    fontWeight: typography.semibold,
-  },
   metricFilterChipRow: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
@@ -1422,312 +341,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.bold,
   },
 
-  sectionsContainer: {
-    flex: 1,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-    paddingBottom: 170, // Padding for floating tab bar (96) + accordion toggle (56)
-  },
-  sectionHeader: {
-    marginBottom: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionHeadingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: radius.full,
-    backgroundColor: colors.accentYellow,
-  },
-  sectionDotCompleted: { backgroundColor: colors.textSecondary },
-  sectionTitle: {
-    fontSize: typography.xs,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.accentBrownText,
-    fontWeight: typography.bold,
-  },
-  sectionCount: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: radius.sm,
-    backgroundColor: colors.uiGray4,
-    color: colors.text,
-    textTransform: 'uppercase',
-    fontSize: 10,
-    fontWeight: typography.bold,
-  },
-
-  openListShell: { flex: 1, minHeight: 0, position: 'relative' },
-  openList: { flex: 1, minHeight: 0 },
-  openListContent: { paddingBottom: spacing.sm },
-  openListEmptyContent: { flexGrow: 1, justifyContent: 'center' },
-  openCardWrap: { marginBottom: spacing.sm },
-  openCard: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  unreadCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.uiSlate200,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  readCard: {
-    backgroundColor: colors.uiGray0,
-    borderColor: colors.uiSlate200,
-    elevation: 0,
-  },
-  topRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.accentBlue,
-    marginRight: 4,
-  },
-  openCardPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  openCardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  openCardPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  openCardDueText: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginLeft: spacing.xs,
-  },
-  openCardOutletName: {
-    flex: 1,
-    textAlign: 'right',
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.medium,
-  },
-  openTitle: {
-    fontSize: typography.lg,
-    color: colors.text,
-    fontWeight: typography.semibold,
-  },
-  openDescription: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    fontWeight: '400',
-    lineHeight: 18,
-    marginTop: spacing.xs,
-  },
-  assigneeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.sm,
-    gap: spacing.sm,
-  },
-  assigneeText: {
-    flex: 1,
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-  },
-  assigneeLabel: {
-    color: colors.textSecondary,
-  },
-  assigneeStrong: {
-    fontWeight: '600',
-    color: colors.text,
-  },
-  searchWrapCompact: {
-    width: 110,
-    justifyContent: 'center',
-    marginRight: spacing.xs,
-  },
-  searchInputCompact: {
-    height: 40,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingLeft: 30,
-    paddingRight: 20,
-    fontSize: typography.sm,
-    color: colors.text,
-    backgroundColor: colors.surface,
-  },
-  searchIconCompact: {
-    position: 'absolute',
-    left: 10,
-    zIndex: 2,
-  },
-  searchClearBtnCompact: {
-    position: 'absolute',
-    right: 6,
-    width: 18,
-    height: 18,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.uiGray4,
-  },
-  searchClearTextCompact: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.bold,
-    lineHeight: 14,
-    includeFontPadding: false,
-  },
-  filterScrollContent: {
-    alignItems: 'center',
-    paddingLeft: spacing.xs,
-  },
-  filterChip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    marginRight: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.transparent,
-  },
-  filterChipText: {
-    fontSize: typography.xs,
-    fontWeight: '700',
-  },
-  filterMenuWrapCompact: {
-    marginRight: spacing.xs,
-  },
-  filterIconBtnCompact: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  viewedTitle: {
-    color: colors.accentCharcoalAlpha,
-    fontWeight: '400',
-  },
-  viewedDescription: {
-    color: colors.uiSlate400,
-    fontWeight: '400',
-  },
-  viewedCard: {
-    opacity: 0.75,
-  },
-  unreadDotWrap: {
-    marginRight: 4,
-    marginTop: 2,
-  },
-  openCardDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.warmBorderAlpha33,
-    marginVertical: spacing.xs,
-  },
-  openCardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  openCardAttachmentActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  openCardIconBtn: {
-    minWidth: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 2,
-  },
-  openCardIconCount: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    fontWeight: typography.semibold,
-  },
-  openCardAssignedTime: {
-    marginLeft: spacing.sm,
-    flexShrink: 1,
-    textAlign: 'right',
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.medium,
-  },
-  openMetaLabel: {
-    fontSize: typography.sm,
-    color: colors.accentSteel,
-    fontWeight: typography.semibold,
-  },
-  openMetaStrong: {
-    color: colors.text,
-    fontWeight: typography.bold,
-  },
-  openMetaLine: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-  },
-
-  completedRow: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md, // Added horizontal padding for first/last card
-    paddingBottom: spacing.sm,
-    paddingRight: spacing.md,
-  },
-  completedCard: {
-    width: 280,
-    backgroundColor: colors.uiGray3,
-    borderRadius: radius.lg,
-    paddingTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.warmBorderAlpha17,
-    gap: spacing.xs,
-    marginRight: spacing.sm,
-    alignSelf: 'flex-start',
-  },
-  completedWhen: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.medium,
-  },
-
-  loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
-  loadingMoreWrap: { paddingVertical: spacing.sm, alignItems: 'center' },
-  completedLoadingMoreWrap: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingRight: spacing.sm,
-  },
-  emptyWrap: { paddingVertical: spacing.xl },
-  empty: { textAlign: 'center', color: colors.textSecondary, fontSize: typography.sm },
-
   createModalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -1736,178 +349,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: colors.scrimDark40,
   },
-  filterSheet: {
-    maxHeight: '88%',
-    minHeight: 360,
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    overflow: 'hidden',
-  },
-  filterBody: {
-    flex: 1,
-    flexDirection: 'row',
-    minHeight: 300,
-  },
-  filterSidebar: {
-    width: 118,
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
-    backgroundColor: colors.screenBackground,
-    paddingVertical: spacing.xs,
-  },
-  filterSidebarFooter: {
-    marginTop: 'auto',
-    paddingHorizontal: spacing.xs,
-    paddingBottom: spacing.sm,
-    paddingTop: spacing.sm,
-  },
-  filterSidebarClearBtn: {
-    minHeight: 34,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xs,
-  },
-  filterSidebarClearBtnText: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  filterSidebarItem: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.transparent,
-  },
-  filterSidebarItemActive: {
-    backgroundColor: colors.primaryTint,
-    borderLeftColor: colors.primary,
-  },
-  filterSidebarItemText: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.medium,
-  },
-  filterSidebarItemTextActive: {
-    color: colors.primaryDark,
-    fontWeight: typography.semibold,
-  },
-  filterContent: {
-    flex: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  filterSection: {
-    gap: spacing.sm,
-  },
-  filterSectionTitle: {
-    fontSize: typography.md,
-    color: colors.text,
-    fontWeight: typography.semibold,
-  },
-  filterSectionHint: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-  },
-  filterActionBtn: {
-    minHeight: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-  },
-  filterActionBtnText: {
-    fontSize: typography.sm,
-    color: colors.textInverse,
-    fontWeight: typography.semibold,
-  },
-  filterActionBtnSecondary: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  filterActionBtnSecondaryText: {
-    color: colors.text,
-  },
-
-  attachModalRoot: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.md,
-  },
-  attachModalScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.overlayBlack33,
-  },
-  attachModalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    maxHeight: '72%',
-    overflow: 'hidden',
-  },
-  attachModalHeader: {
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  attachModalTitle: {
-    fontSize: typography.base,
-    fontWeight: typography.semibold,
-    color: colors.text,
-  },
-  attachModalCloseBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.uiGray3,
-  },
-  attachModalContent: {
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  attachImageItem: {
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  attachImageThumb: {
-    width: '100%',
-    height: 180,
-  },
-  attachRow: {
-    minHeight: 44,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  attachRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  attachRowText: { flex: 1, fontSize: typography.sm, color: colors.text },
   createSheet: {
     height: '92%',
     minHeight: 420,
@@ -1955,88 +396,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.uiGray1,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-    backgroundColor: colors.uiGray2,
-    borderRadius: radius.lg,
-    padding: 4,
-  },
-  tabItem: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: radius.md,
-  },
-  tabItemActive: {
-    backgroundColor: colors.surface,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  tabText: {
-    fontSize: typography.sm,
-    fontWeight: typography.medium,
-    color: colors.textSecondary,
-  },
-  tabTextActive: {
-    color: colors.accentCaramelText,
-    fontWeight: typography.bold,
-  },
-  accordionContainer: {
-    position: 'absolute',
-    bottom: 96, // Sits directly on top of the floating tab bar (76 height + 20 bottom)
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 10,
-    zIndex: 100,
-  },
-  accordionContainerExpanded: {
-    // Container will expand to fit the fixed-height horizontal list
-  },
-  completedAccordionToggle: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-  },
-  accordionContentHorizontal: {
-    paddingBottom: spacing.md,
-    paddingTop: spacing.xs,
-  },
-  accordionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  accordionTitle: {
-    fontSize: typography.base,
-    fontWeight: typography.bold,
-    color: colors.text,
-  },
-  accordionCountBadge: {
-    backgroundColor: colors.uiGray3,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: radius.full,
-    marginLeft: spacing.sm,
-  },
-  accordionCountText: {
-    fontSize: typography.xs,
-    fontWeight: typography.bold,
-    color: colors.textSecondary,
   },
 });
