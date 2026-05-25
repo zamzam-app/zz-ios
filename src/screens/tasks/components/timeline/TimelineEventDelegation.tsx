@@ -99,7 +99,7 @@ export default React.memo(TimelineEventDelegation);
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: spacing.xs,
+    marginTop: 0,
   },
   banner: {
     flexDirection: 'row',
