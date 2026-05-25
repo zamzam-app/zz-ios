@@ -99,6 +99,19 @@ export const colors = {
   scrimWhite70: 'rgba(255, 255, 255, 0.7)',
   overlayBlack33: '#00000055',
 
+  // Task / Card warm palette
+  warmBgLight: '#F0EDE8',
+  warmBgMedium: '#E8DED4',
+  warmHeaderBg: '#F4F1ED',
+  warmChipBg: '#EFEBE6',
+  warmBorderDefault: '#E1DCD3',
+  warmBorderDefaultAlpha50: '#E1DCD380',
+  textWarmDark: '#3A2E24',
+  textWarmMuted: '#8B7B6B',
+  textWarmBrown: '#4A3728',
+  accentYellowWarm: '#E8C34A',
+  accentBlueWarm: '#4A90D9',
+
   // Accent helpers
   accentYellow: '#EAB308',
   accentGold: '#F59E0B',
