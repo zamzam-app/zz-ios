@@ -89,4 +89,8 @@ export const usersApi = {
       newPassword: payload.newPassword,
     });
   },
+
+  syncPushToken: async (pushToken: string) => {
+    await client.patch('/users/push-token', { pushToken });
+  },
 };
