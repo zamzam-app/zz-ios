@@ -75,6 +75,10 @@ function getAxiosLikeErrorDetails(error: unknown) {
   };
 }
 
+function isNotFoundApiError(error: unknown) {
+  return getAxiosLikeErrorDetails(error).status === 404;
+}
+
 function buildAttachmentName(url: string, prefix: string, index: number) {
   const safePrefix = prefix.toLowerCase();
   try {
@@ -206,6 +210,7 @@ export function useTaskDetailController(
   const {
     data: taskDetail,
     isLoading: detailLoading,
+    status: detailStatus,
     error: detailError,
     refetch: refetchDetail,
   } = useTaskDetail(taskId);
@@ -215,7 +220,13 @@ export function useTaskDetailController(
   const addCommentMutation = useAddComment();
   const { mutate: mutateMarkTaskViewed } = useMarkTaskViewed();
 
-  const { data: legacyTask, isLoading: legacyLoading } = useTask(taskId);
+  const {
+    data: legacyTask,
+    isLoading: legacyLoading,
+    status: legacyStatus,
+    error: legacyError,
+    refetch: refetchLegacy,
+  } = useTask(taskId);
 
   // ─── Mark task viewed on focus...
 
@@ -599,10 +610,16 @@ export function useTaskDetailController(
     // Future: navigate to user profile
   }, []);
 
-  // Keep loading until ALL primary queries settle — avoids flash of "not found"
-  // while the legacy task fallback query is still in-flight.
-  const isLoading = detailLoading || legacyLoading;
-  const allQueriesComplete = !detailLoading && !legacyLoading;
+  // Keep loading until both primary queries have either succeeded or failed.
+  // `isLoading` can be false briefly before a fetch starts, which caused a
+  // transient "Task not found" render before the shimmer.
+  const detailQueryComplete = detailStatus === 'success' || detailStatus === 'error';
+  const legacyQueryComplete = legacyStatus === 'success' || legacyStatus === 'error';
+  const allQueriesComplete = detailQueryComplete && legacyQueryComplete;
+  const isLoading = !allQueriesComplete || detailLoading || legacyLoading;
+  const hasLoadError = allQueriesComplete && !source && Boolean(detailError || legacyError);
+  const isTaskNotFound =
+    hasLoadError && (isNotFoundApiError(detailError) || isNotFoundApiError(legacyError));
 
   return {
     // Data
@@ -612,6 +629,10 @@ export function useTaskDetailController(
     isLoading,
     allQueriesComplete,
     detailError,
+    legacyError,
+    hasLoadError,
+    isTaskNotFound,
+    refetchLegacy,
     isAdmin,
     timelineQuery,
     eventTypeCountsQuery,

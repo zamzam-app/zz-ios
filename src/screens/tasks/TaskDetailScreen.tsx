@@ -50,8 +50,21 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  // ─── API error with no fallback ─────────────────────────────────────────
-  if (ctrl.detailError && !ctrl.legacyTask) {
+  // ─── API confirmed task is unavailable ─────────────────────────────────
+  if (ctrl.isTaskNotFound) {
+    return (
+      <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
+        <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
+        <Text style={styles.notFoundText}>Task not found</Text>
+        <Text style={styles.emptyTimelineSubtext}>
+          This task may have been deleted or you may not have access
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── API error or invalid empty response with no fallback ───────────────
+  if (ctrl.hasLoadError || (ctrl.allQueriesComplete && !ctrl.source)) {
     return (
       <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
         <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
@@ -63,6 +76,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             void ctrl.timelineQuery.refetch();
             void ctrl.eventTypeCountsQuery.refetch();
             void ctrl.refetchDetail();
+            void ctrl.refetchLegacy();
           }}
           activeOpacity={0.8}
         >
@@ -74,19 +88,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           />
           <Text style={styles.retryBtnText}>Retry</Text>
         </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  // ─── All queries settled but no data found ──────────────────────────────
-  if (ctrl.allQueriesComplete && !ctrl.source) {
-    return (
-      <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
-        <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
-        <Text style={styles.notFoundText}>Task not found</Text>
-        <Text style={styles.emptyTimelineSubtext}>
-          This task may have been deleted or you may not have access
-        </Text>
       </SafeAreaView>
     );
   }
