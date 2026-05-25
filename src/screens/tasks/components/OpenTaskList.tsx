@@ -264,14 +264,14 @@ const styles = StyleSheet.create({
     fontWeight: typography.medium,
   },
   openTitle: {
-    fontSize: typography.lg,
+    fontSize: 22,
     color: colors.text,
-    fontWeight: typography.semibold,
+    fontWeight: typography.bold,
   },
   openDescription: {
     fontSize: typography.sm,
-    color: colors.textSecondary,
-    fontWeight: '400',
+    color: colors.text,
+    fontWeight: typography.medium,
     lineHeight: 18,
     marginTop: spacing.xs,
   },

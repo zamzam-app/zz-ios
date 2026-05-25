@@ -40,28 +40,23 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
   }, [ctrl]);
 
-  // ─── Loading state ──────────────────────────────────────────────────────
+  // ─── Loading state (with header) ────────────────────────────────────────
   if (ctrl.isLoading) {
     return (
       <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+        <TaskDetailHeader onBack={ctrl.handleBack} />
         <TimelineSkeleton />
       </SafeAreaView>
     );
   }
 
-  // ─── Error state ────────────────────────────────────────────────────────
-  if ((ctrl.detailError && !ctrl.legacyTask) || (!ctrl.source && !ctrl.timelineQuery.isLoading)) {
+  // ─── API error with no fallback ─────────────────────────────────────────
+  if (ctrl.detailError && !ctrl.legacyTask) {
     return (
       <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
         <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
-        <Text style={styles.notFoundText}>
-          {ctrl.detailError ? 'Failed to load task' : 'Task not found'}
-        </Text>
-        <Text style={styles.emptyTimelineSubtext}>
-          {ctrl.detailError
-            ? 'Check your connection and try again'
-            : 'This task may have been deleted or you may not have access'}
-        </Text>
+        <Text style={styles.notFoundText}>Failed to load task</Text>
+        <Text style={styles.emptyTimelineSubtext}>Check your connection and try again</Text>
         <TouchableOpacity
           style={styles.retryBtn}
           onPress={() => {
@@ -83,14 +78,22 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  // ─── Fallback: source not ready yet ─────────────────────────────────────
-  if (!ctrl.source) {
+  // ─── All queries settled but no data found ──────────────────────────────
+  if (ctrl.allQueriesComplete && !ctrl.source) {
     return (
       <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
+        <Text style={styles.notFoundText}>Task not found</Text>
+        <Text style={styles.emptyTimelineSubtext}>
+          This task may have been deleted or you may not have access
+        </Text>
       </SafeAreaView>
     );
   }
+
+  // ─── Full list of guards above ensures source is defined here ─────────
+  // TypeScript can't infer the logical relationship, so assert once:
+  const taskSource = ctrl.source!;
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -99,7 +102,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
       {/* ── Summary Card + Manager Submission ─────────────────────────── */}
       <TaskSummaryCard
-        source={ctrl.source as unknown as Record<string, unknown>}
+        source={taskSource as unknown as Record<string, unknown>}
         legacyTask={ctrl.legacyTask as unknown as Record<string, unknown> | undefined}
         taskDetail={ctrl.taskDetail as unknown as Record<string, unknown> | undefined}
         filteredEvents={ctrl.timelineEvents}
@@ -134,12 +137,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
             style={styles.bottomBarBtn}
             onPress={ctrl.handleStatusChange}
             activeOpacity={0.82}
-            accessibilityLabel={
-              ctrl.source.status === 'COMPLETED' ? 'Reopen task' : 'Complete task'
-            }
+            accessibilityLabel={taskSource.status === 'COMPLETED' ? 'Reopen task' : 'Complete task'}
           >
             <Ionicons
-              name={ctrl.source.status === 'COMPLETED' ? 'refresh' : 'checkmark-circle-outline'}
+              name={taskSource.status === 'COMPLETED' ? 'refresh' : 'checkmark-circle-outline'}
               size={20}
               color={colors.textInverse}
             />
@@ -161,10 +162,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={[
               styles.bottomBarBtn,
-              ctrl.source.status === 'COMPLETED' && styles.bottomBarBtnDisabled,
+              taskSource.status === 'COMPLETED' && styles.bottomBarBtnDisabled,
             ]}
             onPress={() => ctrl.setShowSubmissionModal(true)}
-            disabled={ctrl.source.status === 'COMPLETED'}
+            disabled={taskSource.status === 'COMPLETED'}
             activeOpacity={0.82}
             accessibilityLabel="Add attachment"
           >
@@ -256,9 +257,9 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         visible={ctrl.showDelegationSheet}
         onClose={() => ctrl.setShowDelegationSheet(false)}
         taskId={taskId}
-        taskDescription={ctrl.source.description}
+        taskDescription={taskSource.description}
         excludeUserIds={[
-          ...(((ctrl.source as unknown as Record<string, unknown>)?.assigneeIds as
+          ...(((taskSource as unknown as Record<string, unknown>)?.assigneeIds as
             | string[]
             | undefined) ?? []),
           ...(user?.id ? [user.id] : []),

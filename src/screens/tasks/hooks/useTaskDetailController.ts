@@ -602,6 +602,7 @@ export function useTaskDetailController(
   // Keep loading until ALL primary queries settle — avoids flash of "not found"
   // while the legacy task fallback query is still in-flight.
   const isLoading = detailLoading || legacyLoading;
+  const allQueriesComplete = !detailLoading && !legacyLoading;
 
   return {
     // Data
@@ -609,6 +610,7 @@ export function useTaskDetailController(
     taskDetail,
     legacyTask,
     isLoading,
+    allQueriesComplete,
     detailError,
     isAdmin,
     timelineQuery,
