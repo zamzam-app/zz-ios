@@ -215,10 +215,7 @@ export function useTaskDetailController(
   const addCommentMutation = useAddComment();
   const { mutate: mutateMarkTaskViewed } = useMarkTaskViewed();
 
-  const {
-    data: legacyTask,
-    isLoading: legacyLoading,
-  } = useTask(taskId);
+  const { data: legacyTask, isLoading: legacyLoading } = useTask(taskId);
 
   // ─── Mark task viewed on focus...
 
