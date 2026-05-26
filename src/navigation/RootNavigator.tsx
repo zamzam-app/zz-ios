@@ -15,6 +15,8 @@ export default function RootNavigator() {
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const pendingNotificationData = useRef<unknown | null>(null);
+  const userRef = useRef(user);
+  const isLoadingRef = useRef(isLoading);
 
   type NotificationNavData =
     | { type: 'task'; taskId: string }
@@ -58,14 +60,14 @@ export default function RootNavigator() {
       if (__DEV__) console.warn('Notification tapped:', data);
 
       // On cold start this can fire before auth restore + navigator mount.
-      if (!navigationRef.isReady() || isLoading || !user) {
+      if (!navigationRef.isReady() || isLoadingRef.current || !userRef.current) {
         pendingNotificationData.current = data;
         return;
       }
 
       navigateFromNotificationData(data);
     },
-    [isLoading, navigationRef, navigateFromNotificationData, user],
+    [navigationRef, navigateFromNotificationData],
   );
 
   const flushPendingNotificationNavigation = useCallback(() => {
@@ -78,8 +80,18 @@ export default function RootNavigator() {
   }, [isLoading, navigationRef, navigateFromNotificationData, user]);
 
   useEffect(() => {
-    restoreSession();
+    userRef.current = user;
+  }, [user]);
 
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  useEffect(() => {
+    void restoreSession();
+  }, [restoreSession]);
+
+  useEffect(() => {
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       if (__DEV__) console.warn('Notification received:', notification);
     });
@@ -102,7 +114,7 @@ export default function RootNavigator() {
         responseListener.current.remove();
       }
     };
-  }, [handleNotificationResponse, restoreSession]);
+  }, [handleNotificationResponse]);
 
   useEffect(() => {
     flushPendingNotificationNavigation();

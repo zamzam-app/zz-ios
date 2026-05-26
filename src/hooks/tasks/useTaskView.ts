@@ -1,6 +1,7 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { tasksApi } from '../../api/endpoints/tasks';
+import type { TasksQuery } from '../../api/endpoints/tasks';
 import type {
   UnreadTaskCount,
   AggregatedUnread,
@@ -29,10 +30,10 @@ export const useUnreadAggregated = () =>
     refetchInterval: 60 * 1000,
   });
 
-export const useUnreadIds = () =>
+export const useUnreadIds = (query?: Omit<TasksQuery, 'page' | 'limit'>) =>
   useQuery<string[]>({
-    queryKey: ['unread', 'ids'],
-    queryFn: tasksApi.getUnreadIds,
+    queryKey: ['unread', 'ids', query],
+    queryFn: () => tasksApi.getUnreadIds(query),
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
   });

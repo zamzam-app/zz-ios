@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -147,8 +147,15 @@ export function TaskFiltersToolbar({
     setRowWidth(event.nativeEvent.layout.width);
   };
 
-  const getCount = (key: string) =>
-    key === 'TODAY' ? todayCount : key === 'HIGH_PRIORITY' ? highPriorityCount : unreadCount;
+  const orderedFilterChips = useMemo(() => {
+    const countFor = (key: FilterChipDef['key']) =>
+      key === 'TODAY' ? todayCount : key === 'HIGH_PRIORITY' ? highPriorityCount : unreadCount;
+    return [...FILTER_CHIPS].sort((a, b) => {
+      const countDiff = countFor(b.key) - countFor(a.key);
+      if (countDiff !== 0) return countDiff;
+      return a.label.localeCompare(b.label);
+    });
+  }, [todayCount, highPriorityCount, unreadCount]);
 
   return (
     <View style={styles.controlsRow} onLayout={handleControlsLayout}>
@@ -222,7 +229,7 @@ export function TaskFiltersToolbar({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScrollContent}
         >
-          {FILTER_CHIPS.map((f) => {
+          {orderedFilterChips.map((f) => {
             const count =
               f.key === 'TODAY'
                 ? todayCount
@@ -246,7 +253,7 @@ export function TaskFiltersToolbar({
                     { color: isActive ? f.activeText : f.inactiveText },
                   ]}
                 >
-                  {f.emoji} {f.label} {count > 0 ? ` (${count})` : ''}
+                  {f.emoji} {f.label} ({count})
                 </Text>
               </TouchableOpacity>
             );

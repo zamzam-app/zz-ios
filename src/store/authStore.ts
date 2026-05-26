@@ -5,6 +5,8 @@ import { queryClient } from '../api/queryClient';
 import { refreshTokenStorage, tokenStorage } from '../api/storage';
 import { syncPushToken } from '../utils/notifications';
 
+let authSessionRevision = 0;
+
 interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
@@ -36,23 +38,30 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    authSessionRevision += 1;
+
+    // Clear local auth state first so navigation immediately switches to Auth flow.
+    set({ user: null });
+    queryClient.clear();
+
     try {
       await authApi.logout();
     } catch {
       // best-effort
     }
+
     await tokenStorage.clear();
     await refreshTokenStorage.clear();
-    queryClient.clear();
-    set({ user: null });
   },
 
   restoreSession: async () => {
+    const restoreRevision = authSessionRevision;
     try {
       const token = await tokenStorage.get();
       if (!token) return;
 
       const profile = await authApi.getProfile();
+      if (restoreRevision !== authSessionRevision) return;
       set({ user: profile });
       void syncPushToken();
     } catch {
