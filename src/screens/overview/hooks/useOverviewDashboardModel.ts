@@ -13,6 +13,7 @@ import {
   useOutletFeedbackSummary,
   useTasksOverview,
 } from '../../../hooks/analytics';
+import { useOutlets } from '../../../hooks/infrastructure';
 import { AppTabParamList } from '../../../navigation/AppNavigator';
 import { colors } from '../../../theme/theme';
 import { buildOpenReviewOverviewModel } from '../reviewOverview';
@@ -53,6 +54,7 @@ export function useOverviewDashboardModel() {
   const incidents = useIncidentsOverview(period);
   const feedback = useOutletFeedbackSummary(period);
   const tasksOverview = useTasksOverview(period);
+  const outlets = useOutlets();
 
   const isLoading = insights.isLoading || csat.isLoading;
   const isRefreshing =
@@ -61,7 +63,8 @@ export function useOverviewDashboardModel() {
     trendline.isFetching ||
     incidents.isFetching ||
     feedback.isFetching ||
-    tasksOverview.isFetching;
+    tasksOverview.isFetching ||
+    outlets.isFetching;
 
   const refetchAll = () => {
     void insights.refetch();
@@ -70,6 +73,7 @@ export function useOverviewDashboardModel() {
     void incidents.refetch();
     void feedback.refetch();
     void tasksOverview.refetch();
+    void outlets.refetch();
   };
 
   const csatScore = csat.data?.globalCsatScore;
@@ -124,7 +128,7 @@ export function useOverviewDashboardModel() {
     },
   ].filter(Boolean) as { title: string; value: string; accent: string; onPress?: () => void }[];
 
-  const openReviewOverview = buildOpenReviewOverviewModel(feedback.data?.items);
+  const openReviewOverview = buildOpenReviewOverviewModel(feedback.data?.items, outlets.data);
 
   const taskOpenCount = tasksOverview.data?.totalOpenTasks;
   const taskCriticalCount = tasksOverview.data?.criticalOpenTasks;

@@ -7,6 +7,8 @@ import type {
 } from '../../../types/task';
 import client from '../../client';
 
+import type { TasksQuery } from './taskTypes';
+
 export function markTaskViewed(id: string) {
   return client.post<void>(`/tasks/${id}/view`).then(() => undefined);
 }
@@ -27,8 +29,12 @@ export function getUnreadAggregated() {
   return client.get<AggregatedUnread>('/tasks/unread-aggregated').then((r) => r.data);
 }
 
-export function getUnreadIds() {
-  return client.get<string[]>('/tasks/unread-ids').then((r) => r.data);
+export function getUnreadIds(query?: Omit<TasksQuery, 'page' | 'limit'>) {
+  return client
+    .get<string[]>('/tasks/unread-ids', {
+      params: query,
+    })
+    .then((r) => r.data);
 }
 
 export function getRecentlyViewed(query?: RecentlyViewedQuery) {

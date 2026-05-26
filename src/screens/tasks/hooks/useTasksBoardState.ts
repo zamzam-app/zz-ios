@@ -160,8 +160,6 @@ export function useTasksBoardState() {
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'TODAY' | 'UNREAD' | 'HIGH_PRIORITY'>(
     'ALL',
   );
-  const { data: unreadIds = [], refetch: refetchUnreadIds } = useUnreadIds();
-  const unreadSet = useMemo(() => new Set(unreadIds), [unreadIds]);
 
   useEffect(() => {
     const incomingMetric = route.params?.initialTaskFilter?.metric;
@@ -215,6 +213,39 @@ export function useTasksBoardState() {
   const effectiveCompletedDueDateEnd = effectiveCompletedDueDateStart
     ? new Date(effectiveCompletedDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
     : null;
+
+  const unreadPriorityFilter: TaskPriority | undefined =
+    priorityFilter === 'ALL' ? undefined : priorityFilter;
+  const unreadDueDateStart = dueDateFilter
+    ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
+    : null;
+  const unreadDueDateEnd = unreadDueDateStart
+    ? new Date(unreadDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+    : null;
+
+  const unreadIdsQuery = useMemo(
+    () => ({
+      status: 'OPEN' as const,
+      priority: unreadPriorityFilter,
+      search: debouncedSearchQuery || undefined,
+      dueFrom: unreadDueDateStart ? unreadDueDateStart.toISOString() : undefined,
+      dueTo: unreadDueDateEnd ? unreadDueDateEnd.toISOString() : undefined,
+      assigneeId: isAdmin ? undefined : userIdentifier,
+      isRecurring: activeTab === 'RECURRING',
+    }),
+    [
+      unreadPriorityFilter,
+      debouncedSearchQuery,
+      unreadDueDateStart,
+      unreadDueDateEnd,
+      isAdmin,
+      userIdentifier,
+      activeTab,
+    ],
+  );
+
+  const { data: unreadIds = [], refetch: refetchUnreadIds } = useUnreadIds(unreadIdsQuery);
+  const unreadSet = useMemo(() => new Set(unreadIds), [unreadIds]);
 
   const openTasksQuery = useInfiniteTasks(
     {
