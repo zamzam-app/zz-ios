@@ -114,9 +114,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         activeAudioAttachmentId={ctrl.activeAudioAttachmentId}
         audioDurationById={ctrl.audioDurationById}
         handleAudioAttachmentPress={ctrl.handleAudioAttachmentPress}
-        isAdmin={ctrl.isAdmin}
-        managerText={ctrl.managerText}
-        managerAttachments={ctrl.managerAttachments}
       />
 
       {/* ── Activity Timeline ─────────────────────────────────────────── */}

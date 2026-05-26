@@ -15,7 +15,6 @@ import {
 
 import { colors, spacing, radius, typography, shadow } from '../../../theme/theme';
 import { formatDuration } from '../hooks/useTaskAudioController';
-import { buildAttachmentName } from '../hooks/useTaskDetailController';
 
 import { SubmissionBlock } from './SubmissionBlock';
 
@@ -232,42 +231,6 @@ export function TaskSubmissionSheet({
               />
             )}
 
-            <View style={styles.managerTagGroup}>
-              {managerAttachments.images.map((url: string, index: number) => (
-                <TouchableOpacity
-                  key={`manager-image-${url}`}
-                  style={styles.attachmentTag}
-                  onLongPress={() => onRemoveAttachment('images', index)}
-                >
-                  <Text style={styles.attachmentTagText} numberOfLines={1}>
-                    {buildAttachmentName(url, 'image', index)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              {managerAttachments.videos.map((url: string, index: number) => (
-                <TouchableOpacity
-                  key={`manager-video-${url}`}
-                  style={styles.attachmentTag}
-                  onLongPress={() => onRemoveAttachment('videos', index)}
-                >
-                  <Text style={styles.attachmentTagText} numberOfLines={1}>
-                    {buildAttachmentName(url, 'video', index)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              {managerAttachments.files.map((url: string, index: number) => (
-                <TouchableOpacity
-                  key={`manager-file-${url}`}
-                  style={styles.attachmentTag}
-                  onLongPress={() => onRemoveAttachment('files', index)}
-                >
-                  <Text style={styles.attachmentTagText} numberOfLines={1}>
-                    {buildAttachmentName(url, 'file', index)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             <TouchableOpacity
               style={[styles.saveManagerBtn, isSaving && styles.iconActionBtnDisabled]}
               onPress={onSave}
@@ -359,17 +322,6 @@ const styles = StyleSheet.create({
   },
   uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   uploadingText: { fontSize: typography.xs, color: colors.textSecondary },
-  managerTagGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  attachmentTag: {
-    maxWidth: '100%',
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-  },
-  attachmentTagText: { fontSize: typography.xs, color: colors.textSecondary },
   saveManagerBtn: {
     minHeight: 42,
     borderRadius: radius.md,

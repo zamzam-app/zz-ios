@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, Modal, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { tasksApi } from '../../api/endpoints/tasks';
 import { TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
+import { useRemoveAttachment } from '../../hooks/tasks';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 
 import {
@@ -84,6 +86,70 @@ export default function TasksScreen() {
     openExternalAttachment,
     refetch,
   } = useTasksBoardState();
+
+  const removeAttachmentMutation = useRemoveAttachment();
+  const attachmentIdMapRef = useRef<Map<string, string>>(new Map());
+
+  // Fetch attachment IDs from the backend when the modal opens
+  // so we can pass real MongoDB ObjectIds to removeAttachment
+  useEffect(() => {
+    if (!attachmentModal) {
+      attachmentIdMapRef.current = new Map();
+      return;
+    }
+    const taskId = attachmentModal.task.id;
+    if (!taskId) return;
+    let ignore = false;
+    tasksApi
+      .getAttachments(taskId, { limit: 100 })
+      .then((response) => {
+        if (ignore) return;
+        const map = new Map<string, string>();
+        for (const att of response.data) {
+          if (att.url) {
+            map.set(att.url, att._id);
+          }
+        }
+        attachmentIdMapRef.current = map;
+      })
+      .catch(() => {
+        // Silently fail — delete button will show a useful error
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [attachmentModal]);
+
+  const handleRemoveAttachment = useCallback(
+    (url: string) => {
+      if (!attachmentModal) return;
+      const taskId = attachmentModal.task.id;
+      if (!taskId) {
+        Alert.alert('Error', 'Could not identify the task for this attachment.');
+        return;
+      }
+      const realId = attachmentIdMapRef.current.get(url);
+      if (!realId) {
+        Alert.alert(
+          'Delete Failed',
+          'Could not identify this attachment. Please close and reopen the attachment list and try again.',
+        );
+        return;
+      }
+      removeAttachmentMutation.mutate(
+        { taskId, attachmentId: realId },
+        {
+          onSuccess: () => {
+            void refetch();
+          },
+          onError: () => {
+            Alert.alert('Delete Failed', 'Could not remove this attachment. Please try again.');
+          },
+        },
+      );
+    },
+    [attachmentModal, removeAttachmentMutation, refetch],
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -244,6 +310,7 @@ export default function TasksScreen() {
         attachmentModal={attachmentModal}
         onClose={() => setAttachmentModal(null)}
         onOpenExternal={openExternalAttachment}
+        onRemove={handleRemoveAttachment}
       />
 
       {showCompletedSection && (

@@ -59,9 +59,6 @@ export function TaskAttachmentPreviewList({
             style={styles.attachmentPreviewImage}
             resizeMode="cover"
           />
-          <Text style={styles.attachmentPreviewFileName} numberOfLines={1}>
-            {selectedPreviewAttachment.name}
-          </Text>
         </View>
       )}
 
@@ -110,9 +107,7 @@ export function TaskAttachmentPreviewList({
                         size={16}
                         color={colors.primary}
                       />
-                      <Text style={styles.attachmentChipText} numberOfLines={1}>
-                        {item.name}
-                      </Text>
+                      {/* File name removed per user request */}
                     </View>
                     <View style={styles.attachmentChipRight}>
                       <Text
@@ -133,10 +128,11 @@ export function TaskAttachmentPreviewList({
                           event.stopPropagation();
                           onRemove(item.id);
                         }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
                         <MaterialCommunityIcons
                           name="trash-can-outline"
-                          size={16}
+                          size={18}
                           color={colors.error}
                         />
                       </TouchableOpacity>
@@ -222,10 +218,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.border,
   },
-  attachmentPreviewFileName: {
-    color: colors.text,
-    fontSize: typography.sm,
-  },
+
   attachmentListBox: {
     borderWidth: 1,
     borderStyle: 'dashed',
@@ -268,11 +261,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     flex: 1,
   },
-  attachmentChipText: {
-    flex: 1,
-    color: colors.text,
-    fontSize: typography.sm,
-  },
+
   attachmentChipRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -297,7 +286,9 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
   },
   removeAttachmentBtn: {
-    padding: 2,
+    padding: 6,
+    borderRadius: radius.sm,
+    backgroundColor: colors.errorLight,
   },
   audioPreviewRow: {
     marginTop: spacing.sm,
