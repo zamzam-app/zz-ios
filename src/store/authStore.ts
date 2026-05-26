@@ -21,6 +21,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   login: async (identifier, password, isAdminLogin) => {
+    authSessionRevision += 1;
+
     const data = await authApi.login(identifier, password, isAdminLogin);
 
     await tokenStorage.set(data.access_token);
