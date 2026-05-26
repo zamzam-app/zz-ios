@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 
-import {
-  buildOpenReviewOverviewModel,
-  getOpenReviewsEmptyStateMessage,
-} from '../src/screens/overview/reviewOverview';
+import { buildOpenReviewOverviewModel } from '../src/screens/overview/reviewOverview';
 
 function testOpenOverviewUsesOnlyOpenReviewCounts() {
   const model = buildOpenReviewOverviewModel([
@@ -28,7 +25,6 @@ function testOpenOverviewUsesOnlyOpenReviewCounts() {
     { name: 'Outlet A', value: 5 },
     { name: 'Outlet B', value: 1 },
   ]);
-  assert.equal(model.hasOpenReviews, true);
 }
 
 function testEmptyStateWhenNoOpenReviewsExist() {
@@ -42,10 +38,8 @@ function testEmptyStateWhenNoOpenReviewsExist() {
     },
   ]);
 
-  assert.equal(model.hasOpenReviews, false);
   assert.deepEqual(model.criticalItems, []);
   assert.deepEqual(model.openItems, []);
-  assert.equal(getOpenReviewsEmptyStateMessage(), 'No open reviews for this time filter.');
 }
 
 function testRegressionSortingIsStable() {

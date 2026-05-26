@@ -10,7 +10,6 @@ export interface OpenReviewOverviewModel {
   criticalItems: OverviewOutletCount[];
   openItems: OverviewOutletCount[];
   resolvedItems: OverviewOutletCount[];
-  hasOpenReviews: boolean;
 }
 
 interface OutletFeedbackCountSource {
@@ -76,12 +75,7 @@ export function buildOpenReviewOverviewModel(
     criticalItems,
     openItems,
     resolvedItems,
-    hasOpenReviews: source.some(
-      (item) => (item.negativeFeedbacks ?? 0) > 0 || (item.totalFeedbacks ?? 0) > 0,
-    ),
   };
 }
 
-export function getOpenReviewsEmptyStateMessage() {
-  return 'No open reviews for this time filter.';
-}
+
