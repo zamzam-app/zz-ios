@@ -1,9 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 
-import { colors, radius, shadow, spacing, typography } from '../../../theme/theme';
+import { colors, radius, spacing, typography } from '../../../theme/theme';
 import type { OpenReviewOverviewModel } from '../reviewOverview';
-import { getOpenReviewsEmptyStateMessage } from '../reviewOverview';
 
 const FEEDBACK_VISIBLE_ROWS = 4;
 const FEEDBACK_ROW_HEIGHT = 46;
@@ -58,14 +57,6 @@ export function OutletFeedbackSection({
 }: {
   openReviewOverview: OpenReviewOverviewModel;
 }) {
-  if (!openReviewOverview.hasOpenReviews) {
-    return (
-      <View style={styles.chartCard}>
-        <Text style={styles.empty}>{getOpenReviewsEmptyStateMessage()}</Text>
-      </View>
-    );
-  }
-
   return (
     <>
       <FeedbackCard
@@ -79,6 +70,12 @@ export function OutletFeedbackSection({
         subtext="Unresolved reviews in this period"
         accent={colors.warning}
         items={openReviewOverview.openItems}
+      />
+      <FeedbackCard
+        title="Resolved Reviews"
+        subtext="Resolved feedback in this period"
+        accent={colors.success}
+        items={openReviewOverview.resolvedItems}
       />
     </>
   );
@@ -117,13 +114,4 @@ const styles = StyleSheet.create({
   feedbackName: { fontSize: typography.sm, color: colors.text, flex: 1, marginRight: spacing.sm },
   feedbackBadge: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 3 },
   feedbackBadgeText: { fontSize: typography.xs, fontWeight: typography.semibold },
-  chartCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    alignItems: 'center',
-    ...shadow.sm,
-  },
-  empty: { color: colors.textSecondary, textAlign: 'center', paddingVertical: spacing.md },
 });
