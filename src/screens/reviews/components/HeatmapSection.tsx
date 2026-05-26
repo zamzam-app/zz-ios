@@ -56,24 +56,26 @@ export function HeatmapSection({
 }: {
   heatmapRowsWithFallback: MetricsHeatmapItem[];
   selectedOutletId: string;
-  onOutletSelect: () => void;
+  onOutletSelect?: () => void;
   selectedOutletLabel: string;
   isLoading: boolean;
 }) {
   return (
     <View style={styles.sectionBlock}>
-      <View style={styles.outletSelectWrap}>
-        <TouchableOpacity
-          style={styles.outletSelectBtn}
-          onPress={onOutletSelect}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.outletSelectBtnText} numberOfLines={1}>
-            {selectedOutletLabel}
-          </Text>
-          <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
+      {onOutletSelect && (
+        <View style={styles.outletSelectWrap}>
+          <TouchableOpacity
+            style={styles.outletSelectBtn}
+            onPress={onOutletSelect}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.outletSelectBtnText} numberOfLines={1}>
+              {selectedOutletLabel}
+            </Text>
+            <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionEyebrow}>Outlet Performance Heatmap</Text>
