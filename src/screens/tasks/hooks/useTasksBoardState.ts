@@ -207,37 +207,40 @@ export function useTasksBoardState() {
         ? new Date(effectiveOpenDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
         : null;
 
-  const effectiveCompletedDueDateStart = dueDateFilter
-    ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
-    : null;
-  const effectiveCompletedDueDateEnd = effectiveCompletedDueDateStart
-    ? new Date(effectiveCompletedDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
-    : null;
+  const effectiveCompletedDueDateStart = useMemo(
+    () =>
+      dueDateFilter
+        ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
+        : null,
+    [dueDateFilter],
+  );
+  const effectiveCompletedDueDateEnd = useMemo(
+    () =>
+      effectiveCompletedDueDateStart
+        ? new Date(effectiveCompletedDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+        : null,
+    [effectiveCompletedDueDateStart],
+  );
 
   const unreadPriorityFilter: TaskPriority | undefined =
     priorityFilter === 'ALL' ? undefined : priorityFilter;
-  const unreadDueDateStart = dueDateFilter
-    ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
-    : null;
-  const unreadDueDateEnd = unreadDueDateStart
-    ? new Date(unreadDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
-    : null;
-
   const unreadIdsQuery = useMemo(
     () => ({
       status: 'OPEN' as const,
       priority: unreadPriorityFilter,
       search: debouncedSearchQuery || undefined,
-      dueFrom: unreadDueDateStart ? unreadDueDateStart.toISOString() : undefined,
-      dueTo: unreadDueDateEnd ? unreadDueDateEnd.toISOString() : undefined,
+      dueFrom: effectiveCompletedDueDateStart
+        ? effectiveCompletedDueDateStart.toISOString()
+        : undefined,
+      dueTo: effectiveCompletedDueDateEnd ? effectiveCompletedDueDateEnd.toISOString() : undefined,
       assigneeId: isAdmin ? undefined : userIdentifier,
       isRecurring: activeTab === 'RECURRING',
     }),
     [
       unreadPriorityFilter,
       debouncedSearchQuery,
-      unreadDueDateStart,
-      unreadDueDateEnd,
+      effectiveCompletedDueDateStart,
+      effectiveCompletedDueDateEnd,
       isAdmin,
       userIdentifier,
       activeTab,
