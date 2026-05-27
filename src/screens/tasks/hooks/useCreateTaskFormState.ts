@@ -147,8 +147,17 @@ export function useCreateTaskFormState(
     const fromUserOutlets = allManagers.filter((manager) => manager.outlets?.includes(outletId));
     if (fromUserOutlets.length > 0) return fromUserOutlets;
     const selectedOutletManagerIds = selectedOutlet?.managerIds ?? [];
-    return allManagers.filter((manager) => selectedOutletManagerIds.includes(manager.id));
-  }, [managers, outletId, selectedOutlet?.managerIds]);
+    let result = allManagers.filter((manager) => selectedOutletManagerIds.includes(manager.id));
+    // In edit mode, always include the task's currently assigned managers so they
+    // are not pruned away by the effect below, even if they aren't associated
+    // with the selected outlet in the manager/outlet data.
+    if (isEditMode && editTask?.assigneeIds) {
+      const taskAssigneeIds = editTask.assigneeIds;
+      const assignedManagers = allManagers.filter((m) => taskAssigneeIds.includes(m.id));
+      result = [...new Map([...assignedManagers, ...result].map((m) => [m.id, m])).values()];
+    }
+    return result;
+  }, [managers, outletId, selectedOutlet?.managerIds, isEditMode, editTask?.assigneeIds]);
 
   const selectedManagers = filteredManagers.filter((m) => assigneeIds.includes(m.id));
   const hasTaskCategories = (taskCategories?.length ?? 0) > 0;

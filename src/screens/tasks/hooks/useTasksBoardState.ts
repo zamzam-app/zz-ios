@@ -207,37 +207,38 @@ export function useTasksBoardState() {
         ? new Date(effectiveOpenDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
         : null;
 
-  const effectiveCompletedDueDateStart = dueDateFilter
-    ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
-    : null;
-  const effectiveCompletedDueDateEnd = effectiveCompletedDueDateStart
-    ? new Date(effectiveCompletedDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
-    : null;
+  const effectiveDueDateStart = useMemo(
+    () =>
+      dueDateFilter
+        ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
+        : null,
+    [dueDateFilter],
+  );
+  const effectiveDueDateEnd = useMemo(
+    () =>
+      effectiveDueDateStart
+        ? new Date(effectiveDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+        : null,
+    [effectiveDueDateStart],
+  );
 
   const unreadPriorityFilter: TaskPriority | undefined =
     priorityFilter === 'ALL' ? undefined : priorityFilter;
-  const unreadDueDateStart = dueDateFilter
-    ? new Date(dueDateFilter.getFullYear(), dueDateFilter.getMonth(), dueDateFilter.getDate())
-    : null;
-  const unreadDueDateEnd = unreadDueDateStart
-    ? new Date(unreadDueDateStart.getTime() + 24 * 60 * 60 * 1000 - 1)
-    : null;
-
   const unreadIdsQuery = useMemo(
     () => ({
       status: 'OPEN' as const,
       priority: unreadPriorityFilter,
       search: debouncedSearchQuery || undefined,
-      dueFrom: unreadDueDateStart ? unreadDueDateStart.toISOString() : undefined,
-      dueTo: unreadDueDateEnd ? unreadDueDateEnd.toISOString() : undefined,
+      dueFrom: effectiveDueDateStart ? effectiveDueDateStart.toISOString() : undefined,
+      dueTo: effectiveDueDateEnd ? effectiveDueDateEnd.toISOString() : undefined,
       assigneeId: isAdmin ? undefined : userIdentifier,
       isRecurring: activeTab === 'RECURRING',
     }),
     [
       unreadPriorityFilter,
       debouncedSearchQuery,
-      unreadDueDateStart,
-      unreadDueDateEnd,
+      effectiveDueDateStart,
+      effectiveDueDateEnd,
       isAdmin,
       userIdentifier,
       activeTab,
@@ -267,10 +268,8 @@ export function useTasksBoardState() {
       limit: 20,
       priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
       search: debouncedSearchQuery || undefined,
-      dueFrom: effectiveCompletedDueDateStart
-        ? effectiveCompletedDueDateStart.toISOString()
-        : undefined,
-      dueTo: effectiveCompletedDueDateEnd ? effectiveCompletedDueDateEnd.toISOString() : undefined,
+      dueFrom: effectiveDueDateStart ? effectiveDueDateStart.toISOString() : undefined,
+      dueTo: effectiveDueDateEnd ? effectiveDueDateEnd.toISOString() : undefined,
       assigneeId: isAdmin ? undefined : userIdentifier,
       isRecurring: activeTab === 'RECURRING',
     },

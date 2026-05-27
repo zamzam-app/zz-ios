@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, Modal, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { tasksApi } from '../../api/endpoints/tasks';
 import { TASK_METRIC_FILTER_LABELS } from '../../constants/taskFilters';
+import { useRemoveAttachment } from '../../hooks/tasks';
 import { colors, spacing, radius, typography } from '../../theme/theme';
 
 import {
@@ -84,6 +86,96 @@ export default function TasksScreen() {
     openExternalAttachment,
     refetch,
   } = useTasksBoardState();
+
+  const removeAttachmentMutation = useRemoveAttachment();
+  const [resolvedAttachments, setResolvedAttachments] = useState<
+    { id: string; url: string }[] | null
+  >(null);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
+  const [attachmentsError, setAttachmentsError] = useState<string | null>(null);
+
+  // Fetch real attachments with IDs from the backend when the modal opens
+  // so we can plumb actual MongoDB ObjectIds to the sheet (fixes limit truncation & duplicate URL bugs)
+  useEffect(() => {
+    if (!attachmentModal) {
+      queueMicrotask(() => {
+        setResolvedAttachments(null);
+        setIsLoadingAttachments(false);
+        setAttachmentsError(null);
+      });
+      return;
+    }
+    const taskId = attachmentModal.task.id;
+    if (!taskId) return;
+
+    let ignore = false;
+    queueMicrotask(() => {
+      setIsLoadingAttachments(true);
+      setAttachmentsError(null);
+    });
+
+    tasksApi
+      .getAttachments(taskId, { limit: 1000 })
+      .then((response) => {
+        if (ignore) return;
+
+        const typeMapping: Record<string, string> = {
+          images: 'IMAGE',
+          videos: 'VIDEO',
+          audios: 'AUDIO',
+          files: 'FILE',
+        };
+        const mappedType = typeMapping[attachmentModal.type];
+
+        const relevant = response.data.filter((a) => {
+          if (attachmentModal.type === 'files') {
+            return a.type === 'FILE' || a.type === 'DOCUMENT';
+          }
+          return a.type === mappedType;
+        });
+
+        setResolvedAttachments(relevant.map((a) => ({ id: a._id, url: a.url })));
+        setIsLoadingAttachments(false);
+      })
+      .catch(() => {
+        if (!ignore) {
+          setResolvedAttachments(null);
+          setIsLoadingAttachments(false);
+          setAttachmentsError(
+            'Could not load attachment details. Deleting is temporarily disabled.',
+          );
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [attachmentModal]);
+
+  const handleRemoveAttachment = useCallback(
+    (id: string) => {
+      if (!attachmentModal) return;
+      const taskId = attachmentModal.task.id;
+      if (!taskId) {
+        Alert.alert('Error', 'Could not identify the task for this attachment.');
+        return;
+      }
+
+      removeAttachmentMutation.mutate(
+        { taskId, attachmentId: id },
+        {
+          onSuccess: () => {
+            void refetch();
+            setResolvedAttachments((prev) => (prev ? prev.filter((a) => a.id !== id) : null));
+          },
+          onError: () => {
+            Alert.alert('Delete Failed', 'Could not remove this attachment. Please try again.');
+          },
+        },
+      );
+    },
+    [attachmentModal, removeAttachmentMutation, refetch],
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -242,8 +334,12 @@ export default function TasksScreen() {
       <TaskAttachmentsSheet
         visible={Boolean(attachmentModal)}
         attachmentModal={attachmentModal}
+        resolvedAttachments={resolvedAttachments}
+        isLoading={isLoadingAttachments}
+        error={attachmentsError}
         onClose={() => setAttachmentModal(null)}
         onOpenExternal={openExternalAttachment}
+        onRemove={handleRemoveAttachment}
       />
 
       {showCompletedSection && (

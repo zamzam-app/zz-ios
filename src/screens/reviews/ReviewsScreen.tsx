@@ -47,6 +47,7 @@ export default function ReviewsScreen({ route }: Props) {
     refreshing,
     activeStatusFilterLabel,
     allReviewsEmptyMessage,
+    showOutletFilter,
     handleRefresh,
   } = useReviewsFilterState(route);
 
@@ -83,7 +84,7 @@ export default function ReviewsScreen({ route }: Props) {
             <HeatmapSection
               heatmapRowsWithFallback={heatmapRowsWithFallback}
               selectedOutletId={selectedOutletId}
-              onOutletSelect={() => setShowOutletModal(true)}
+              onOutletSelect={showOutletFilter ? () => setShowOutletModal(true) : undefined}
               selectedOutletLabel={selectedOutletLabel}
               isLoading={isAnalyticsLoading}
             />
@@ -136,20 +137,22 @@ export default function ReviewsScreen({ route }: Props) {
         setAllReviewsFilter={setAllReviewsFilter}
       />
 
-      <OutletSelectorSheet
-        visible={showOutletModal}
-        onClose={() => setShowOutletModal(false)}
-        outletOptions={outletOptions}
-        selectedOutletId={selectedOutletId}
-        onSelectOutlet={(id: string, isAll: boolean) => {
-          setSelectedOutletId(id);
-          if (isAll) {
-            setStatusFilter('all');
-            setAllReviewsFilter('all');
-          }
-          setShowOutletModal(false);
-        }}
-      />
+      {showOutletFilter && (
+        <OutletSelectorSheet
+          visible={showOutletModal}
+          onClose={() => setShowOutletModal(false)}
+          outletOptions={outletOptions}
+          selectedOutletId={selectedOutletId}
+          onSelectOutlet={(id: string, isAll: boolean) => {
+            setSelectedOutletId(id);
+            if (isAll) {
+              setStatusFilter('all');
+              setAllReviewsFilter('all');
+            }
+            setShowOutletModal(false);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

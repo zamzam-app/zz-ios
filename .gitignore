@@ -47,3 +47,4 @@ yarn-error.*
 /.cursor
 .tmp-tests
 .antigravitycli
+.agents/screenshots/

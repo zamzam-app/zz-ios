@@ -53,9 +53,6 @@ interface TaskSummaryCardProps {
   activeAudioAttachmentId: string | null;
   audioDurationById: Record<string, number>;
   handleAudioAttachmentPress: (id: string, url: string) => void;
-  isAdmin: boolean;
-  managerText: string;
-  managerAttachments: { images: string[]; videos: string[]; audios: string[]; files: string[] };
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -79,9 +76,6 @@ export function TaskSummaryCard({
   activeAudioAttachmentId,
   audioDurationById,
   handleAudioAttachmentPress,
-  isAdmin,
-  managerText,
-  managerAttachments,
 }: TaskSummaryCardProps) {
   if (!source) return null;
 
@@ -94,8 +88,6 @@ export function TaskSummaryCard({
       ?.data as SerializedTimelineEvent[]) ?? []),
     ...filteredEvents,
   ]);
-  const isNotCompleted = (source.status as string) !== 'COMPLETED' && !isAdmin;
-
   return (
     <View>
       {/* ── Summary Card ──────────────────────────────────────────────── */}
@@ -257,36 +249,6 @@ export function TaskSummaryCard({
           {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
         </Text>
       </View>
-
-      {/* ── Manager Submission Section ────────────────────────────────── */}
-      {!isNotCompleted &&
-      (managerText.trim().length > 0 ||
-        managerAttachments.images.length > 0 ||
-        managerAttachments.videos.length > 0 ||
-        managerAttachments.audios.length > 0 ||
-        managerAttachments.files.length > 0) ? (
-        <>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeadingWrap}>
-              <View style={styles.sectionDot} />
-              <Text style={styles.sectionTitle}>Manager Submission</Text>
-            </View>
-          </View>
-          <SubmissionBlock
-            title="Submitted Details"
-            text={managerText}
-            attachments={managerAttachments}
-            onOpenAttachment={(url, type) => {
-              void openAttachment(url, type);
-            }}
-            audioAttachmentMeta={sourceAttachments.audioMeta}
-            audioPlayerStatus={previewPlayerStatus}
-            activeAudioAttachmentId={activeAudioAttachmentId}
-            audioDurationById={audioDurationById}
-            onAudioPress={handleAudioAttachmentPress}
-          />
-        </>
-      ) : null}
     </View>
   );
 }

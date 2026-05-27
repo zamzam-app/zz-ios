@@ -72,19 +72,30 @@ export function SubmissionBlock({
             data={imageItems}
             keyExtractor={(url) => `${title}-image-${url}`}
             contentContainerStyle={styles.imageRow}
-            renderItem={({ item: url }) => (
-              <TouchableOpacity
-                onPress={() => onOpenAttachment(url, 'image')}
-                style={styles.imageItem}
-                activeOpacity={0.85}
-              >
-                <ExpoImage
-                  source={{ uri: cloudinaryThumbnail(url) }}
-                  style={styles.imageThumb}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                />
-              </TouchableOpacity>
+            renderItem={({ item: url, index }) => (
+              <View style={styles.imageItemWrap}>
+                <TouchableOpacity
+                  onPress={() => onOpenAttachment(url, 'image')}
+                  style={styles.imageItem}
+                  activeOpacity={0.85}
+                >
+                  <ExpoImage
+                    source={{ uri: cloudinaryThumbnail(url) }}
+                    style={styles.imageThumb}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                  />
+                </TouchableOpacity>
+                {onRemoveAttachment && (
+                  <TouchableOpacity
+                    style={styles.imageRemoveBtn}
+                    onPress={() => onRemoveAttachment('images', index)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="trash-outline" size={14} color={colors.error} />
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
           />
         </View>
@@ -103,7 +114,17 @@ export function SubmissionBlock({
               {buildAttachmentName(url, 'video', index)}
             </Text>
           </View>
-          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+          <View style={styles.attachmentRowActions}>
+            <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+            {onRemoveAttachment && (
+              <TouchableOpacity
+                style={styles.removeAttachmentBtn}
+                onPress={() => onRemoveAttachment('videos', index)}
+              >
+                <Ionicons name="trash-outline" size={16} color={colors.error} />
+              </TouchableOpacity>
+            )}
+          </View>
         </TouchableOpacity>
       ))}
 
@@ -185,7 +206,17 @@ export function SubmissionBlock({
               {buildAttachmentName(url, 'file', index)}
             </Text>
           </View>
-          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+          <View style={styles.attachmentRowActions}>
+            <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+            {onRemoveAttachment && (
+              <TouchableOpacity
+                style={styles.removeAttachmentBtn}
+                onPress={() => onRemoveAttachment('files', index)}
+              >
+                <Ionicons name="trash-outline" size={16} color={colors.error} />
+              </TouchableOpacity>
+            )}
+          </View>
         </TouchableOpacity>
       ))}
     </View>
@@ -221,9 +252,25 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   imageRow: { gap: spacing.sm, paddingTop: 2 },
+  imageItemWrap: {
+    position: 'relative',
+  },
   imageItem: {
     borderRadius: radius.md,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  imageRemoveBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -248,6 +295,12 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   attachmentName: { fontSize: typography.sm, color: colors.textSecondary, flex: 1 },
+  attachmentRowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  removeAttachmentBtn: { padding: 2 },
   audioAttachmentCard: {
     borderWidth: 1,
     borderColor: colors.warmBorderDefault,

@@ -1,12 +1,14 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { MetricsHeatmapItem } from '../../../api/endpoints/analytics';
 import { Review } from '../../../api/endpoints/reviews';
 import { ReviewMetricFilter } from '../../../constants/reviewFilters';
 import { useFranchiseAnalytics } from '../../../hooks/analytics';
+import { useOutlets } from '../../../hooks/infrastructure';
 import { useCriticalReviews, useReviews } from '../../../hooks/reviews';
 import { ReviewsStackParamList } from '../../../navigation/ReviewsNavigator';
+import { useAuthStore } from '../../../store/authStore';
 import { colors } from '../../../theme/theme';
 import {
   filterOpenCriticalReviews,
@@ -134,15 +136,15 @@ export function useReviewsFilterState(route: Props['route']) {
   useEffect(() => {
     const incomingMetric = route.params?.initialReviewFilter?.metric;
     if (incomingMetric) {
-      queueMicrotask(() => setStatusFilter(incomingMetric));
+      setStatusFilter(incomingMetric);
     }
     const incomingTypeFilter = route.params?.initialReviewFilter?.typeFilter;
     if (incomingTypeFilter) {
-      queueMicrotask(() => setAllReviewsFilter(incomingTypeFilter));
+      setAllReviewsFilter(incomingTypeFilter);
     }
     const incomingOutletId = route.params?.initialReviewFilter?.outletId;
     if (incomingOutletId) {
-      queueMicrotask(() => setSelectedOutletId(incomingOutletId));
+      setSelectedOutletId(incomingOutletId);
     }
   }, [
     route.params?.initialReviewFilter?.metric,
@@ -171,6 +173,22 @@ export function useReviewsFilterState(route: Props['route']) {
     refetch: refetchAnalytics,
   } = useFranchiseAnalytics();
 
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === 'admin';
+  const userId = user?.id ?? user?._id;
+  const { data: outlets } = useOutlets();
+
+  const managedOutletIds = useMemo(() => {
+    if (isAdmin) return null;
+    const ids = (outlets ?? [])
+      .filter((outlet) => (outlet.managerIds ?? []).includes(userId ?? ''))
+      .map((outlet) => outlet.id);
+    return ids.length > 0 ? new Set(ids) : null;
+  }, [outlets, isAdmin, userId]);
+
+  const managedOutletCount = managedOutletIds?.size ?? 0;
+  const showOutletFilter = isAdmin || managedOutletCount > 1;
+
   const ranking = useMemo(() => analytics?.franchiseRanking ?? [], [analytics]);
   const heatmap = useMemo(() => analytics?.metricsHeatmap ?? [], [analytics]);
   const topRanking = ranking.slice(0, 3);
@@ -195,29 +213,49 @@ export function useReviewsFilterState(route: Props['route']) {
       return [{ id: 'all', label: 'All Outlets' }];
     }
 
-    const options = Array.from(byOutlet.entries())
+    let options = Array.from(byOutlet.entries())
       .map(([id, label]) => ({ id, label }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
+    if (managedOutletIds) {
+      options = options.filter((opt) => managedOutletIds.has(opt.id));
+    }
+
     return [{ id: 'all', label: 'All Outlets' }, ...options];
-  }, [reviews, heatmap]);
+  }, [reviews, heatmap, managedOutletIds]);
+
+  // For managers with a single outlet, auto-select it and hide the outlet filter
+  useEffect(() => {
+    if (!managedOutletIds || managedOutletCount !== 1) return;
+    if (selectedOutletId !== 'all') return;
+    const onlyId = Array.from(managedOutletIds)[0];
+    if (onlyId) {
+      setSelectedOutletId(onlyId);
+    }
+  }, [managedOutletIds, managedOutletCount, selectedOutletId]);
 
   useEffect(() => {
     if (selectedOutletId === 'all') return;
     if (!outletOptions.some((option) => option.id === selectedOutletId)) {
-      queueMicrotask(() => setSelectedOutletId('all'));
+      setSelectedOutletId('all');
     }
   }, [outletOptions, selectedOutletId]);
 
+  const outletFilter = useCallback(
+    (outletId: string) => {
+      if (selectedOutletId !== 'all') return selectedOutletId === outletId;
+      if (managedOutletIds) return managedOutletIds.has(outletId);
+      return true;
+    },
+    [selectedOutletId, managedOutletIds],
+  );
+
   const filteredReviews = useMemo(() => {
     if (!reviews) return [];
-    const outletFiltered =
-      selectedOutletId === 'all'
-        ? reviews
-        : reviews.filter((review) => {
-            const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
-            return outletKey === selectedOutletId;
-          });
+    const outletFiltered = reviews.filter((review) => {
+      const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+      return outletFilter(outletKey);
+    });
 
     if (statusFilter === 'open') {
       return outletFiltered.filter(
@@ -232,7 +270,7 @@ export function useReviewsFilterState(route: Props['route']) {
     }
 
     return outletFiltered;
-  }, [reviews, selectedOutletId, statusFilter]);
+  }, [reviews, outletFilter, statusFilter]);
 
   const pendingCount = useMemo(
     () => filterOpenCriticalReviews(filteredReviews).length,
@@ -244,20 +282,17 @@ export function useReviewsFilterState(route: Props['route']) {
   );
 
   const criticalFeed = useMemo(() => {
-    const outletScopedCriticalReviews =
-      selectedOutletId === 'all'
-        ? (criticalReviews ?? [])
-        : (criticalReviews ?? []).filter((review) => {
-            const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
-            return outletKey === selectedOutletId;
-          });
+    const outletScopedCriticalReviews = (criticalReviews ?? []).filter((review) => {
+      const outletKey = review.outletId || `name:${review.outletName || 'Unknown Outlet'}`;
+      return outletFilter(outletKey);
+    });
 
     const sorted = [...outletScopedCriticalReviews].sort((a, b) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
     return sorted;
-  }, [criticalReviews, selectedOutletId]);
+  }, [criticalReviews, outletFilter]);
 
   const allReviews = useMemo(
     () =>
@@ -298,10 +333,11 @@ export function useReviewsFilterState(route: Props['route']) {
   }, [allReviews, allReviewsFilter, debouncedSearchQuery]);
 
   const heatmapRows = useMemo(() => {
-    const scopedHeatmap =
-      selectedOutletId === 'all'
-        ? heatmap
-        : heatmap.filter((item) => item.outletId === selectedOutletId);
+    const scopedHeatmap = heatmap.filter((item) => {
+      if (selectedOutletId !== 'all') return item.outletId === selectedOutletId;
+      if (managedOutletIds) return managedOutletIds.has(item.outletId);
+      return true;
+    });
 
     const heatmapByOutlet = new Map(scopedHeatmap.map((item) => [item.outletId, item]));
 
@@ -313,7 +349,7 @@ export function useReviewsFilterState(route: Props['route']) {
     const extras = scopedHeatmap.filter((item) => !rankedIds.has(item.outletId));
 
     return [...ordered, ...extras];
-  }, [heatmap, ranking, selectedOutletId]);
+  }, [heatmap, ranking, selectedOutletId, managedOutletIds]);
 
   const heatmapRowsWithFallback = useMemo(() => {
     if (heatmapRows.length > 0) return heatmapRows;
@@ -388,6 +424,7 @@ export function useReviewsFilterState(route: Props['route']) {
     // Derived UI
     activeStatusFilterLabel,
     allReviewsEmptyMessage,
+    showOutletFilter,
     // Actions
     handleRefresh,
   };

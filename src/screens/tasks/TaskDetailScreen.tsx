@@ -43,7 +43,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   // ─── Loading state (with header) ────────────────────────────────────────
   if (ctrl.isLoading) {
     return (
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.root} edges={['top']}>
         <TaskDetailHeader onBack={ctrl.handleBack} />
         <TimelineSkeleton />
       </SafeAreaView>
@@ -53,7 +53,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   // ─── API confirmed task is unavailable ─────────────────────────────────
   if (ctrl.isTaskNotFound) {
     return (
-      <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.center} edges={['top']}>
         <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
         <Text style={styles.notFoundText}>Task not found</Text>
         <Text style={styles.emptyTimelineSubtext}>
@@ -66,7 +66,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   // ─── API error or invalid empty response with no fallback ───────────────
   if (ctrl.hasLoadError || (ctrl.allQueriesComplete && !ctrl.source)) {
     return (
-      <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.center} edges={['top']}>
         <Ionicons name="alert-circle-outline" size={40} color={colors.textDisabled} />
         <Text style={styles.notFoundText}>Failed to load task</Text>
         <Text style={styles.emptyTimelineSubtext}>Check your connection and try again</Text>
@@ -97,7 +97,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const taskSource = ctrl.source!;
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       {/* ── Header ────────────────────────────────────────────────────── */}
       <TaskDetailHeader onBack={ctrl.handleBack} />
 
@@ -114,9 +114,6 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         activeAudioAttachmentId={ctrl.activeAudioAttachmentId}
         audioDurationById={ctrl.audioDurationById}
         handleAudioAttachmentPress={ctrl.handleAudioAttachmentPress}
-        isAdmin={ctrl.isAdmin}
-        managerText={ctrl.managerText}
-        managerAttachments={ctrl.managerAttachments}
       />
 
       {/* ── Activity Timeline ─────────────────────────────────────────── */}
@@ -285,8 +282,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    paddingBottom: spacing.sm,
-    marginBottom: 104,
+    paddingBottom: 104,
     ...shadow.md,
   },
   bottomBarInner: {
