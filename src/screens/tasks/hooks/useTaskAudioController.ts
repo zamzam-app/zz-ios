@@ -173,8 +173,10 @@ export function useTaskAudioController(audioMeta: AudioMetaItem[], audioIdsKey: 
   ]);
 
   // Clear active audio if attachment removed from meta
+  // URL-based IDs (from timeline audio) are not in audioMeta — skip the guard
   useEffect(() => {
     if (!activeAudioAttachmentId) return;
+    if (activeAudioAttachmentId.startsWith('http')) return;
     if (!audioMeta.some((m) => m.id === activeAudioAttachmentId)) {
       runPreviewPlayerActionSafely(() => previewPlayer.pause());
       queueMicrotask(() => {

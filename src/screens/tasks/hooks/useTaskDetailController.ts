@@ -325,6 +325,13 @@ export function useTaskDetailController(
     sourceAttachments.audioIdsKey,
   );
 
+  const handleTimelineAudioPress = useCallback(
+    (url: string) => {
+      audioController.handleAudioAttachmentPress(url, url);
+    },
+    [audioController.handleAudioAttachmentPress],
+  );
+
   // ─── Manager submission init from source ────────────────────────────────
   useEffect(() => {
     if (!source) return;
@@ -699,5 +706,8 @@ export function useTaskDetailController(
 
     // Audio (from useTaskAudioController)
     ...audioController,
+
+    // Timeline-specific audio handler
+    handleTimelineAudioPress,
   };
 }
