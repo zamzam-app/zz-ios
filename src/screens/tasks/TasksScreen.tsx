@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -88,59 +88,85 @@ export default function TasksScreen() {
   } = useTasksBoardState();
 
   const removeAttachmentMutation = useRemoveAttachment();
-  const attachmentIdMapRef = useRef<Map<string, string>>(new Map());
+  const [resolvedAttachments, setResolvedAttachments] = useState<
+    { id: string; url: string }[] | null
+  >(null);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
+  const [attachmentsError, setAttachmentsError] = useState<string | null>(null);
 
-  // Fetch attachment IDs from the backend when the modal opens
-  // so we can pass real MongoDB ObjectIds to removeAttachment
+  // Fetch real attachments with IDs from the backend when the modal opens
+  // so we can plumb actual MongoDB ObjectIds to the sheet (fixes limit truncation & duplicate URL bugs)
   useEffect(() => {
     if (!attachmentModal) {
-      attachmentIdMapRef.current = new Map();
+      queueMicrotask(() => {
+        setResolvedAttachments(null);
+        setIsLoadingAttachments(false);
+        setAttachmentsError(null);
+      });
       return;
     }
     const taskId = attachmentModal.task.id;
     if (!taskId) return;
+
     let ignore = false;
+    queueMicrotask(() => {
+      setIsLoadingAttachments(true);
+      setAttachmentsError(null);
+    });
+
     tasksApi
-      .getAttachments(taskId, { limit: 100 })
+      .getAttachments(taskId, { limit: 1000 })
       .then((response) => {
         if (ignore) return;
-        const map = new Map<string, string>();
-        for (const att of response.data) {
-          if (att.url) {
-            map.set(att.url, att._id);
+
+        const typeMapping: Record<string, string> = {
+          images: 'IMAGE',
+          videos: 'VIDEO',
+          audios: 'AUDIO',
+          files: 'FILE',
+        };
+        const mappedType = typeMapping[attachmentModal.type];
+
+        const relevant = response.data.filter((a) => {
+          if (attachmentModal.type === 'files') {
+            return a.type === 'FILE' || a.type === 'DOCUMENT';
           }
-        }
-        attachmentIdMapRef.current = map;
+          return a.type === mappedType;
+        });
+
+        setResolvedAttachments(relevant.map((a) => ({ id: a._id, url: a.url })));
+        setIsLoadingAttachments(false);
       })
       .catch(() => {
-        // Silently fail — delete button will show a useful error
+        if (!ignore) {
+          setResolvedAttachments(null);
+          setIsLoadingAttachments(false);
+          setAttachmentsError(
+            'Could not load attachment details. Deleting is temporarily disabled.',
+          );
+        }
       });
+
     return () => {
       ignore = true;
     };
   }, [attachmentModal]);
 
   const handleRemoveAttachment = useCallback(
-    (url: string) => {
+    (id: string) => {
       if (!attachmentModal) return;
       const taskId = attachmentModal.task.id;
       if (!taskId) {
         Alert.alert('Error', 'Could not identify the task for this attachment.');
         return;
       }
-      const realId = attachmentIdMapRef.current.get(url);
-      if (!realId) {
-        Alert.alert(
-          'Delete Failed',
-          'Could not identify this attachment. Please close and reopen the attachment list and try again.',
-        );
-        return;
-      }
+
       removeAttachmentMutation.mutate(
-        { taskId, attachmentId: realId },
+        { taskId, attachmentId: id },
         {
           onSuccess: () => {
             void refetch();
+            setResolvedAttachments((prev) => (prev ? prev.filter((a) => a.id !== id) : null));
           },
           onError: () => {
             Alert.alert('Delete Failed', 'Could not remove this attachment. Please try again.');
@@ -308,6 +334,9 @@ export default function TasksScreen() {
       <TaskAttachmentsSheet
         visible={Boolean(attachmentModal)}
         attachmentModal={attachmentModal}
+        resolvedAttachments={resolvedAttachments}
+        isLoading={isLoadingAttachments}
+        error={attachmentsError}
         onClose={() => setAttachmentModal(null)}
         onOpenExternal={openExternalAttachment}
         onRemove={handleRemoveAttachment}

@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 
 import { Task } from '../../../api/endpoints/tasks';
@@ -22,21 +23,35 @@ import {
 interface TaskAttachmentsSheetProps {
   visible: boolean;
   attachmentModal: { task: Task; type: AttachmentType } | null;
+  resolvedAttachments?: { id: string; url: string }[] | null;
+  isLoading?: boolean;
+  error?: string | null;
   onClose: () => void;
   onOpenExternal: (url: string, type?: AttachmentType) => void;
-  onRemove?: (url: string) => void;
+  onRemove?: (id: string) => void;
 }
 
 export function TaskAttachmentsSheet({
   visible,
   attachmentModal,
+  resolvedAttachments,
+  isLoading,
+  error,
   onClose,
   onOpenExternal,
   onRemove,
 }: TaskAttachmentsSheetProps) {
-  const attachmentModalUrls = attachmentModal
-    ? getTaskAttachmentUrls(attachmentModal.task, attachmentModal.type)
-    : [];
+  // If resolvedAttachments is loaded, use it to get exact URLs and IDs.
+  // Otherwise, fallback to the URLs on the task object (without IDs).
+  const renderItems = resolvedAttachments
+    ? resolvedAttachments
+    : attachmentModal
+      ? getTaskAttachmentUrls(attachmentModal.task, attachmentModal.type).map((url) => ({
+          id: undefined,
+          url,
+        }))
+      : [];
+
   const attachmentModalTitle = attachmentModal
     ? attachmentModal.type === 'images'
       ? 'Image Attachments'
@@ -59,24 +74,38 @@ export function TaskAttachmentsSheet({
             </TouchableOpacity>
           </View>
 
+          {isLoading && (
+            <View style={styles.attachModalInfoRow}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.attachModalInfoText}>Loading attachment details...</Text>
+            </View>
+          )}
+
+          {error && (
+            <View style={styles.attachModalErrorRow}>
+              <Ionicons name="warning-outline" size={16} color={colors.error} />
+              <Text style={styles.attachModalErrorText}>{error}</Text>
+            </View>
+          )}
+
           <ScrollView contentContainerStyle={styles.attachModalContent}>
             {attachmentModal?.type === 'images'
-              ? attachmentModalUrls.map((url) => (
-                  <View key={url} style={styles.attachImageWrap}>
+              ? renderItems.map((item, index) => (
+                  <View key={item.id ?? `${item.url}-${index}`} style={styles.attachImageWrap}>
                     <TouchableOpacity
                       onPress={() => {
-                        onOpenExternal(url, attachmentModal?.type);
+                        onOpenExternal(item.url, attachmentModal?.type);
                       }}
                       activeOpacity={0.84}
                       style={styles.attachImageItem}
                     >
                       <Image
-                        source={{ uri: url }}
+                        source={{ uri: item.url }}
                         style={styles.attachImageThumb}
                         resizeMode="cover"
                       />
                     </TouchableOpacity>
-                    {onRemove && (
+                    {onRemove && item.id && (
                       <TouchableOpacity
                         style={styles.attachDeleteBtnOverlay}
                         onPress={() => {
@@ -88,7 +117,7 @@ export function TaskAttachmentsSheet({
                               {
                                 text: 'Delete',
                                 style: 'destructive',
-                                onPress: () => onRemove(url),
+                                onPress: () => onRemove(item.id as string),
                               },
                             ],
                           );
@@ -100,12 +129,12 @@ export function TaskAttachmentsSheet({
                     )}
                   </View>
                 ))
-              : attachmentModalUrls.map((url, index) => (
-                  <View key={url} style={styles.attachRow}>
+              : renderItems.map((item, index) => (
+                  <View key={item.id ?? `${item.url}-${index}`} style={styles.attachRow}>
                     <TouchableOpacity
                       style={styles.attachRowLeft}
                       onPress={() => {
-                        onOpenExternal(url, attachmentModal?.type);
+                        onOpenExternal(item.url, attachmentModal?.type);
                       }}
                       activeOpacity={0.8}
                     >
@@ -121,20 +150,20 @@ export function TaskAttachmentsSheet({
                         color={colors.primaryDark}
                       />
                       <Text style={styles.attachRowText} numberOfLines={1}>
-                        {buildAttachmentName(url, attachmentModal?.type ?? 'file', index)}
+                        {buildAttachmentName(item.url, attachmentModal?.type ?? 'file', index)}
                       </Text>
                     </TouchableOpacity>
                     <View style={styles.attachRowActions}>
                       <TouchableOpacity
                         onPress={() => {
-                          onOpenExternal(url, attachmentModal?.type);
+                          onOpenExternal(item.url, attachmentModal?.type);
                         }}
                         style={styles.attachRowActionBtn}
                         activeOpacity={0.8}
                       >
                         <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
                       </TouchableOpacity>
-                      {onRemove && (
+                      {onRemove && item.id && (
                         <TouchableOpacity
                           style={styles.attachRowActionBtn}
                           onPress={() => {
@@ -146,7 +175,7 @@ export function TaskAttachmentsSheet({
                                 {
                                   text: 'Delete',
                                   style: 'destructive',
-                                  onPress: () => onRemove(url),
+                                  onPress: () => onRemove(item.id as string),
                                 },
                               ],
                             );
@@ -205,6 +234,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.uiGray3,
+  },
+  attachModalInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.uiGray1,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.sm,
+  },
+  attachModalInfoText: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  attachModalErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.errorLight,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.sm,
+  },
+  attachModalErrorText: {
+    flex: 1,
+    fontSize: typography.sm,
+    color: colors.error,
   },
   attachModalContent: {
     padding: spacing.md,
