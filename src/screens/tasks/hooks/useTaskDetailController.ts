@@ -275,6 +275,11 @@ export function useTaskDetailController(
     return outletId || '';
   }, [source]);
 
+  const sourceAttachments = useMemo(
+    () => getSourceAttachments(source, managerAttachments.audios),
+    [source, managerAttachments.audios],
+  );
+
   const timelineEvents = useMemo(() => {
     const rawEvents = flattenInfiniteData(timelineQuery.data);
     const seenEventKeys = new Set<string>();
@@ -310,13 +315,9 @@ export function useTaskDetailController(
         attachmentPreviews: event.attachmentPreviews ? [...event.attachmentPreviews] : undefined,
       });
     }
+
     return clubbed;
   }, [timelineQuery.data]);
-
-  const sourceAttachments = useMemo(
-    () => getSourceAttachments(source, managerAttachments.audios),
-    [source, managerAttachments.audios],
-  );
 
   // ─── Audio controller ───────────────────────────────────────────────────
   const audioController = useTaskAudioController(
