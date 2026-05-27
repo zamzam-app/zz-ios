@@ -15,6 +15,7 @@ import { colors, spacing, radius, typography } from '../../../theme/theme';
 
 import { TaskAttachmentComposer } from './TaskAttachmentComposer';
 import { TaskAttachmentPreviewList } from './TaskAttachmentPreviewList';
+import { TaskAttachmentViewer } from './TaskAttachmentViewer';
 import { TaskPickerSheets } from './TaskPickerSheets';
 import { TaskRecurrenceSection } from './TaskRecurrenceSection';
 
@@ -117,7 +118,8 @@ interface CreateTaskFormProps {
   recordingMillis: number | null;
   recordingBusy: boolean;
   WAVEFORM_BAR_SPECS: { id: string; height: number }[];
-  selectedPreviewAttachment: import('../hooks/useTaskAttachmentUploads').AttachmentItem | undefined;
+  viewerImageUrl: string | null;
+  onViewerImageClose: () => void;
 
   // Data
   taskCategories: TaskCategoryOption[] | undefined;
@@ -207,7 +209,8 @@ export function CreateTaskForm({
   recordingMillis,
   recordingBusy,
   WAVEFORM_BAR_SPECS,
-  selectedPreviewAttachment,
+  viewerImageUrl,
+  onViewerImageClose,
 
   taskCategories,
   isLoadingTaskCategories,
@@ -303,11 +306,12 @@ export function CreateTaskForm({
           previewAttachmentId={previewAttachmentId}
           activeAudioAttachmentId={activeAudioAttachmentId}
           previewPlayerStatus={previewPlayerStatus}
-          selectedPreviewAttachment={selectedPreviewAttachment}
           waveBarSpecs={WAVEFORM_BAR_SPECS}
           onItemPress={onAttachmentItemPress}
           onRemove={onAttachmentRemove}
         />
+
+        <TaskAttachmentViewer imageUrl={viewerImageUrl} onClose={onViewerImageClose} />
 
         <Label text="Category" required />
         {isLoadingTaskCategories ? (
