@@ -41,7 +41,7 @@
 - Raw `client` (from `src/api/client.ts`) should never be imported outside `src/api/endpoints/`.
   - Any API call needed by a screen, hook, or utility must be routed through a dedicated endpoint module first.
   - If no endpoint module exists for the domain, create one (e.g., `src/api/endpoints/authApi.ts`).
-
+te
 ### Mutation Cache Strategy
 - Mutations that return an updated entity **must** use `queryClient.setQueryData()` to immediately write-through to the detail cache, alongside `invalidateQueries()` for related lists.
   - Write-through first (instant UX), then invalidate (ensure freshness).

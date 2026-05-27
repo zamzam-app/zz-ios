@@ -454,32 +454,38 @@ export function useTaskDetailController(
         return;
       }
 
-      if (audioController.probingAudioAttachmentId) {
-        audioController.setActiveAudioAttachmentId(null);
-      }
-
-      if (audioController.activeAudioAttachmentId) {
-        if (audioController.previewPlayerStatus.playing) {
-          audioController.runPreviewPlayerActionSafely(() => audioController.previewPlayer.pause());
-        }
-        audioController.setActiveAudioAttachmentId(null);
-      }
       try {
-        const isHttpUrl = /^https?:\/\/./i.test(trimmedUrl);
-        if (type === 'file' && isHttpUrl) {
-          await WebBrowser.openBrowserAsync(trimmedUrl, {
-            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-            controlsColor: '#0066FF',
-          });
+        // ── File/document handling ────────────────────────────────────────
+        if (type === 'file') {
+          await WebBrowser.openBrowserAsync(trimmedUrl);
           return;
+        }
+
+        // ── Video/audio handling ─────────────────────────────────────────
+        if (audioController.probingAudioAttachmentId) {
+          audioController.setActiveAudioAttachmentId(null);
+        }
+        if (audioController.activeAudioAttachmentId) {
+          if (audioController.previewPlayerStatus.playing) {
+            audioController.runPreviewPlayerActionSafely(() =>
+              audioController.previewPlayer.pause(),
+            );
+          }
+          audioController.setActiveAudioAttachmentId(null);
         }
         const canOpen = await Linking.canOpenURL(trimmedUrl);
         if (!canOpen) {
-          Alert.alert('Attachment unavailable', 'Could not open this attachment.');
+          Alert.alert('Cannot open file', 'This file type is not supported on this device.');
           return;
         }
         await Linking.openURL(trimmedUrl);
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[TaskDetailScreen] Failed to open attachment:', message, {
+          url: trimmedUrl.slice(0, 80),
+          type,
+        });
+
         Alert.alert('Attachment unavailable', 'Could not open this attachment.');
       }
     },
@@ -620,11 +626,28 @@ export function useTaskDetailController(
     void eventTypeCountsQuery.refetch();
   }, [eventTypeCountsQuery, timelineQuery]);
 
+  const attachmentTypeToOpenType = useCallback(
+    (type: AttachmentType): 'image' | 'video' | 'audio' | 'file' => {
+      switch (type) {
+        case AttachmentType.IMAGE:
+          return 'image';
+        case AttachmentType.VIDEO:
+          return 'video';
+        case AttachmentType.AUDIO:
+          return 'audio';
+        case AttachmentType.DOCUMENT:
+        case AttachmentType.FILE:
+          return 'file';
+      }
+    },
+    [],
+  );
+
   const handleAttachmentPress = useCallback(
     (attachment: AttachmentPreview) => {
-      void openAttachment(attachment.url, 'image');
+      void openAttachment(attachment.url, attachmentTypeToOpenType(attachment.type));
     },
-    [openAttachment],
+    [openAttachment, attachmentTypeToOpenType],
   );
 
   const handleActorPress = useCallback((_userId: string) => {
