@@ -29,7 +29,9 @@ function normalizeLocalFileUri(uri: string): string {
 function isReleasedAudioPlayerError(error: unknown) {
   return (
     error instanceof Error &&
-    /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
+    /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer|NativeSharedObjectNotFoundException/i.test(
+      error.message,
+    )
   );
 }
 
@@ -173,8 +175,10 @@ export function useTaskAudioController(audioMeta: AudioMetaItem[], audioIdsKey: 
   ]);
 
   // Clear active audio if attachment removed from meta
+  // URL-based IDs (from timeline audio) are not in audioMeta — skip the guard
   useEffect(() => {
     if (!activeAudioAttachmentId) return;
+    if (activeAudioAttachmentId.startsWith('http')) return;
     if (!audioMeta.some((m) => m.id === activeAudioAttachmentId)) {
       runPreviewPlayerActionSafely(() => previewPlayer.pause());
       queueMicrotask(() => {

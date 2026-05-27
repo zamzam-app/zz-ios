@@ -45,7 +45,7 @@ function TimelineEventCard({
   const renderContent = () => {
     switch (event.type) {
       case TaskEventType.CREATED:
-        return <TimelineEventCreated event={event} />;
+        return <TimelineEventCreated event={event} onAttachmentPress={onAttachmentPress} />;
       case TaskEventType.COMMENTED:
         return <TimelineEventComment event={event} onAttachmentPress={onAttachmentPress} />;
       case TaskEventType.STATUS_CHANGED:

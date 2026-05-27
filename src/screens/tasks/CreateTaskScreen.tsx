@@ -68,7 +68,8 @@ export function CreateTaskContent({
         recordingMillis={formState.recordingMillis}
         recordingBusy={formState.recordingBusy}
         WAVEFORM_BAR_SPECS={formState.WAVEFORM_BAR_SPECS}
-        selectedPreviewAttachment={formState.selectedPreviewAttachment}
+        viewerImageUrl={formState.viewerImageUrl}
+        onViewerImageClose={() => formState.setViewerImageUrl(null)}
         // Data
         taskCategories={formState.taskCategories}
         isLoadingTaskCategories={formState.isLoadingTaskCategories}

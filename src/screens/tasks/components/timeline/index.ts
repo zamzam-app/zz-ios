@@ -11,3 +11,5 @@ export { default as TimelineEventStatus } from './TimelineEventStatus';
 export { default as TimelineEventGeneric } from './TimelineEventGeneric';
 export { default as TimelineEventDelegation } from './TimelineEventDelegation';
 export { default as TimelineSkeleton } from './TimelineSkeleton';
+export { default as TimelineAudioAttachment } from './TimelineAudioAttachment';
+export { TimelineAudioProvider, useTimelineAudio } from './TimelineAudioContext';

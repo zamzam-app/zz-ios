@@ -10,7 +10,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
-import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking } from 'react-native';
 
@@ -45,7 +45,9 @@ function getAttachmentIcon(type: AttachmentType): string {
 function isReleasedAudioPlayerError(error: unknown) {
   return (
     error instanceof Error &&
-    /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
+    /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer|NativeSharedObjectNotFoundException/i.test(
+      error.message,
+    )
   );
 }
 
@@ -86,6 +88,7 @@ export function useTaskAttachmentUploads() {
   const [previewAttachmentId, setPreviewAttachmentId] = useState<string | null>(null);
   const [activeAudioAttachmentId, setActiveAudioAttachmentId] = useState<string | null>(null);
   const [pendingPlayAudioId, setPendingPlayAudioId] = useState<string | null>(null);
+  const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
@@ -433,43 +436,32 @@ export function useTaskAttachmentUploads() {
   };
 
   const openAttachmentExternally = async (item: AttachmentItem) => {
-    const label = item.type === 'video' ? 'video' : 'file';
+    const previewUrl = item.remoteUrl ?? item.uri;
+    if (!item.remoteUrl) {
+      Alert.alert(
+        'Still uploading',
+        'This attachment is still being uploaded. Please wait for it to complete.',
+      );
+      return;
+    }
     try {
-      const previewUri = item.uri;
-
-      if (
-        previewUri.toLowerCase().endsWith('.pdf') ||
-        (item.type === 'file' && item.name.toLowerCase().endsWith('.pdf'))
-      ) {
-        try {
-          let localUri = previewUri;
-          if (previewUri.startsWith('http')) {
-            const fileName =
-              previewUri.split('/').pop()?.split('?')[0] || item.name || 'document.pdf';
-            localUri = `${FileSystem.cacheDirectory}${fileName}`;
-            const downloadRes = await FileSystem.downloadAsync(previewUri, localUri);
-            if (downloadRes.status !== 200) throw new Error('Download failed');
-            localUri = downloadRes.uri;
-          }
-          await Sharing.shareAsync(localUri, {
-            mimeType: 'application/pdf',
-            dialogTitle: 'Open PDF',
-            UTI: 'com.adobe.pdf',
-          });
-          return;
-        } catch (error) {
-          console.warn('[CreateTask] Failed to open PDF in-app', error);
-        }
-      }
-
-      const supported = await Linking.canOpenURL(previewUri);
-      if (!supported) {
-        Alert.alert('Preview unavailable', `Unable to open this ${label} on your device.`);
+      if (item.type === 'file') {
+        await WebBrowser.openBrowserAsync(previewUrl);
         return;
       }
-      await Linking.openURL(previewUri);
-    } catch {
-      Alert.alert('Preview unavailable', `Unable to open this ${label} on your device.`);
+      // Video/audio: open via Linking (matches TaskDetailScreen timeline behavior)
+      const canOpen = await Linking.canOpenURL(previewUrl);
+      if (!canOpen) {
+        Alert.alert('Cannot open file', 'This file type is not supported on this device.');
+        return;
+      }
+      await Linking.openURL(previewUrl);
+    } catch (error) {
+      console.error(
+        '[CreateTask] Failed to open attachment:',
+        error instanceof Error ? error.message : String(error),
+      );
+      Alert.alert('Attachment unavailable', 'Could not open this attachment.');
     }
   };
 
@@ -477,6 +469,22 @@ export function useTaskAttachmentUploads() {
     setShowAttachmentMenu(false);
     if (item.type === 'audio') {
       handleAudioAttachmentPress(item);
+      return;
+    }
+    if (item.type === 'image') {
+      if (!item.remoteUrl) {
+        Alert.alert(
+          'Still uploading',
+          'This image is still being uploaded. Please wait for it to complete.',
+        );
+        return;
+      }
+      if (previewPlayerStatus.playing) {
+        runPreviewPlayerActionSafely(() => previewPlayer.pause());
+      }
+      setActiveAudioAttachmentId(null);
+      setPreviewAttachmentId(null);
+      setViewerImageUrl(item.remoteUrl);
       return;
     }
     if (item.type === 'video' || item.type === 'file') {
@@ -516,6 +524,10 @@ export function useTaskAttachmentUploads() {
       id: `wave_${i}`,
       height,
     })),
+
+    // Image viewer
+    viewerImageUrl,
+    setViewerImageUrl,
 
     // Actions
     addAttachment,

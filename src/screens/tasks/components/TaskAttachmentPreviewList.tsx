@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 import { colors, spacing, radius, typography } from '../../../theme/theme';
 import {
@@ -25,7 +25,6 @@ interface TaskAttachmentPreviewListProps {
     duration: number;
     didJustFinish: boolean;
   };
-  selectedPreviewAttachment: AttachmentItem | undefined;
   waveBarSpecs: WaveformBarSpec[];
   onItemPress: (item: AttachmentItem) => void;
   onRemove: (id: string) => void;
@@ -36,32 +35,12 @@ export function TaskAttachmentPreviewList({
   previewAttachmentId,
   activeAudioAttachmentId,
   previewPlayerStatus,
-  selectedPreviewAttachment,
   waveBarSpecs,
   onItemPress,
   onRemove,
 }: TaskAttachmentPreviewListProps) {
   return (
     <>
-      {selectedPreviewAttachment && selectedPreviewAttachment.type === 'image' && (
-        <View style={styles.attachmentPreviewCard}>
-          <View style={styles.attachmentPreviewHeader}>
-            <Text style={styles.attachmentPreviewTitle}>Preview</Text>
-            <TouchableOpacity
-              onPress={() => onRemove(selectedPreviewAttachment.id)}
-              style={styles.attachmentPreviewDeleteBtn}
-            >
-              <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
-            </TouchableOpacity>
-          </View>
-          <Image
-            source={{ uri: selectedPreviewAttachment.uri }}
-            style={styles.attachmentPreviewImage}
-            resizeMode="cover"
-          />
-        </View>
-      )}
-
       <View style={styles.attachmentListBox}>
         {attachments.length === 0 ? (
           <Text style={styles.noAttachmentsText}>No attachments</Text>
@@ -187,37 +166,6 @@ export function TaskAttachmentPreviewList({
 }
 
 const styles = StyleSheet.create({
-  attachmentPreviewCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.background,
-    padding: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  attachmentPreviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  attachmentPreviewDeleteBtn: {
-    padding: 4,
-  },
-  attachmentPreviewTitle: {
-    fontSize: typography.xs,
-    fontWeight: typography.bold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  attachmentPreviewImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: radius.sm,
-    backgroundColor: colors.border,
-  },
-
   attachmentListBox: {
     borderWidth: 1,
     borderStyle: 'dashed',

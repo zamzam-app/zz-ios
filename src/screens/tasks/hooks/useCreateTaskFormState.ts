@@ -66,6 +66,8 @@ export function useCreateTaskFormState(
     startAudioRecording,
     stopAudioRecording,
     discardAudioRecording,
+    viewerImageUrl,
+    setViewerImageUrl,
     handleAttachmentPress,
     openAttachmentExternally,
   } = useTaskAttachmentUploads();
@@ -164,9 +166,6 @@ export function useCreateTaskFormState(
   const hasAssignees = assigneeIds.length > 0;
   const hasPendingAttachmentUploads = attachments.some((item) => item.status === 'uploading');
   const hasFailedAttachmentUploads = attachments.some((item) => item.status === 'failed');
-  const selectedPreviewAttachment = previewAttachmentId
-    ? attachments.find((item) => item.id === previewAttachmentId)
-    : undefined;
 
   useEffect(() => {
     setAssigneeIds((prev) => {
@@ -275,10 +274,11 @@ export function useCreateTaskFormState(
     startAudioRecording,
     stopAudioRecording,
     discardAudioRecording,
+    viewerImageUrl,
+    setViewerImageUrl,
     handleAttachmentPress,
     openAttachmentExternally,
     removeAttachment,
-    selectedPreviewAttachment,
 
     // Data
     outlets,

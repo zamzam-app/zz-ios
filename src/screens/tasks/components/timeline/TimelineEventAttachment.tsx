@@ -6,6 +6,7 @@ import { colors, spacing, radius, typography } from '../../../../theme/theme';
 import { TaskEventType, AttachmentType } from '../../../../types/task';
 import type { SerializedTimelineEvent, AttachmentPreview } from '../../../../types/task';
 
+import TimelineAudioAttachment from './TimelineAudioAttachment';
 import { formatFileSize } from './timelineFileFormatters';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -27,27 +28,36 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
       {/* Attachment previews from server summary */}
       {event.attachmentPreviews && event.attachmentPreviews.length > 0 ? (
         <View style={styles.attachmentRow}>
-          {event.attachmentPreviews.map((att) => (
-            <View
-              key={att._id}
-              style={[styles.attachmentCard, !isAdded && styles.removedCard]}
-              onTouchEnd={isAdded && onAttachmentPress ? () => onAttachmentPress(att) : undefined}
-            >
-              <View style={styles.attachmentIconBg}>
-                <Ionicons
-                  name={attachmentIcon(att.type) as IoniconName}
-                  size={18}
-                  color={isAdded ? colors.info : colors.error}
-                />
+          {event.attachmentPreviews.map((att) => {
+            // Render WhatsApp-style audio player for AUDIO type attachments
+            if (isAdded && att.type === AttachmentType.AUDIO) {
+              return <TimelineAudioAttachment key={att._id} url={att.url} />;
+            }
+
+            return (
+              <View
+                key={att._id}
+                style={[styles.attachmentCard, !isAdded && styles.removedCard]}
+                onTouchEnd={isAdded && onAttachmentPress ? () => onAttachmentPress(att) : undefined}
+              >
+                <View style={styles.attachmentIconBg}>
+                  <Ionicons
+                    name={attachmentIcon(att.type) as IoniconName}
+                    size={18}
+                    color={isAdded ? colors.info : colors.error}
+                  />
+                </View>
+                <View style={styles.attachmentInfo}>
+                  <Text style={styles.attachmentType} numberOfLines={1}>
+                    {att.type.toLowerCase()}
+                  </Text>
+                  {size != null && (
+                    <Text style={styles.attachmentSize}>{formatFileSize(size)}</Text>
+                  )}
+                </View>
               </View>
-              <View style={styles.attachmentInfo}>
-                <Text style={styles.attachmentType} numberOfLines={1}>
-                  {att.type.toLowerCase()}
-                </Text>
-                {size != null && <Text style={styles.attachmentSize}>{formatFileSize(size)}</Text>}
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       ) : (
         <View style={styles.inlineRow}>

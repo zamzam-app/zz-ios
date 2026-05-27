@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,7 +17,7 @@ import {
   TaskSubmissionSheet,
 } from './components';
 import DelegationSheet from './components/DelegationSheet';
-import { TimelineSkeleton } from './components/timeline';
+import { TimelineSkeleton, TimelineAudioProvider } from './components/timeline';
 import { useTaskDetailController } from './hooks/useTaskDetailController';
 
 type Props = NativeStackScreenProps<TasksStackParamList, 'TaskDetail'>;
@@ -39,6 +39,38 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       await ctrl.uploadLocalFile('audios', uri);
     }
   }, [ctrl]);
+
+  // ─── Memoized audio context value (BEFORE early returns — hooks must be unconditional) ───
+  const activeAudioUrl = useMemo(() => {
+    const activeId = ctrl.activeAudioAttachmentId;
+    if (!activeId) return null;
+    // activeAudioAttachmentId could be a URL (from timeline handler) or
+    // an "audio-<index>-<url>" ID (from summary-card handler via audioMeta).
+    // Try audioMeta lookup first, then check if activeId is itself a URL.
+    const entry = ctrl.sourceAttachments.audioMeta.find((m) => m.id === activeId);
+    return entry?.url ?? (activeId.startsWith('http') ? activeId : null);
+  }, [ctrl.activeAudioAttachmentId, ctrl.sourceAttachments.audioMeta]);
+
+  const audioContextValue = useMemo(
+    () => ({
+      onPlayAudio: ctrl.handleTimelineAudioPress,
+      activeAudioUrl,
+      isAudioPlaying: ctrl.previewPlayerStatus.playing,
+      audioCurrentTime: ctrl.previewPlayerStatus.currentTime,
+      audioDuration: ctrl.previewPlayerStatus.duration,
+      audioDidJustFinish: ctrl.previewPlayerStatus.didJustFinish,
+      audioDurationByUrl: ctrl.audioDurationById,
+    }),
+    [
+      ctrl.handleTimelineAudioPress,
+      activeAudioUrl,
+      ctrl.previewPlayerStatus.playing,
+      ctrl.previewPlayerStatus.currentTime,
+      ctrl.previewPlayerStatus.duration,
+      ctrl.previewPlayerStatus.didJustFinish,
+      ctrl.audioDurationById,
+    ],
+  );
 
   // ─── Loading state (with header) ────────────────────────────────────────
   if (ctrl.isLoading) {
@@ -116,16 +148,18 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         handleAudioAttachmentPress={ctrl.handleAudioAttachmentPress}
       />
 
-      {/* ── Activity Timeline ─────────────────────────────────────────── */}
-      <TaskActivityTimeline
-        filteredEvents={ctrl.timelineEvents}
-        timelineQuery={ctrl.timelineQuery}
-        isLoading={ctrl.isLoading}
-        handleRefresh={ctrl.handleRefresh}
-        handleLoadMore={ctrl.handleLoadMore}
-        onAttachmentPress={ctrl.handleAttachmentPress}
-        onActorPress={ctrl.handleActorPress}
-      />
+      {/* ── Activity Timeline (wrapped in audio context for WhatsApp-style player) ── */}
+      <TimelineAudioProvider value={audioContextValue}>
+        <TaskActivityTimeline
+          filteredEvents={ctrl.timelineEvents}
+          timelineQuery={ctrl.timelineQuery}
+          isLoading={ctrl.isLoading}
+          handleRefresh={ctrl.handleRefresh}
+          handleLoadMore={ctrl.handleLoadMore}
+          onAttachmentPress={ctrl.handleAttachmentPress}
+          onActorPress={ctrl.handleActorPress}
+        />
+      </TimelineAudioProvider>
 
       {/* ── Bottom Action Bar ─────────────────────────────────────────── */}
       <View style={styles.bottomBar}>
