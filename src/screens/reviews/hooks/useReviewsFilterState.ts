@@ -136,15 +136,15 @@ export function useReviewsFilterState(route: Props['route']) {
   useEffect(() => {
     const incomingMetric = route.params?.initialReviewFilter?.metric;
     if (incomingMetric) {
-      queueMicrotask(() => setStatusFilter(incomingMetric));
+      setStatusFilter(incomingMetric);
     }
     const incomingTypeFilter = route.params?.initialReviewFilter?.typeFilter;
     if (incomingTypeFilter) {
-      queueMicrotask(() => setAllReviewsFilter(incomingTypeFilter));
+      setAllReviewsFilter(incomingTypeFilter);
     }
     const incomingOutletId = route.params?.initialReviewFilter?.outletId;
     if (incomingOutletId) {
-      queueMicrotask(() => setSelectedOutletId(incomingOutletId));
+      setSelectedOutletId(incomingOutletId);
     }
   }, [
     route.params?.initialReviewFilter?.metric,
@@ -230,14 +230,14 @@ export function useReviewsFilterState(route: Props['route']) {
     if (selectedOutletId !== 'all') return;
     const onlyId = Array.from(managedOutletIds)[0];
     if (onlyId) {
-      queueMicrotask(() => setSelectedOutletId(onlyId));
+      setSelectedOutletId(onlyId);
     }
   }, [managedOutletIds, managedOutletCount, selectedOutletId]);
 
   useEffect(() => {
     if (selectedOutletId === 'all') return;
     if (!outletOptions.some((option) => option.id === selectedOutletId)) {
-      queueMicrotask(() => setSelectedOutletId('all'));
+      setSelectedOutletId('all');
     }
   }, [outletOptions, selectedOutletId]);
 
