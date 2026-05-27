@@ -45,7 +45,7 @@ function getAttachmentIcon(type: AttachmentType): string {
 function isReleasedAudioPlayerError(error: unknown) {
   return (
     error instanceof Error &&
-    /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer/i.test(error.message)
+    /already released|cannot be cast to type expo\.modules\.audio\.AudioPlayer|NativeSharedObjectNotFoundException/i.test(error.message)
   );
 }
 

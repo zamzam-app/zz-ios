@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ interface OpenTaskCardProps {
   hasUnread: boolean;
 }
 
-function OpenTaskCard({ task, onPress, hasUnread }: OpenTaskCardProps) {
+const OpenTaskCard = memo(function OpenTaskCard({ task, onPress, hasUnread }: OpenTaskCardProps) {
   const outletName = getTaskOutletName(task);
   const categoryName = getTaskCategoryName(task);
   const assigneeNames = getTaskAssigneeNames(task);
@@ -114,7 +114,9 @@ function OpenTaskCard({ task, onPress, hasUnread }: OpenTaskCardProps) {
       </View>
     </TouchableOpacity>
   );
-}
+});
+
+OpenTaskCard.displayName = 'OpenTaskCard';
 
 interface OpenTaskListProps {
   tasks: Task[];
@@ -141,6 +143,19 @@ export function OpenTaskList({
   onTaskPress,
   emptyMessage,
 }: OpenTaskListProps) {
+  const renderItem = useCallback(
+    ({ item }: { item: Task }) => (
+      <View style={styles.openCardWrap}>
+        <OpenTaskCard
+          task={item}
+          onPress={() => onTaskPress(item.id)}
+          hasUnread={unreadSet.has(item.id)}
+        />
+      </View>
+    ),
+    [onTaskPress, unreadSet],
+  );
+
   return (
     <View style={styles.openListShell}>
       <FlatList
@@ -161,15 +176,7 @@ export function OpenTaskList({
           }
         }}
         onEndReachedThreshold={0.3}
-        renderItem={({ item }) => (
-          <View style={styles.openCardWrap}>
-            <OpenTaskCard
-              task={item}
-              onPress={() => onTaskPress(item.id)}
-              hasUnread={unreadSet.has(item.id)}
-            />
-          </View>
-        )}
+        renderItem={renderItem}
         ListFooterComponent={
           isFetchingNextPage ? (
             <View style={styles.loadingMoreWrap}>
