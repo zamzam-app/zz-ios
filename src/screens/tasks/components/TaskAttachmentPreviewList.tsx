@@ -107,7 +107,6 @@ export function TaskAttachmentPreviewList({
                         size={16}
                         color={colors.primary}
                       />
-                      {/* File name removed per user request */}
                     </View>
                     <View style={styles.attachmentChipRight}>
                       <Text
