@@ -12,20 +12,10 @@ import { formatFileSize } from './timelineFileFormatters';
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface TimelineAttachmentPreviewProps {
-  /** The attachment preview to render */
   attachment: AttachmentPreview;
-  /**
-   * Whether the attachment is interactive:
-   * - true: audio renders WhatsApp-style player, card supports touch
-   * - false: audio renders as icon card, card is inert
-   * @default true
-   */
   interactive?: boolean;
-  /** Whether the attachment has been removed (dimmed styling) */
   removed?: boolean;
-  /** Optional file size in bytes (shown below type label) */
   size?: number;
-  /** Called when the card is tapped (only if interactive) */
   onPress?: (attachment: AttachmentPreview) => void;
 }
 
@@ -106,6 +96,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.border,
   },
   attachmentInfo: {
     flexDirection: 'column',
