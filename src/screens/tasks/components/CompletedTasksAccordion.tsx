@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   },
   accordionContainer: {
     position: 'absolute',
-    bottom: 96,
+    bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: colors.surface,
@@ -326,6 +326,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 10,
     zIndex: 100,
+    paddingBottom: 96,
   },
   accordionContainerExpanded: {},
   completedAccordionToggle: {
