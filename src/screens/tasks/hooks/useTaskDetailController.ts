@@ -148,7 +148,7 @@ function buildAttachmentPreviewsFromSource(
   source.videos.forEach((url, i) => {
     previews.push({ _id: `src-att-vid-${i}-${url}`, type: AttachmentType.VIDEO, url });
   });
-  source.audios.forEach((url, i) => {
+  source.savedAudios.forEach((url, i) => {
     previews.push({ _id: `src-att-aud-${i}-${url}`, type: AttachmentType.AUDIO, url });
   });
   source.files.forEach((url, i) => {
