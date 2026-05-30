@@ -8,7 +8,7 @@ export interface TimelineAudioContextValue {
   activeAudioUrl: string | null;
   /** Whether the active audio is currently playing */
   isAudioPlaying: boolean;
-  /** Playback position of the active audio (0..1) */
+  /** Playback position of the active audio in seconds */
   audioCurrentTime: number;
   /** Duration of the active audio in seconds (from previewPlayerStatus) */
   audioDuration: number;
