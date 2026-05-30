@@ -119,14 +119,16 @@ export default function AppNavigator() {
         tabBarStyle: {
           position: 'absolute',
           bottom: 20,
-          left: 14,
-          right: 14,
+          left: 0,
+          right: 0,
+          marginHorizontal: 16,
           borderRadius: 24,
           height: 76,
           backgroundColor: colors.tabBarBg,
           borderTopWidth: 0,
           paddingTop: 6,
           paddingBottom: 6,
+          paddingHorizontal: 16,
           ...shadow.lg,
         },
         tabBarIcon: ({ color, focused }) => (
