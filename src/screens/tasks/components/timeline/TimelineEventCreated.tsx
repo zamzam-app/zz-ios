@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { colors, spacing, radius, typography } from '../../../../theme/theme';
+import { colors, spacing, typography } from '../../../../theme/theme';
 import type { SerializedTimelineEvent, AttachmentPreview } from '../../../../types/task';
+
+import TimelineAttachmentPreview from './TimelineAttachmentPreview';
 
 interface TimelineEventCreatedProps {
   event: SerializedTimelineEvent;
@@ -18,15 +20,11 @@ function TimelineEventCreated({ event, onAttachmentPress }: TimelineEventCreated
       {event.attachmentPreviews && event.attachmentPreviews.length > 0 && (
         <View style={styles.attachmentRow}>
           {event.attachmentPreviews.map((att) => (
-            <View
+            <TimelineAttachmentPreview
               key={att._id}
-              style={styles.attachmentCard}
-              onTouchEnd={onAttachmentPress ? () => onAttachmentPress(att) : undefined}
-            >
-              <Text style={styles.attachmentType} numberOfLines={1}>
-                {att.type.toLowerCase()}
-              </Text>
-            </View>
+              attachment={att}
+              onPress={onAttachmentPress}
+            />
           ))}
         </View>
       )}
@@ -50,18 +48,5 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.sm,
-  },
-  attachmentCard: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  attachmentType: {
-    fontSize: typography.xs,
-    fontWeight: typography.medium,
-    color: colors.text,
   },
 });
