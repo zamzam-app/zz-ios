@@ -57,9 +57,7 @@ function TimelineAttachmentPreview({
         <Text style={styles.attachmentType} numberOfLines={1}>
           {attachment.type.toLowerCase()}
         </Text>
-        {size != null && (
-          <Text style={styles.attachmentSize}>{formatFileSize(size)}</Text>
-        )}
+        {size != null && <Text style={styles.attachmentSize}>{formatFileSize(size)}</Text>}
       </View>
     </View>
   );

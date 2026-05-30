@@ -20,7 +20,11 @@ import {
 } from '../../../hooks/tasks';
 import { useAuthStore } from '../../../store/authStore';
 import { AttachmentType, TaskEventType } from '../../../types/task';
-import type { AttachmentPreview, SerializedTimelineEvent, TaskAttachment } from '../../../types/task';
+import type {
+  AttachmentPreview,
+  SerializedTimelineEvent,
+  TaskAttachment,
+} from '../../../types/task';
 import { getApiErrorMessage } from '../../../utils/errors';
 import { flattenInfiniteData } from '../../../utils/pagination';
 
@@ -133,7 +137,9 @@ export {
 // ─── SubmissionBlock-style extracted function ───────────────────────────────
 
 /** Normalize source URL arrays into AttachmentPreview[], deduplicated by URL. */
-function buildAttachmentPreviewsFromSource(source: ReturnType<typeof getSourceAttachments>): AttachmentPreview[] {
+function buildAttachmentPreviewsFromSource(
+  source: ReturnType<typeof getSourceAttachments>,
+): AttachmentPreview[] {
   const previews: AttachmentPreview[] = [];
 
   source.images.forEach((url, i) => {

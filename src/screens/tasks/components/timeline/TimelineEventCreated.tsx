@@ -20,11 +20,7 @@ function TimelineEventCreated({ event, onAttachmentPress }: TimelineEventCreated
       {event.attachmentPreviews && event.attachmentPreviews.length > 0 && (
         <View style={styles.attachmentRow}>
           {event.attachmentPreviews.map((att) => (
-            <TimelineAttachmentPreview
-              key={att._id}
-              attachment={att}
-              onPress={onAttachmentPress}
-            />
+            <TimelineAttachmentPreview key={att._id} attachment={att} onPress={onAttachmentPress} />
           ))}
         </View>
       )}
