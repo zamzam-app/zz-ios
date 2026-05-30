@@ -41,7 +41,7 @@
 - Raw `client` (from `src/api/client.ts`) should never be imported outside `src/api/endpoints/`.
   - Any API call needed by a screen, hook, or utility must be routed through a dedicated endpoint module first.
   - If no endpoint module exists for the domain, create one (e.g., `src/api/endpoints/authApi.ts`).
-te
+
 ### Mutation Cache Strategy
 - Mutations that return an updated entity **must** use `queryClient.setQueryData()` to immediately write-through to the detail cache, alongside `invalidateQueries()` for related lists.
   - Write-through first (instant UX), then invalidate (ensure freshness).
@@ -119,7 +119,7 @@ Use `.env.example` as the source of truth for local `.env`.
 | Variable | Required | Notes |
 |----------|----------|------|
 | `EXPO_PUBLIC_API_BASE_URL` | Yes | Backend base URL (no `/api` suffix); app derives `API_URL = ${BASE}/api` |
-| `EXPO_PUBLIC_QR_REVIEW_BASE_URL` | No | Defaults to `https://zz-user.vercel.app` |
+| `EXPO_PUBLIC_QR_REVIEW_BASE_URL` | No | Defaults to `https://user-side-url.app/review` |
 | `EXPO_PUBLIC_ADMIN_EMAIL` | No | Defaults to `admin@zamzam.com` |
 
 ## EAS / TestFlight (iOS)

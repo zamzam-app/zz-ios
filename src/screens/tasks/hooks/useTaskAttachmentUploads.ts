@@ -436,7 +436,6 @@ export function useTaskAttachmentUploads() {
   };
 
   const openAttachmentExternally = async (item: AttachmentItem) => {
-    const previewUrl = item.remoteUrl ?? item.uri;
     if (!item.remoteUrl) {
       Alert.alert(
         'Still uploading',
@@ -444,6 +443,7 @@ export function useTaskAttachmentUploads() {
       );
       return;
     }
+    const previewUrl = item.remoteUrl;
     try {
       if (item.type === 'file') {
         await WebBrowser.openBrowserAsync(previewUrl);

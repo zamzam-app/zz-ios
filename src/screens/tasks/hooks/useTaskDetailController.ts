@@ -20,7 +20,11 @@ import {
 } from '../../../hooks/tasks';
 import { useAuthStore } from '../../../store/authStore';
 import { AttachmentType, TaskEventType } from '../../../types/task';
-import type { AttachmentPreview, TaskAttachment } from '../../../types/task';
+import type {
+  AttachmentPreview,
+  SerializedTimelineEvent,
+  TaskAttachment,
+} from '../../../types/task';
 import { getApiErrorMessage } from '../../../utils/errors';
 import { flattenInfiniteData } from '../../../utils/pagination';
 
@@ -131,6 +135,34 @@ export {
 };
 
 // ─── SubmissionBlock-style extracted function ───────────────────────────────
+
+/** Normalize source URL arrays into AttachmentPreview[], deduplicated by URL. */
+function buildAttachmentPreviewsFromSource(
+  source: ReturnType<typeof getSourceAttachments>,
+): AttachmentPreview[] {
+  const previews: AttachmentPreview[] = [];
+
+  source.images.forEach((url, i) => {
+    previews.push({ _id: `src-att-img-${i}-${url}`, type: AttachmentType.IMAGE, url });
+  });
+  source.videos.forEach((url, i) => {
+    previews.push({ _id: `src-att-vid-${i}-${url}`, type: AttachmentType.VIDEO, url });
+  });
+  source.savedAudios.forEach((url, i) => {
+    previews.push({ _id: `src-att-aud-${i}-${url}`, type: AttachmentType.AUDIO, url });
+  });
+  source.files.forEach((url, i) => {
+    previews.push({ _id: `src-att-file-${i}-${url}`, type: AttachmentType.FILE, url });
+  });
+
+  // Deduplicate by URL
+  const seen = new Set<string>();
+  return previews.filter((p) => {
+    if (seen.has(p.url)) return false;
+    seen.add(p.url);
+    return true;
+  });
+}
 
 function getSourceAttachments(
   sourceValue: unknown,
@@ -316,8 +348,45 @@ export function useTaskDetailController(
       });
     }
 
+    // Fallback: if no timeline event carries attachment previews but the
+    // source data has create-time attachments, synthesize a CREATED event
+    // with those previews so they appear in the timeline regardless of
+    // whether the backend emits them in the timeline response.
+    const hasAttachmentEvents = clubbed.some(
+      (event) =>
+        event.type === TaskEventType.ATTACHMENT_ADDED ||
+        (event.attachmentPreviews && event.attachmentPreviews.length > 0),
+    );
+
+    if (!hasAttachmentEvents && sourceAttachments.hasAny) {
+      const createdEvent = clubbed.find((e) => e.type === TaskEventType.CREATED);
+      const attachmentPreviews = buildAttachmentPreviewsFromSource(sourceAttachments);
+
+      if (createdEvent) {
+        createdEvent.attachmentPreviews = [
+          ...(createdEvent.attachmentPreviews ?? []),
+          ...attachmentPreviews,
+        ];
+        return clubbed;
+      } else {
+        const syntheticEvent: SerializedTimelineEvent = {
+          _id: `synthetic-created-attachments-${taskId}`,
+          type: TaskEventType.CREATED,
+          data: { description: '' },
+          createdBy: {
+            _id: 'system',
+            name: 'System',
+          },
+          sortKey: '0',
+          createdAt: new Date().toISOString(),
+          attachmentPreviews,
+        };
+        return [...clubbed, syntheticEvent];
+      }
+    }
+
     return clubbed;
-  }, [timelineQuery.data]);
+  }, [timelineQuery.data, sourceAttachments]);
 
   // ─── Audio controller ───────────────────────────────────────────────────
   const audioController = useTaskAudioController(

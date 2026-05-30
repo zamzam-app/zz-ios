@@ -2,14 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { colors, spacing, radius, typography } from '../../../../theme/theme';
+import { colors, spacing, typography } from '../../../../theme/theme';
 import { TaskEventType, AttachmentType } from '../../../../types/task';
 import type { SerializedTimelineEvent, AttachmentPreview } from '../../../../types/task';
 
-import TimelineAudioAttachment from './TimelineAudioAttachment';
-import { formatFileSize } from './timelineFileFormatters';
-
-type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+import TimelineAttachmentPreview from './TimelineAttachmentPreview';
 
 interface TimelineEventAttachmentProps {
   event: SerializedTimelineEvent;
@@ -28,41 +25,21 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
       {/* Attachment previews from server summary */}
       {event.attachmentPreviews && event.attachmentPreviews.length > 0 ? (
         <View style={styles.attachmentRow}>
-          {event.attachmentPreviews.map((att) => {
-            // Render WhatsApp-style audio player for AUDIO type attachments
-            if (isAdded && att.type === AttachmentType.AUDIO) {
-              return <TimelineAudioAttachment key={att._id} url={att.url} />;
-            }
-
-            return (
-              <View
-                key={att._id}
-                style={[styles.attachmentCard, !isAdded && styles.removedCard]}
-                onTouchEnd={isAdded && onAttachmentPress ? () => onAttachmentPress(att) : undefined}
-              >
-                <View style={styles.attachmentIconBg}>
-                  <Ionicons
-                    name={attachmentIcon(att.type) as IoniconName}
-                    size={18}
-                    color={isAdded ? colors.info : colors.error}
-                  />
-                </View>
-                <View style={styles.attachmentInfo}>
-                  <Text style={styles.attachmentType} numberOfLines={1}>
-                    {att.type.toLowerCase()}
-                  </Text>
-                  {size != null && (
-                    <Text style={styles.attachmentSize}>{formatFileSize(size)}</Text>
-                  )}
-                </View>
-              </View>
-            );
-          })}
+          {event.attachmentPreviews.map((att) => (
+            <TimelineAttachmentPreview
+              key={att._id}
+              attachment={att}
+              interactive={isAdded}
+              removed={!isAdded}
+              size={size}
+              onPress={onAttachmentPress}
+            />
+          ))}
         </View>
       ) : (
         <View style={styles.inlineRow}>
           <Ionicons
-            name={(isAdded ? 'attach' : 'trash') as IoniconName}
+            name={(isAdded ? 'attach' : 'trash') as React.ComponentProps<typeof Ionicons>['name']}
             size={14}
             color={isAdded ? colors.info : colors.error}
           />
@@ -79,22 +56,6 @@ function TimelineEventAttachment({ event, onAttachmentPress }: TimelineEventAtta
   );
 }
 
-function attachmentIcon(type: AttachmentType): string {
-  switch (type) {
-    case AttachmentType.IMAGE:
-      return 'image';
-    case AttachmentType.VIDEO:
-      return 'videocam';
-    case AttachmentType.AUDIO:
-      return 'musical-notes';
-    case AttachmentType.DOCUMENT:
-      return 'document-text';
-    case AttachmentType.FILE:
-    default:
-      return 'document';
-  }
-}
-
 export default React.memo(TimelineEventAttachment);
 
 const styles = StyleSheet.create({
@@ -106,41 +67,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.xs,
-  },
-  attachmentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    minWidth: 140,
-  },
-  removedCard: {
-    opacity: 0.6,
-    borderColor: colors.errorLight,
-  },
-  attachmentIconBg: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  attachmentInfo: {
-    flexDirection: 'column',
-  },
-  attachmentType: {
-    fontSize: typography.sm,
-    fontWeight: typography.medium,
-    color: colors.text,
-    maxWidth: 100,
-  },
-  attachmentSize: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
   },
   inlineRow: {
     flexDirection: 'row',
