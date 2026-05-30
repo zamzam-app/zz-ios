@@ -360,24 +360,29 @@ export function useTaskDetailController(
 
     if (!hasAttachmentEvents && sourceAttachments.hasAny) {
       const createdEvent = clubbed.find((e) => e.type === TaskEventType.CREATED);
-      const createdBy = createdEvent?.createdBy ?? {
-        _id: sourceAttachments.images[0] ?? '',
-        name: 'System',
-      };
-      const description =
-        createdEvent && typeof createdEvent.data.description === 'string'
-          ? createdEvent.data.description
-          : '';
-      const syntheticEvent: SerializedTimelineEvent = {
-        _id: `synthetic-created-attachments-${taskId}`,
-        type: TaskEventType.CREATED,
-        data: { description },
-        createdBy,
-        sortKey: createdEvent?.sortKey ?? '0',
-        createdAt: createdEvent?.createdAt ?? new Date().toISOString(),
-        attachmentPreviews: buildAttachmentPreviewsFromSource(sourceAttachments),
-      };
-      return [...clubbed, syntheticEvent];
+      const attachmentPreviews = buildAttachmentPreviewsFromSource(sourceAttachments);
+
+      if (createdEvent) {
+        createdEvent.attachmentPreviews = [
+          ...(createdEvent.attachmentPreviews ?? []),
+          ...attachmentPreviews,
+        ];
+        return clubbed;
+      } else {
+        const syntheticEvent: SerializedTimelineEvent = {
+          _id: `synthetic-created-attachments-${taskId}`,
+          type: TaskEventType.CREATED,
+          data: { description: '' },
+          createdBy: {
+            _id: 'system',
+            name: 'System',
+          },
+          sortKey: '0',
+          createdAt: new Date().toISOString(),
+          attachmentPreviews,
+        };
+        return [...clubbed, syntheticEvent];
+      }
     }
 
     return clubbed;
