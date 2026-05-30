@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 
 import { colors, spacing, radius, typography } from '../../../../theme/theme';
 import { AttachmentType } from '../../../../types/task';
@@ -42,9 +42,12 @@ function TimelineAttachmentPreview({
   }
 
   return (
-    <View
+    <Pressable
       style={[styles.attachmentCard, removed && styles.removedCard]}
-      onTouchEnd={interactive && onPress ? () => onPress(attachment) : undefined}
+      onPress={interactive && onPress ? () => onPress(attachment) : undefined}
+      disabled={!interactive}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !interactive }}
     >
       <View style={styles.attachmentIconBg}>
         <Ionicons
@@ -59,7 +62,7 @@ function TimelineAttachmentPreview({
         </Text>
         {size != null && <Text style={styles.attachmentSize}>{formatFileSize(size)}</Text>}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
